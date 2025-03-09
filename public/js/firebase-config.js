@@ -1,6 +1,6 @@
 // Your web app's Firebase configuration
 const firebaseConfig = {
-    apiKey: "AIzaSyC4d0bvRJfbPc1kndWOzuRIvJ-IAzOrh5E",
+    apiKey: "AIzaSyC4d0byRJfbPc1kndWOzuRIyJ-IAzOrh5E",
     authDomain: "housekeeper-app-dev.firebaseapp.com",
     projectId: "housekeeper-app-dev",
     storageBucket: "housekeeper-app-dev.firestorage.app",
