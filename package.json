@@ -1,0 +1,12 @@
+{
+  "name": "housekeeper-app-dev",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "serve public",
+    "build": "echo 'No build step required'"
+  },
+  "devDependencies": {
+    "serve": "^14.2.0"
+  }
+}
