@@ -131,5 +131,17 @@
     
     <!-- Authentication JS -->
     <script src="js/auth.js"></script>
+
+    <!-- Add this script at the end of the file, before the closing body tag -->
+    <script>
+      console.log("Login page loaded");
+      
+      // Check if Firebase is initialized
+      if (firebase) {
+        console.log("Firebase is available on login page");
+      } else {
+        console.error("Firebase is not available on login page");
+      }
+    </script>
 </body>
 </html>

@@ -175,27 +175,46 @@
     <!-- Dashboard JS -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Initialize Alpine data
-            window.addEventListener('alpine:init', () => {
+            // Add debugging
+            console.log("DOM loaded, checking auth state...");
+            
+            // Check if Alpine is loaded
+            document.addEventListener('alpine:init', () => {
+                console.log('Alpine.js initialized');
+                
                 Alpine.data('app', () => ({
                     userEmail: '',
                     loading: true,
                     
                     init() {
+                        console.log("Alpine component initialized");
                         // Check authentication state
                         firebase.auth().onAuthStateChanged((user) => {
+                            console.log("Auth state changed:", user ? "User logged in" : "No user");
                             if (user) {
                                 // User is signed in
                                 this.userEmail = user.email;
                                 this.loading = false;
+                                console.log("Loading complete, showing dashboard");
                             } else {
                                 // User is not signed in, redirect to login
+                                console.log("No user found, redirecting to login");
                                 window.location.href = 'login.html';
                             }
                         });
                     }
                 }));
             });
+            
+            // Add a timeout to detect if Alpine never initializes
+            setTimeout(() => {
+                console.log("Checking if Alpine initialized after 3 seconds");
+                if (!window.Alpine) {
+                    console.error("Alpine.js failed to initialize");
+                    // Force redirect to login if Alpine fails
+                    window.location.href = 'login.html';
+                }
+            }, 3000);
         });
     </script>
 </body>
