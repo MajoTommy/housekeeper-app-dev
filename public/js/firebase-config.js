@@ -14,5 +14,7 @@ const firebaseConfig = {
   
   // Export Firebase services
   const auth = firebase.auth();
-  const db = firebase.firestore();
-  const storage = firebase.storage();
+  
+  // Only initialize Firestore and Storage if they exist
+  const db = firebase.firestore ? firebase.firestore() : null;
+  const storage = firebase.storage ? firebase.storage() : null;
