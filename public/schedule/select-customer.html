@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Select Customer - Housekeeper App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            DEFAULT: '#2196F3',
+                            light: '#E3F2FD',
+                        },
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
+</head>
+<body class="h-full">
+    <!-- Header -->
+    <div class="sticky top-0 z-40 bg-white border-b border-gray-200">
+        <div class="flex items-center justify-between px-4 py-4">
+            <a href="new-cleaning.html" class="text-primary">
+                <i class="fas fa-arrow-left"></i>
+            </a>
+            <h1 class="text-xl font-semibold text-gray-900">Select Customer</h1>
+            <div class="w-6"><!-- Spacer --></div>
+        </div>
+    </div>
+
+    <!-- Replace the existing blue card with this version that matches the screenshot -->
+    <div class="bg-primary text-white rounded-lg shadow-sm p-6 mx-4 my-4">
+        <div class="flex items-center mb-3">
+            <i class="fas fa-calendar-day mr-3 text-xl"></i>
+            <span class="font-medium text-lg">Tuesday, June 4</span>
+        </div>
+        <div class="flex items-center">
+            <i class="fas fa-clock mr-3 text-xl"></i>
+            <span class="font-medium text-lg">10:00 AM - 12:00 PM</span>
+        </div>
+    </div>
+
+    <!-- Recent Customers - Now directly below header -->
+    <div class="divide-y divide-gray-200 bg-white">
+        <h2 class="text-base font-medium text-gray-500 p-4">Recent Customers</h2>
+        
+        <!-- Customer 1 -->
+        <a href="select-frequency.html" class="block p-4 hover:bg-gray-50">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h3 class="text-lg font-medium text-gray-900">Sarah Johnson</h3>
+                    <p class="text-sm text-gray-500">123 Main St</p>
+                </div>
+                <i class="fas fa-chevron-right text-gray-400"></i>
+            </div>
+        </a>
+        
+        <!-- Customer 2 -->
+        <a href="confirm-booking.html" class="block p-4 hover:bg-gray-50">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h3 class="text-lg font-medium text-gray-900">Michael Smith</h3>
+                    <p class="text-sm text-gray-500">456 Park Ave</p>
+                </div>
+                <i class="fas fa-chevron-right text-gray-400"></i>
+            </div>
+        </a>
+        
+        <!-- Customer 3 -->
+        <a href="confirm-booking.html" class="block p-4 hover:bg-gray-50">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h3 class="text-lg font-medium text-gray-900">Jennifer Davis</h3>
+                    <p class="text-sm text-gray-500">789 Oak Dr</p>
+                </div>
+                <i class="fas fa-chevron-right text-gray-400"></i>
+            </div>
+        </a>
+    </div>
+
+    <!-- Mobile Footer Navigation with Payment Badge -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30">
+        <div class="flex justify-around">
+            <a href="../index.html" class="flex flex-col items-center py-3 px-6 text-primary">
+                <i class="fas fa-calendar-alt text-xl"></i>
+                <span class="text-xs mt-1">Schedule</span>
+            </a>
+            <a href="../clients/clients.html" class="flex flex-col items-center py-3 px-6 text-gray-500">
+                <i class="fas fa-users text-xl"></i>
+                <span class="text-xs mt-1">Clients</span>
+            </a>
+            <a href="../payments/payments.html" class="flex flex-col items-center py-3 px-6 text-gray-500 relative">
+                <div class="relative">
+                    <i class="fas fa-dollar-sign text-xl"></i>
+                    <span class="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">3</span>
+                </div>
+                <span class="text-xs mt-1">Payments</span>
+            </a>
+        </div>
+    </div>
+</body>
+</html> 

@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Housekeeper App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            DEFAULT: '#2196F3',
+                            light: '#E3F2FD',
+                        },
+                        danger: {
+                            DEFAULT: '#DC2626',
+                            light: '#FEE2E2',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="h-full pb-20">
+    <!-- Header -->
+    <div class="sticky top-0 z-40 bg-white border-b border-gray-200">
+        <div class="flex items-center justify-between px-4 py-4">
+            <h1 class="text-xl font-semibold text-gray-900">Settings</h1>
+            <div></div> <!-- Empty div to maintain spacing -->
+        </div>
+    </div>
+
+    <div class="px-4 py-6 space-y-6">
+        <!-- Profile Card -->
+        <div class="bg-white rounded-lg p-4 shadow-sm">
+            <div class="flex items-center gap-x-4">
+                <div class="h-16 w-16 rounded-full bg-primary-light flex items-center justify-center text-xl font-semibold text-primary">
+                    MG
+                </div>
+                <div class="flex-1">
+                    <h2 class="text-xl font-semibold text-gray-900">Maria Garcia</h2>
+                    <p class="text-sm text-gray-500">maria@example.com</p>
+                </div>
+                <a href="edit-profile.html" class="inline-flex items-center rounded-md bg-white px-2.5 py-1.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+                    <i class="fas fa-edit mr-1.5"></i>
+                    Edit
+                </a>
+            </div>
+        </div>
+
+        <!-- Working Hours -->
+        <div class="bg-white rounded-lg p-4 shadow-sm">
+            <h2 class="text-lg font-medium text-gray-900">Working Hours</h2>
+            
+            <!-- Days Selection -->
+            <div class="flex gap-2 mt-4">
+                <button class="h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center text-sm font-medium">M</button>
+                <button class="h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center text-sm font-medium">T</button>
+                <button class="h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center text-sm font-medium">W</button>
+                <button class="h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center text-sm font-medium">T</button>
+                <button class="h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center text-sm font-medium">F</button>
+                <button class="h-10 w-10 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center text-sm font-medium">S</button>
+                <button class="h-10 w-10 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center text-sm font-medium">S</button>
+            </div>
+
+            <!-- Time Selection -->
+            <div class="mt-4 grid grid-cols-2 gap-3">
+                <select id="start-time" class="block w-full rounded-lg border-gray-300 py-2 pl-3 pr-10 text-base focus:border-primary focus:outline-none focus:ring-primary">
+                    <option value="6:00">Start: 6:00 AM</option>
+                    <option value="6:30">Start: 6:30 AM</option>
+                    <option value="7:00">Start: 7:00 AM</option>
+                    <option value="7:30">Start: 7:30 AM</option>
+                    <option value="8:00" selected>Start: 8:00 AM</option>
+                    <option value="8:30">Start: 8:30 AM</option>
+                    <option value="9:00">Start: 9:00 AM</option>
+                    <option value="9:30">Start: 9:30 AM</option>
+                    <option value="10:00">Start: 10:00 AM</option>
+                </select>
+                <select id="end-time" class="block w-full rounded-lg border-gray-300 py-2 pl-3 pr-10 text-base focus:border-primary focus:outline-none focus:ring-primary">
+                    <option value="15:00">End: 3:00 PM</option>
+                    <option value="15:30">End: 3:30 PM</option>
+                    <option value="16:00">End: 4:00 PM</option>
+                    <option value="16:30">End: 4:30 PM</option>
+                    <option value="17:00" selected>End: 5:00 PM</option>
+                    <option value="17:30">End: 5:30 PM</option>
+                    <option value="18:00">End: 6:00 PM</option>
+                    <option value="18:30">End: 6:30 PM</option>
+                    <option value="19:00">End: 7:00 PM</option>
+                    <option value="19:30">End: 7:30 PM</option>
+                    <option value="20:00">End: 8:00 PM</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Cleaning Preferences -->
+        <div class="bg-white rounded-lg p-4 shadow-sm">
+            <h2 class="text-lg font-medium text-gray-900">Cleaning Preferences</h2>
+            
+            <div class="mt-4">
+                <!-- Cleanings Per Day -->
+                <div>
+                    <label for="cleanings-per-day" class="block text-sm font-medium text-gray-700 mb-2">Cleanings Per Day</label>
+                    <select id="cleanings-per-day" class="block w-full rounded-lg border-gray-300 py-2 pl-3 pr-10 text-base focus:border-primary focus:outline-none focus:ring-primary">
+                        <option value="1">1 cleaning per day</option>
+                        <option value="2" selected>2 cleanings per day</option>
+                        <option value="3">3 cleanings per day</option>
+                        <option value="4">4 cleanings per day</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Payment Settings -->
+        <div class="bg-white rounded-lg p-4 shadow-sm">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Payment Settings</h3>
+            
+            <!-- Hourly Rate -->
+            <div class="mb-4">
+                <label for="hourly-rate" class="block text-sm font-medium text-gray-700 mb-2">Hourly Rate</label>
+                <div class="relative mt-1 rounded-md shadow-sm">
+                    <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                        <span class="text-gray-500 sm:text-sm">$</span>
+                    </div>
+                    <input type="number" name="hourly-rate" id="hourly-rate" class="block w-full rounded-md border-gray-300 pl-7 pr-12 focus:border-primary focus:ring-primary sm:text-sm" placeholder="0.00" step="0.01" min="0">
+                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                        <span class="text-gray-500 sm:text-sm">/hour</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex items-center justify-between py-2">
+                <span class="text-gray-700">Auto-send Receipts</span>
+                <div class="relative inline-block w-12 h-6 transition duration-200 ease-in-out rounded-full">
+                    <input type="checkbox" id="auto-send-receipts" class="absolute w-0 h-0 opacity-0">
+                    <label for="auto-send-receipts" class="block w-12 h-6 overflow-hidden rounded-full bg-gray-300 cursor-pointer">
+                        <span class="absolute w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ease-in-out translate-x-1 translate-y-1"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Support -->
+        <div class="bg-white rounded-lg p-4 shadow-sm">
+            <h2 class="text-lg font-medium text-gray-900">Support</h2>
+            <div class="mt-4 space-y-4">
+                <a href="help.html" class="flex items-center justify-between py-2">
+                    <span class="text-sm text-gray-700">Help & Support</span>
+                    <svg class="w-5 h-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                    </svg>
+                </a>
+                <a href="mailto:support@example.com" class="flex items-center justify-between py-2">
+                    <span class="text-sm text-gray-700">Contact Us</span>
+                    <svg class="w-5 h-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                    </svg>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Footer Navigation with Payment Badge -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30">
+        <div class="flex justify-around">
+            <a href="../index.html" class="flex flex-col items-center py-3 px-6 text-gray-500">
+                <i class="fas fa-calendar-alt text-xl"></i>
+                <span class="text-xs mt-1">Schedule</span>
+            </a>
+            <a href="../clients/clients.html" class="flex flex-col items-center py-3 px-6 text-gray-500">
+                <i class="fas fa-users text-xl"></i>
+                <span class="text-xs mt-1">Clients</span>
+            </a>
+            <a href="../payments/payments.html" class="flex flex-col items-center py-3 px-6 text-gray-500 relative">
+                <div class="relative">
+                    <i class="fas fa-dollar-sign text-xl"></i>
+                    <span class="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">3</span>
+                </div>
+                <span class="text-xs mt-1">Payments</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Add these scripts before the closing body tag -->
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    
+    <!-- Firebase Config -->
+    <script src="../js/firebase-config.js"></script>
+    
+    <!-- Default Settings -->
+    <script src="../js/defaults.js"></script>
+    
+    <!-- Settings JS -->
+    <script src="../js/settings.js"></script>
+</body>
+</html> 

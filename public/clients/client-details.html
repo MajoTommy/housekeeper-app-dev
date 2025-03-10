@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client Details - Housekeeper App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            DEFAULT: '#2196F3',
+                            light: '#E3F2FD',
+                            dark: '#1976D2'
+                        },
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+      .client-card {
+        width: calc(100% - 2rem);
+        margin-left: 1rem;
+        margin-right: 1rem;
+      }
+    </style>
+</head>
+<body class="h-full pb-16">
+    <!-- Header -->
+    <div class="sticky top-0 z-40 bg-white border-b border-gray-200">
+        <div class="flex items-center justify-between px-4 py-4">
+            <a href="clients.html" class="text-primary">
+                <i class="fas fa-arrow-left"></i>
+            </a>
+            <h1 class="text-xl font-semibold text-gray-900">Client Details</h1>
+            <a href="#" class="text-gray-500">
+                <i class="fas fa-cog"></i>
+            </a>
+        </div>
+    </div>
+
+    <!-- Client Info -->
+    <div class="bg-white rounded-lg shadow-sm mb-4 client-card">
+        <div class="p-4">
+            <div class="flex justify-between items-start mb-2">
+                <h2 class="text-2xl font-bold text-gray-900">Johnson, Sarah</h2>
+                <a href="edit-client.html" class="inline-flex items-center rounded-md bg-white px-2.5 py-1.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+                    <i class="fas fa-edit mr-1.5"></i>
+                    Edit
+                </a>
+            </div>
+            <p class="text-gray-600">123 Main St, Apt 4B</p>
+            <p class="text-gray-600">Chicago, IL 60601</p>
+            <div class="mt-2">
+                <a href="tel:+13125551234" class="text-primary flex items-center gap-2">
+                    <i class="fas fa-phone"></i> (312) 555-1234
+                </a>
+                <a href="mailto:sarah@example.com" class="text-primary flex items-center gap-2 mt-1">
+                    <i class="fas fa-envelope"></i> sarah@example.com
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cleaning Schedule -->
+    <div class="bg-white rounded-lg shadow-sm mb-4 client-card">
+        <div class="p-4">
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">Cleaning Schedule</h3>
+            <div class="flex items-center gap-2 mb-1">
+                <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                    Weekly
+                </span>
+                <span class="text-gray-700">Every Wednesday at 9:00 AM</span>
+            </div>
+            <p class="text-gray-600 text-sm">3 bedroom, 2 bathroom apartment</p>
+            <p class="text-gray-600 text-sm">$120 per cleaning</p>
+            <div class="mt-3">
+                <a href="../schedule/reschedule-choice.html" class="block w-full bg-white border border-gray-300 rounded-lg py-3 px-4 text-center text-gray-700 font-medium hover:bg-gray-50">
+                    Reschedule
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upcoming Cleanings -->
+    <div class="bg-white rounded-lg shadow-sm mb-4 client-card">
+        <div class="p-4">
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">Upcoming Cleanings</h3>
+            
+            <div class="border-l-4 border-green-500 pl-3 py-2 mb-3">
+                <div class="flex justify-between">
+                    <div>
+                        <p class="font-medium">Wednesday, March 15</p>
+                        <p class="text-sm text-gray-600">9:00 AM - 11:00 AM</p>
+                    </div>
+                    <a href="../schedule/cleaning-details.html" class="text-primary">
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                </div>
+            </div>
+            
+            <div class="border-l-4 border-green-500 pl-3 py-2 mb-3">
+                <div class="flex justify-between">
+                    <div>
+                        <p class="font-medium">Wednesday, March 22</p>
+                        <p class="text-sm text-gray-600">9:00 AM - 11:00 AM</p>
+                    </div>
+                    <a href="../schedule/cleaning-details.html" class="text-primary">
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                </div>
+            </div>
+            
+            <div class="border-l-4 border-green-500 pl-3 py-2">
+                <div class="flex justify-between">
+                    <div>
+                        <p class="font-medium">Wednesday, March 29</p>
+                        <p class="text-sm text-gray-600">9:00 AM - 11:00 AM</p>
+                    </div>
+                    <a href="../schedule/cleaning-details.html" class="text-primary">
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Access Information -->
+    <div class="bg-white rounded-lg shadow-sm mb-4 client-card">
+        <div class="p-4">
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">Access Information</h3>
+            <div class="space-y-2">
+                <p class="text-gray-700"><span class="font-medium">Entry:</span> Key in lockbox #1234 (code: 5678)</p>
+                <p class="text-gray-700"><span class="font-medium">Alarm:</span> None</p>
+                <p class="text-gray-700"><span class="font-medium">Pets:</span> Cat named Whiskers. Please be careful when entering.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Special Instructions -->
+    <div class="bg-white rounded-lg shadow-sm mb-4 client-card">
+        <div class="p-4">
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">Special Instructions</h3>
+            <div class="space-y-2">
+                <p class="text-gray-700">Prefers eco-friendly cleaning products.</p>
+                <p class="text-gray-700">Leave shoes at the door.</p>
+                <p class="text-gray-700">Do not move items on the desk in the office.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Footer Navigation with Payment Badge -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30">
+        <div class="flex justify-around">
+            <a href="../index.html" class="flex flex-col items-center py-3 px-6 text-gray-500">
+                <i class="fas fa-calendar-alt text-xl"></i>
+                <span class="text-xs mt-1">Schedule</span>
+            </a>
+            <a href="clients.html" class="flex flex-col items-center py-3 px-6 text-primary">
+                <i class="fas fa-users text-xl"></i>
+                <span class="text-xs mt-1">Clients</span>
+            </a>
+            <a href="../payments/payments.html" class="flex flex-col items-center py-3 px-6 text-gray-500 relative">
+                <div class="relative">
+                    <i class="fas fa-dollar-sign text-xl"></i>
+                    <span class="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">3</span>
+                </div>
+                <span class="text-xs mt-1">Payments</span>
+            </a>
+        </div>
+    </div>
+</body>
+</html> 

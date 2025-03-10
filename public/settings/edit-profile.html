@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Profile - Housekeeper App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            DEFAULT: '#2196F3',
+                            light: '#E3F2FD',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="h-full pb-20">
+    <!-- Header -->
+    <div class="sticky top-0 z-40 bg-white border-b border-gray-200">
+        <div class="flex items-center justify-between px-4 py-4">
+            <div class="flex items-center gap-x-4">
+                <a href="settings.html" class="text-primary">
+                    <i class="fas fa-arrow-left"></i>
+                </a>
+                <h1 class="text-xl font-semibold text-gray-900">Edit Profile</h1>
+            </div>
+            <a href="settings.html" class="text-gray-500">
+                <i class="fas fa-cog text-xl"></i>
+            </a>
+        </div>
+    </div>
+
+    <div class="px-4 py-6">
+        <!-- Profile Photo -->
+        <div class="flex flex-col items-center mb-8">
+            <div class="h-24 w-24 rounded-full bg-primary-light flex items-center justify-center text-2xl font-semibold text-primary">
+                MG
+            </div>
+            <button class="mt-4 text-primary text-sm font-medium">Change Photo</button>
+        </div>
+
+        <!-- Profile Form -->
+        <form class="space-y-8">
+            <!-- Basic Info -->
+            <div class="space-y-6">
+                <div>
+                    <label class="block text-base font-semibold text-gray-900 mb-2">Name</label>
+                    <input 
+                        type="text" 
+                        value="Maria Garcia"
+                        class="block w-full rounded-lg px-4 py-3 text-gray-900 bg-white border border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary-light"
+                    >
+                </div>
+
+                <div>
+                    <label class="block text-base font-semibold text-gray-900 mb-2">Email</label>
+                    <input 
+                        type="email" 
+                        value="maria@example.com"
+                        class="block w-full rounded-lg px-4 py-3 text-gray-900 bg-white border border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary-light"
+                    >
+                </div>
+
+                <div>
+                    <label class="block text-base font-semibold text-gray-900 mb-2">Phone</label>
+                    <input 
+                        type="tel" 
+                        value="(555) 123-4567"
+                        class="block w-full rounded-lg px-4 py-3 text-gray-900 bg-white border border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary-light"
+                    >
+                </div>
+            </div>
+
+            <!-- Service Area -->
+            <div class="space-y-6">
+                <h2 class="text-base font-semibold text-gray-900">Service Area</h2>
+                
+                <div>
+                    <label class="block text-base font-semibold text-gray-900 mb-2">Address</label>
+                    <input 
+                        type="text" 
+                        placeholder="Enter your service area address"
+                        class="block w-full rounded-lg px-4 py-3 text-gray-900 bg-white border border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary-light"
+                    >
+                </div>
+
+                <div>
+                    <label class="block text-base font-semibold text-gray-900 mb-2">Service Radius</label>
+                    <select class="block w-full rounded-lg px-4 py-3 text-gray-900 bg-white border border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary-light">
+                        <option>5 miles</option>
+                        <option>10 miles</option>
+                        <option>15 miles</option>
+                        <option>20 miles</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Hourly Rate -->
+            <div>
+                <label class="block text-base font-semibold text-gray-900 mb-2">Hourly Rate</label>
+                <div class="relative">
+                    <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
+                        <span class="text-gray-500">$</span>
+                    </div>
+                    <input 
+                        type="number" 
+                        value="30"
+                        class="block w-full rounded-lg pl-8 pr-4 py-3 text-gray-900 bg-white border border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary-light"
+                    >
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Mobile Footer Navigation with Payment Badge -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30">
+        <div class="flex justify-around">
+            <a href="../index.html" class="flex flex-col items-center py-3 px-6 text-gray-500">
+                <i class="fas fa-calendar-alt text-xl"></i>
+                <span class="text-xs mt-1">Schedule</span>
+            </a>
+            <a href="../clients/clients.html" class="flex flex-col items-center py-3 px-6 text-gray-500">
+                <i class="fas fa-users text-xl"></i>
+                <span class="text-xs mt-1">Clients</span>
+            </a>
+            <a href="../payments/payments.html" class="flex flex-col items-center py-3 px-6 text-gray-500 relative">
+                <div class="relative">
+                    <i class="fas fa-dollar-sign text-xl"></i>
+                    <span class="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">3</span>
+                </div>
+                <span class="text-xs mt-1">Payments</span>
+            </a>
+        </div>
+    </div>
+</body>
+</html> 

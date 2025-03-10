@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Help & Support - Housekeeper App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            DEFAULT: '#2196F3',
+                            light: '#E3F2FD',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="h-full pb-20">
+    <!-- Header -->
+    <div class="sticky top-0 z-40 bg-white border-b border-gray-200">
+        <div class="flex items-center justify-between px-4 py-4">
+            <div class="flex items-center gap-x-4">
+                <a href="settings.html" class="text-primary">
+                    <i class="fas fa-arrow-left"></i>
+                </a>
+                <h1 class="text-xl font-semibold text-gray-900">Help & Support</h1>
+            </div>
+            <a href="settings.html" class="text-gray-500">
+                <i class="fas fa-cog text-xl"></i>
+            </a>
+        </div>
+    </div>
+
+    <div class="px-4 py-6 space-y-6">
+        <!-- Contact Support Card -->
+        <a href="mailto:support@example.com" class="bg-white rounded-lg p-4 shadow-sm flex items-center gap-x-4">
+            <div class="h-12 w-12 rounded-full bg-primary-light flex items-center justify-center text-primary">
+                <i class="fas fa-envelope"></i>
+            </div>
+            <div class="flex-1">
+                <h3 class="text-base font-semibold text-gray-900">Contact Support</h3>
+                <p class="text-sm text-gray-500">Get help from our support team</p>
+            </div>
+            <i class="fas fa-chevron-right text-gray-400"></i>
+        </a>
+
+        <!-- FAQ Section -->
+        <div class="bg-white rounded-lg p-4 shadow-sm">
+            <div class="flex items-center gap-x-2 mb-4">
+                <i class="fas fa-question-circle text-primary"></i>
+                <h2 class="text-lg font-medium text-gray-900">Frequently Asked Questions</h2>
+            </div>
+
+            <div class="space-y-4">
+                <div class="border-b border-gray-200 pb-4">
+                    <button class="flex items-center justify-between w-full text-left" onclick="toggleFAQ(this)">
+                        <span class="font-medium text-gray-900">How do I edit a client's schedule?</span>
+                        <i class="fas fa-chevron-down text-gray-400"></i>
+                    </button>
+                    <div class="mt-2 text-gray-600 hidden">
+                        Go to the client's profile, tap on "Edit Schedule", and make your changes. Don't forget to save your updates.
+                    </div>
+                </div>
+
+                <div class="border-b border-gray-200 pb-4">
+                    <button class="flex items-center justify-between w-full text-left" onclick="toggleFAQ(this)">
+                        <span class="font-medium text-gray-900">How do I mark a payment as received?</span>
+                        <i class="fas fa-chevron-down text-gray-400"></i>
+                    </button>
+                    <div class="mt-2 text-gray-600 hidden">
+                        Navigate to Payments, find the pending payment, and tap "Mark as Paid". You can also add notes about the payment method.
+                    </div>
+                </div>
+
+                <div class="pb-2">
+                    <button class="flex items-center justify-between w-full text-left" onclick="toggleFAQ(this)">
+                        <span class="font-medium text-gray-900">Can I set different prices for different clients?</span>
+                        <i class="fas fa-chevron-down text-gray-400"></i>
+                    </button>
+                    <div class="mt-2 text-gray-600 hidden">
+                        Yes! Each client can have their own custom price. Set this when adding a new client or edit an existing client's details.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Guides Section -->
+        <div class="bg-white rounded-lg p-4 shadow-sm">
+            <div class="flex items-center gap-x-2 mb-4">
+                <i class="fas fa-book text-primary"></i>
+                <h2 class="text-lg font-medium text-gray-900">Quick Guides</h2>
+            </div>
+
+            <div class="space-y-4">
+                <div class="border-b border-gray-200 pb-4">
+                    <button class="flex items-center justify-between w-full text-left" onclick="toggleFAQ(this)">
+                        <span class="font-medium text-gray-900">Getting Started Guide</span>
+                        <i class="fas fa-chevron-down text-gray-400"></i>
+                    </button>
+                    <div class="mt-2 text-gray-600 hidden">
+                        Learn how to set up your profile, add clients, and manage your schedule in just a few minutes.
+                    </div>
+                </div>
+
+                <div class="pb-2">
+                    <button class="flex items-center justify-between w-full text-left" onclick="toggleFAQ(this)">
+                        <span class="font-medium text-gray-900">Managing Your Schedule</span>
+                        <i class="fas fa-chevron-down text-gray-400"></i>
+                    </button>
+                    <div class="mt-2 text-gray-600 hidden">
+                        Tips for organizing your cleaning schedule, handling conflicts, and managing time effectively.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Footer Navigation with Payment Badge -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30">
+        <div class="flex justify-around">
+            <a href="../index.html" class="flex flex-col items-center py-3 px-6 text-gray-500">
+                <i class="fas fa-calendar-alt text-xl"></i>
+                <span class="text-xs mt-1">Schedule</span>
+            </a>
+            <a href="../clients/clients.html" class="flex flex-col items-center py-3 px-6 text-gray-500">
+                <i class="fas fa-users text-xl"></i>
+                <span class="text-xs mt-1">Clients</span>
+            </a>
+            <a href="../payments/payments.html" class="flex flex-col items-center py-3 px-6 text-gray-500 relative">
+                <div class="relative">
+                    <i class="fas fa-dollar-sign text-xl"></i>
+                    <span class="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">3</span>
+                </div>
+                <span class="text-xs mt-1">Payments</span>
+            </a>
+        </div>
+    </div>
+
+    <script>
+        function toggleFAQ(button) {
+            const answer = button.nextElementSibling;
+            answer.classList.toggle('hidden');
+            
+            const icon = button.querySelector('i');
+            if (answer.classList.contains('hidden')) {
+                icon.classList.remove('fa-chevron-up');
+                icon.classList.add('fa-chevron-down');
+            } else {
+                icon.classList.remove('fa-chevron-down');
+                icon.classList.add('fa-chevron-up');
+            }
+        }
+    </script>
+</body>
+</html> 

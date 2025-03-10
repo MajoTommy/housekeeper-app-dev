@@ -1,0 +1,116 @@
+<!-- Add this in the head section after firebase-config.js -->
+<script src="js/auth.js"></script>
+
+<!-- Personalized Header with Settings Icon and Logout -->
+<div class="bg-white px-4 py-6 border-b border-gray-200">
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Schedule</h1>
+        </div>
+        <div class="flex items-center gap-x-4">
+            <a href="settings/settings.html" class="text-gray-500 hover:text-gray-700 p-2">
+                <i class="fas fa-cog text-xl"></i>
+            </a>
+            <!-- Updated Logout Button -->
+            <button id="logout-button" class="text-gray-500 hover:text-gray-700 p-2 cursor-pointer">
+                <i class="fas fa-sign-out-alt text-xl"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Add this script right after the Firebase scripts -->
+<script>
+    // Global logout function
+    function logoutUser() {
+        console.log('Logout function called');
+        
+        if (typeof firebase === 'undefined' || !firebase.auth) {
+            console.error('Firebase or firebase.auth is not available');
+            alert('Authentication service is not available. Please try again later.');
+            return;
+        }
+        
+        try {
+            console.log('Attempting to sign out user');
+            
+            firebase.auth().signOut()
+                .then(() => {
+                    console.log('User signed out successfully');
+                    // Redirect to login page
+                    window.location.href = 'login.html';
+                })
+                .catch((error) => {
+                    console.error('Error signing out:', error);
+                    alert('Error signing out: ' + error.message);
+                });
+        } catch (error) {
+            console.error('Exception during logout:', error);
+            alert('An error occurred during logout: ' + error.message);
+        }
+    }
+</script>
+
+<!-- Bottom Navigation with Logout -->
+<div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200">
+    <div class="flex justify-around">
+        <a href="index.html" class="flex flex-col items-center py-3 text-primary">
+            <i class="fas fa-calendar text-xl"></i>
+            <span class="text-xs mt-1">Schedule</span>
+        </a>
+        <a href="clients/clients.html" class="flex flex-col items-center py-3 text-gray-500">
+            <i class="fas fa-users text-xl"></i>
+            <span class="text-xs mt-1">Clients</span>
+        </a>
+        <a href="payments/payments.html" class="flex flex-col items-center py-3 text-gray-500">
+            <i class="fas fa-dollar-sign text-xl"></i>
+            <span class="text-xs mt-1">Payments</span>
+        </a>
+        <!-- Logout Link -->
+        <a href="logout.html" class="flex flex-col items-center py-3 text-gray-500">
+            <i class="fas fa-sign-out-alt text-xl"></i>
+            <span class="text-xs mt-1">Logout</span>
+        </a>
+    </div>
+</div>
+
+<!-- Add this script at the end of your file -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const directLogout = document.getElementById('direct-logout');
+        if (directLogout) {
+            directLogout.addEventListener('click', function(e) {
+                e.preventDefault();
+                console.log('Direct logout clicked');
+                
+                // Try to sign out if Firebase is available
+                if (typeof firebase !== 'undefined' && firebase.auth) {
+                    firebase.auth().signOut().catch(error => {
+                        console.error('Logout error:', error);
+                    });
+                }
+                
+                // Redirect to login page regardless of Firebase status
+                window.location.href = 'login.html';
+            });
+        }
+    });
+
+    // Additional check for logout button functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        const logoutButton = document.getElementById('logout-button');
+        console.log('Logout button found:', !!logoutButton);
+        
+        if (logoutButton) {
+            logoutButton.addEventListener('click', function() {
+                console.log('Logout clicked');
+                firebase.auth().signOut().then(() => {
+                    console.log('Logout successful');
+                    window.location.href = 'login.html';
+                }).catch((error) => {
+                    console.error('Logout error:', error);
+                });
+            });
+        }
+    });
+</script> 

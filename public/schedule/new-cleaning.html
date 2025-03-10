@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Cleaning - Housekeeper App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            DEFAULT: '#2196F3',
+                            light: '#E3F2FD',
+                        },
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    
+    <!-- Your Firebase configuration -->
+    <script src="../js/firebase-config.js"></script>
+    
+    <!-- Default Settings -->
+    <script src="../js/defaults.js"></script>
+    
+    <!-- Booking Manager -->
+    <script src="../js/booking.js"></script>
+</head>
+<body class="h-full">
+    <!-- Header -->
+    <div class="sticky top-0 z-40 bg-white border-b border-gray-200">
+        <div class="flex items-center justify-between px-4 py-4">
+            <a href="../index.html" class="text-primary">
+                <i class="fas fa-arrow-left"></i>
+            </a>
+            <h1 class="text-xl font-semibold text-gray-900">New Cleaning</h1>
+            <div class="w-6"><!-- Spacer --></div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="p-4">
+        <!-- Content will be dynamically inserted here -->
+    </div>
+
+    <!-- Mobile Footer Navigation -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30">
+        <div class="flex justify-around">
+            <a href="../index.html" class="flex flex-col items-center py-3 px-6 text-primary">
+                <i class="fas fa-calendar-alt text-xl"></i>
+                <span class="text-xs mt-1">Schedule</span>
+            </a>
+            <a href="../clients/clients.html" class="flex flex-col items-center py-3 px-6 text-gray-500">
+                <i class="fas fa-users text-xl"></i>
+                <span class="text-xs mt-1">Clients</span>
+            </a>
+            <a href="../payments/payments.html" class="flex flex-col items-center py-3 px-6 text-gray-500 relative">
+                <div class="relative">
+                    <i class="fas fa-dollar-sign text-xl"></i>
+                    <span class="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">3</span>
+                </div>
+                <span class="text-xs mt-1">Payments</span>
+            </a>
+        </div>
+    </div>
+</body>
+</html> 

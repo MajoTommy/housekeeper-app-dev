@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirm Booking - Housekeeper App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            DEFAULT: '#2196F3',
+                            light: '#E3F2FD',
+                        },
+                        success: {
+                            DEFAULT: '#4CAF50',
+                            light: '#E8F5E9',
+                        },
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="h-full pb-16">
+    <!-- Header -->
+    <div class="sticky top-0 z-40 bg-white border-b border-gray-200">
+        <div class="flex items-center justify-between px-4 py-4">
+            <a href="select-customer.html" class="text-primary">
+                <i class="fas fa-arrow-left"></i>
+            </a>
+            <h1 class="text-xl font-semibold leading-7 text-gray-900">Confirm Booking</h1>
+            <div class="w-6"><!-- Spacer --></div>
+        </div>
+    </div>
+
+    <!-- Confirmation Content -->
+    <div class="p-4 space-y-6">
+        <!-- Success Icon -->
+        <div class="flex justify-center mb-2">
+            <div class="rounded-full bg-success-light p-3">
+                <svg class="w-12 h-12 text-success" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+        </div>
+        
+        <!-- Confirmation Message -->
+        <div class="text-center mb-4">
+            <h2 class="text-2xl font-bold text-gray-900 mb-2">Booking Confirmed!</h2>
+            <p class="text-gray-600">You've successfully booked a cleaning appointment.</p>
+        </div>
+        
+        <!-- Customer Info -->
+        <div class="bg-white rounded-lg shadow-sm p-6">
+            <h2 class="text-xl font-bold text-gray-900 mb-2">Sarah Johnson</h2>
+            <p class="text-gray-600">123 Main St</p>
+        </div>
+        
+        <!-- Booking Details -->
+        <div class="bg-white rounded-lg shadow-sm p-6 space-y-4">
+            <div>
+                <h3 class="text-sm font-medium text-primary mb-1">Appointment Details</h3>
+                <div class="flex items-center">
+                    <i class="fas fa-calendar-day text-primary mr-2"></i>
+                    <p class="font-medium text-gray-900">March 17, 2023</p>
+                </div>
+                <div class="flex items-center mt-1">
+                    <i class="fas fa-clock text-primary mr-2"></i>
+                    <p class="font-medium text-gray-900">10:00 AM - 12:00 PM</p>
+                </div>
+                <div class="flex items-center mt-1">
+                    <i class="fas fa-broom text-primary mr-2"></i>
+                    <p class="font-medium text-gray-900">Regular Cleaning</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Notification Option -->
+        <div class="bg-white rounded-lg shadow-sm p-4">
+            <label class="flex items-center">
+                <input type="checkbox" class="w-5 h-5 text-primary rounded" checked>
+                <span class="ml-2 text-gray-700">Notify customer about this booking</span>
+            </label>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div class="space-y-3">
+            <a href="march-17-23.html" class="block w-full bg-green-500 hover:bg-green-600 text-white font-medium py-4 px-4 rounded-lg flex items-center justify-center gap-2">
+                <i class="fas fa-calendar-alt"></i>
+                Return to Schedule
+            </a>
+            
+            <a href="client-details.html" class="block text-center text-gray-600 py-2">
+                View Client Details
+            </a>
+        </div>
+    </div>
+
+    <!-- Mobile Footer Navigation with Payment Badge -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30">
+        <div class="flex justify-around">
+            <a href="../index.html" class="flex flex-col items-center py-3 px-6 text-primary">
+                <i class="fas fa-calendar-alt text-xl"></i>
+                <span class="text-xs mt-1">Schedule</span>
+            </a>
+            <a href="../clients/clients.html" class="flex flex-col items-center py-3 px-6 text-gray-500">
+                <i class="fas fa-users text-xl"></i>
+                <span class="text-xs mt-1">Clients</span>
+            </a>
+            <a href="../payments/payments.html" class="flex flex-col items-center py-3 px-6 text-gray-500 relative">
+                <div class="relative">
+                    <i class="fas fa-dollar-sign text-xl"></i>
+                    <span class="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">3</span>
+                </div>
+                <span class="text-xs mt-1">Payments</span>
+            </a>
+        </div>
+    </div>
+</body>
+</html> 
