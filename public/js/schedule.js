@@ -42,9 +42,26 @@ function hideLoading() {
 
 // Function to check if a date is in the past
 function isInPast(date) {
+    // Ensure date is a proper Date object
+    if (!(date instanceof Date)) {
+        date = new Date(date);
+    }
+    
+    // Create a new date object for today with time set to midnight
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    return date < today;
+    
+    // Create a new date object for the input date with time set to midnight
+    const compareDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    compareDate.setHours(0, 0, 0, 0);
+    
+    // For debugging
+    console.log('Comparing dates in isInPast:');
+    console.log('Compare date:', compareDate.toString());
+    console.log('Today:', today.toString());
+    console.log('Is past?', compareDate < today);
+    
+    return compareDate < today;
 }
 
 // Function to update the navigation state
@@ -486,8 +503,15 @@ function generateSchedule(settings) {
                         // Set the slot's start time
                         slotDate.setHours(hours, minutes, 0, 0);
                         
-                        // Check if the slot is in the past
-                        const isPastSlot = slotDate < now;
+                        // For debugging
+                        console.log('Slot date/time in generateSchedule:', slotDate.toString());
+                        console.log('Current date/time in generateSchedule:', now.toString());
+                        console.log('Is past in generateSchedule?', slotDate < now);
+                        
+                        // Check if the slot is in the past - use date comparison with a small buffer (5 minutes)
+                        // This helps with slight time differences between devices
+                        const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+                        const isPastSlot = slotDate < fiveMinutesAgo;
                         
                         if (isPastSlot) {
                             console.log(`Skipping past time slot: ${slotStartTime} on ${slotDate.toDateString()}`);
@@ -618,8 +642,29 @@ function addUnavailableMessage(container, reason = 'default') {
     container.appendChild(unavailableMessage);
 }
 
+// Function to help with debugging on mobile devices
+function logDeviceInfo() {
+    const deviceInfo = {
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        language: navigator.language,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        currentTime: new Date().toString(),
+        currentTimeISO: new Date().toISOString(),
+        screenWidth: window.innerWidth,
+        screenHeight: window.innerHeight
+    };
+    
+    console.log('Device Info:', deviceInfo);
+    return deviceInfo;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM fully loaded');
+    
+    // Log device info for debugging
+    const deviceInfo = logDeviceInfo();
+    console.log(`Running on ${deviceInfo.platform} with time zone ${deviceInfo.timeZone}`);
     
     // Initialize booking modal
     const modalInitialized = initializeBookingModal();
@@ -1224,7 +1269,9 @@ function addTimeSlot(container, startTime, endTime, date, durationMinutes) {
     
     // Double-check that this time slot is not in the past
     const now = new Date();
-    const slotDate = new Date(date);
+    
+    // Create a new date object for the slot to avoid modifying the original
+    const slotDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
     
     // Parse the time (e.g., "9:00 AM")
     const timeMatch = startTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
@@ -1240,8 +1287,17 @@ function addTimeSlot(container, startTime, endTime, date, durationMinutes) {
         // Set the slot's start time
         slotDate.setHours(hours, minutes, 0, 0);
         
-        // Check if the slot is in the past
-        if (slotDate < now) {
+        // For debugging
+        console.log('Slot date/time:', slotDate.toString());
+        console.log('Current date/time:', now.toString());
+        console.log('Is past?', slotDate < now);
+        
+        // Check if the slot is in the past - use date comparison with a small buffer (5 minutes)
+        // This helps with slight time differences between devices
+        const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+        const isPastSlot = slotDate < fiveMinutesAgo;
+        
+        if (isPastSlot) {
             console.log(`Not adding past time slot: ${startTime} on ${slotDate.toDateString()}`);
             return; // Skip this slot entirely
         }
