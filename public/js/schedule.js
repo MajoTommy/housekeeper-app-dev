@@ -116,6 +116,37 @@ function updateWeekDisplay() {
     }
 }
 
+// Function to debug working days
+function debugWorkingDays(settings) {
+    if (!settings) {
+        console.error('No settings provided to debugWorkingDays');
+        return;
+    }
+    
+    console.log('Debugging working days:');
+    console.log('Settings object:', settings);
+    
+    if (!settings.workingDays) {
+        console.error('No workingDays found in settings');
+        return;
+    }
+    
+    // Check each day
+    for (let i = 0; i < 7; i++) {
+        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const value = settings.workingDays[i];
+        const valueType = typeof value;
+        const isWorkingDay = value == true || (typeof value === 'string' && value.toLowerCase() === 'true');
+        
+        console.log(`${dayNames[i]} (${i}):`, {
+            value,
+            valueType,
+            isWorkingDay,
+            booleanValue: !!value
+        });
+    }
+}
+
 // Function to load user schedule
 async function loadUserSchedule(showLoadingIndicator = true) {
     console.log('loadUserSchedule called');
@@ -147,14 +178,39 @@ async function loadUserSchedule(showLoadingIndicator = true) {
             if (userData.settings) {
                 // Settings are in a nested 'settings' field
                 settings = { ...DEFAULT_SETTINGS, ...userData.settings };
+                console.log('Using nested settings from Firestore');
             } else {
                 // Settings might be directly in the document (old format)
                 settings = { ...DEFAULT_SETTINGS, ...userData };
+                console.log('Using direct settings from Firestore');
             }
+            
+            // Ensure workingDays is properly formatted
+            if (!settings.workingDays) {
+                console.log('No workingDays found, using defaults');
+                settings.workingDays = DEFAULT_SETTINGS.workingDays;
+            } else {
+                // Log the working days for debugging
+                console.log('Working days before processing:', settings.workingDays);
+                
+                // Ensure workingDays has proper boolean values
+                const processedWorkingDays = {};
+                for (let i = 0; i < 7; i++) {
+                    // Convert to boolean using double negation
+                    processedWorkingDays[i] = !!settings.workingDays[i];
+                }
+                settings.workingDays = processedWorkingDays;
+                
+                console.log('Working days after processing:', settings.workingDays);
+            }
+            
             console.log('Merged settings:', settings);
         } else {
             console.log('User document does not exist, using default settings');
         }
+
+        // Debug working days
+        debugWorkingDays(settings);
 
         // Calculate available time slots based on settings
         settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
@@ -194,9 +250,15 @@ async function loadUserSchedule(showLoadingIndicator = true) {
 function calculateAvailableTimeSlots(settings) {
     const slots = [];
     
+    // Ensure settings exists
+    if (!settings || !settings.workingHours) {
+        console.error('Invalid settings provided to calculateAvailableTimeSlots:', settings);
+        return slots;
+    }
+    
     // Convert time format if needed (handle both "09:00" and "09:00 AM" formats)
-    let startTimeStr = settings.workingHours.start;
-    let endTimeStr = settings.workingHours.end;
+    let startTimeStr = settings.workingHours.start || "8:00 AM";
+    let endTimeStr = settings.workingHours.end || "5:00 PM";
     
     console.log('Original time settings:', startTimeStr, endTimeStr);
     
@@ -217,8 +279,13 @@ function calculateAvailableTimeSlots(settings) {
     
     console.log('Converted time formats:', startTimeStr, endTimeStr);
     
+    // Create date objects for start and end times
     const startTime = new Date('2000-01-01 ' + startTimeStr);
     const endTime = new Date('2000-01-01 ' + endTimeStr);
+    
+    // Log the created date objects for debugging
+    console.log('Start time date object:', startTime.toString());
+    console.log('End time date object:', endTime.toString());
     
     // Get settings with defaults
     const cleaningsPerDay = settings.cleaningsPerDay || 2;
@@ -333,6 +400,9 @@ function generateSchedule(settings) {
     console.log('generateSchedule called with settings:', settings);
     console.log('Working days configuration:', settings.workingDays);
     
+    // Debug working days again right before generating schedule
+    debugWorkingDays(settings);
+    
     // Get the container element
     const container = document.querySelector('.p-4');
     if (!container) {
@@ -445,10 +515,19 @@ function generateSchedule(settings) {
             // Prepare available time slots
             let availableTimeSlots = [];
             
-            // Check if this day is a working day - use loose equality to handle different data types
-            const isWorkingDay = settings.workingDays && (settings.workingDays[dayOfWeek] == true);
+            // Check if this day is a working day
+            // Use loose equality and ensure workingDays exists
+            const isWorkingDay = settings && settings.workingDays && 
+                (settings.workingDays[dayOfWeek] == true || 
+                 (typeof settings.workingDays[dayOfWeek] === 'string' && 
+                  settings.workingDays[dayOfWeek].toLowerCase() === 'true'));
             
-            console.log(`Day ${dayOfWeek} (${date.toDateString()}) working status:`, settings.workingDays[dayOfWeek], 'isWorkingDay:', isWorkingDay);
+            console.log(`Day ${dayOfWeek} (${date.toDateString()}) working status:`, {
+                rawValue: settings?.workingDays?.[dayOfWeek],
+                isWorkingDay,
+                workingDays: settings.workingDays,
+                dateString: date.toDateString()
+            });
             
             if (isWorkingDay) {
                 const timeSlots = settings.calculatedTimeSlots || [];
@@ -1815,12 +1894,12 @@ function showBookingDetails(booking) {
                     
                     <div class="mt-4 space-y-3">
                         ${booking.clientAddress ? `
-                        <div>
+                <div>
                             <div class="text-sm text-gray-500">Address</div>
                             <div class="text-base text-gray-900 bg-gray-50 rounded-md p-3 mt-1">
                                 <i class="fas fa-map-marker-alt text-primary mr-1"></i>
                                 ${booking.clientAddress}
-                            </div>
+                </div>
                         </div>
                         ` : ''}
                         ${booking.clientPhone ? `
@@ -2096,10 +2175,15 @@ async function cancelBooking(bookingId) {
                 const bookingDate = new Date(year, month - 1, day); // month is 0-indexed in JS Date
                 
                 const dayOfWeek = bookingDate.getDay();
-                const isWorkingDay = settings.workingDays && (settings.workingDays[dayOfWeek] == true);
+                // Use loose equality and handle string values
+                const isWorkingDay = settings && settings.workingDays && 
+                    (settings.workingDays[dayOfWeek] == true || 
+                     (typeof settings.workingDays[dayOfWeek] === 'string' && 
+                      settings.workingDays[dayOfWeek].toLowerCase() === 'true'));
                 
-                console.log('Checking if working day:', { 
+                console.log('Checking if working day in cancelBooking:', { 
                     dayOfWeek, 
+                    rawValue: settings?.workingDays?.[dayOfWeek],
                     isWorkingDay, 
                     workingDays: settings.workingDays,
                     dateString: bookingDate.toDateString()
@@ -2174,10 +2258,15 @@ async function cancelBooking(bookingId) {
                         const bookingDate = new Date(year, month - 1, day); // month is 0-indexed in JS Date
                         
                         const dayOfWeek = bookingDate.getDay();
-                        const isWorkingDay = settings.workingDays && (settings.workingDays[dayOfWeek] == true);
+                        // Use loose equality and handle string values
+                        const isWorkingDay = settings && settings.workingDays && 
+                            (settings.workingDays[dayOfWeek] == true || 
+                             (typeof settings.workingDays[dayOfWeek] === 'string' && 
+                              settings.workingDays[dayOfWeek].toLowerCase() === 'true'));
                         
-                        console.log('Checking if working day:', { 
+                        console.log('Checking if working day in cancelBooking:', { 
                             dayOfWeek, 
+                            rawValue: settings?.workingDays?.[dayOfWeek],
                             isWorkingDay, 
                             workingDays: settings.workingDays,
                             dateString: bookingDate.toDateString()
