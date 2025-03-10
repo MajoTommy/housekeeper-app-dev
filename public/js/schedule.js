@@ -1,4 +1,45 @@
+// Initialize the current week start date
+let currentWeekStart = new Date();
+// Set to the start of the current week (Sunday)
+currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekStart.getDay());
+currentWeekStart.setHours(0, 0, 0, 0);
+
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Firebase Auth
+    firebase.auth().onAuthStateChanged(function(user) {
+        if (user) {
+            console.log('User found after auth state change:', user.uid);
+            loadUserSchedule();
+        } else {
+            console.log('No user found, redirecting to login');
+            window.location.href = 'login.html';
+        }
+    });
+    
+    // Set up week navigation
+    const prevWeekBtn = document.getElementById('prev-week');
+    const nextWeekBtn = document.getElementById('next-week');
+    const todayBtn = document.getElementById('today-btn');
+    
+    if (prevWeekBtn && nextWeekBtn && todayBtn) {
+        prevWeekBtn.addEventListener('click', function() {
+            navigateToPreviousWeek();
+        });
+        
+        nextWeekBtn.addEventListener('click', function() {
+            navigateToNextWeek();
+        });
+        
+        todayBtn.addEventListener('click', function() {
+            navigateToCurrentWeek();
+        });
+    } else {
+        console.error('Week navigation buttons not found');
+    }
+    
+    // Update navigation state initially
+    updateNavigationState();
+
     // Firebase initialization check
     if (!firebase.apps.length) {
         console.error('Firebase not initialized');
@@ -7,16 +48,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     console.log('Schedule.js loaded');
 
-    // Track current week
-    let currentWeekStart = new Date();
-    currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekStart.getDay()); // Start from Sunday
-    currentWeekStart.setHours(0, 0, 0, 0); // Reset time to midnight
-
     // Set up week navigation
-    const prevWeekBtn = document.getElementById('prev-week');
-    const nextWeekBtn = document.getElementById('next-week');
     const weekRangeDisplay = document.getElementById('week-range');
-    const todayBtn = document.getElementById('today-btn');
 
     // Add loading indicator
     const loadingIndicator = document.createElement('div');
@@ -29,12 +62,30 @@ document.addEventListener('DOMContentLoaded', function() {
     `;
     document.body.appendChild(loadingIndicator);
 
+    // Global loading indicator functions
     function showLoading() {
-        loadingIndicator.classList.remove('hidden');
+        const existingOverlay = document.getElementById('loadingOverlay');
+        if (existingOverlay) {
+            existingOverlay.classList.remove('hidden');
+        } else {
+            const loadingOverlay = document.createElement('div');
+            loadingOverlay.id = 'loadingOverlay';
+            loadingOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
+            loadingOverlay.innerHTML = `
+                <div class="bg-white p-4 rounded-lg shadow-lg flex items-center">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-3"></div>
+                    <p class="text-gray-700">Loading...</p>
+                </div>
+            `;
+            document.body.appendChild(loadingOverlay);
+        }
     }
 
     function hideLoading() {
-        loadingIndicator.classList.add('hidden');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        if (loadingOverlay) {
+            loadingOverlay.classList.add('hidden');
+        }
     }
 
     // Check if a date is in the past (before today)
@@ -44,55 +95,51 @@ document.addEventListener('DOMContentLoaded', function() {
         return date < today;
     }
 
-    // Update navigation button states
+    // Function to update the navigation state
     function updateNavigationState() {
-        const nextWeekDate = new Date(currentWeekStart);
-        nextWeekDate.setDate(nextWeekDate.getDate() - 7);
-        prevWeekBtn.disabled = isInPast(nextWeekDate);
+        const prevWeekBtn = document.getElementById('prev-week');
+        if (!prevWeekBtn) {
+            console.error('Previous week button not found');
+            return;
+        }
+        
+        // Check if the previous week is in the past
+        const prevWeekDate = new Date(currentWeekStart);
+        prevWeekDate.setDate(prevWeekDate.getDate() - 7);
+        
+        // Disable the previous week button if the previous week is in the past
+        prevWeekBtn.disabled = isInPast(prevWeekDate);
         prevWeekBtn.classList.toggle('opacity-50', prevWeekBtn.disabled);
         prevWeekBtn.classList.toggle('cursor-not-allowed', prevWeekBtn.disabled);
+        
+        console.log('Navigation state updated, prev week button disabled:', prevWeekBtn.disabled);
     }
 
-    prevWeekBtn.addEventListener('click', () => {
-        const nextWeekDate = new Date(currentWeekStart);
-        nextWeekDate.setDate(nextWeekDate.getDate() - 7);
-        
-        if (!isInPast(nextWeekDate)) {
-            showLoading();
-            currentWeekStart.setDate(currentWeekStart.getDate() - 7);
-            updateWeekDisplay();
-            updateNavigationState();
-            loadUserSchedule();
-        }
-    });
-
-    nextWeekBtn.addEventListener('click', () => {
-        showLoading();
-        currentWeekStart.setDate(currentWeekStart.getDate() + 7);
-        updateWeekDisplay();
-        updateNavigationState();
-        loadUserSchedule();
-    });
-
-    todayBtn.addEventListener('click', () => {
-        showLoading();
-        currentWeekStart = new Date();
-        currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekStart.getDay());
-        currentWeekStart.setHours(0, 0, 0, 0);
-        updateWeekDisplay();
-        updateNavigationState();
-        loadUserSchedule();
-    });
-
+    // Function to update the week display
     function updateWeekDisplay() {
-        const weekEnd = new Date(currentWeekStart);
-        weekEnd.setDate(weekEnd.getDate() + 6);
-        
-        const formatOptions = { month: 'long', day: 'numeric', year: 'numeric' };
-        const startStr = currentWeekStart.toLocaleDateString('en-US', formatOptions);
-        const endStr = weekEnd.toLocaleDateString('en-US', formatOptions);
-        
-        weekRangeDisplay.textContent = `${startStr} - ${endStr}`;
+        try {
+            const weekRangeElement = document.getElementById('week-range');
+            if (!weekRangeElement) {
+                console.error('Week range element not found');
+                return;
+            }
+            
+            // Get the start and end of the current week
+            const weekStart = new Date(currentWeekStart);
+            const weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekStart.getDate() + 6);
+            
+            // Format the dates
+            const options = { month: 'long', day: 'numeric', year: 'numeric' };
+            const startStr = weekStart.toLocaleDateString('en-US', options);
+            const endStr = weekEnd.toLocaleDateString('en-US', options);
+            
+            // Update the week range display
+            weekRangeElement.textContent = `${startStr} - ${endStr}`;
+            console.log('Week range updated:', weekRangeElement.textContent);
+        } catch (error) {
+            console.error('Error updating week display:', error);
+        }
     }
 
     // Get current user and their settings
@@ -113,54 +160,65 @@ document.addEventListener('DOMContentLoaded', function() {
         loadUserSchedule();
     }
 
+    // Function to load user schedule
     function loadUserSchedule() {
-        showLoading();
-        
-        const user = firebase.auth().currentUser;
-        if (!user) {
-            console.log('No user found, waiting for auth state change');
-            hideLoading();
-            return;
-        }
-        
-        console.log('Loading schedule for user:', user.uid);
-        
-        // Get user settings from Firestore
-        firebase.firestore().collection('users').doc(user.uid).get()
-            .then(doc => {
-                let settings;
-                
-                if (doc.exists && doc.data().settings) {
-                    settings = doc.data().settings;
+        return new Promise((resolve, reject) => {
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                console.log('No user found, waiting for auth state change');
+                reject(new Error('No user found'));
+                return;
+            }
+            
+            console.log('Loading schedule for user:', user.uid);
+            
+            // Update the week display
+            updateWeekDisplay();
+            
+            // Get user settings from Firestore
+            firebase.firestore().collection('users').doc(user.uid).get()
+                .then(doc => {
+                    let settings;
+                    
+                    if (doc.exists && doc.data().settings) {
+                        settings = doc.data().settings;
+                        console.log('User settings loaded:', settings);
+                    } else {
+                        console.log('No user settings found, using defaults');
+                        settings = DEFAULT_SETTINGS;
+                    }
+                    
+                    // Calculate time slots based on settings
+                    if (!settings.calculatedTimeSlots) {
+                        settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
+                    }
+                    
                     console.log('User settings loaded:', settings);
-                } else {
-                    console.log('No user settings found, using defaults');
-                    settings = DEFAULT_SETTINGS;
-                }
-                
-                // Calculate time slots based on settings
-                if (!settings.calculatedTimeSlots) {
+                    
+                    // Generate schedule with settings
+                    generateSchedule(settings);
+                    
+                    resolve();
+                })
+                .catch(error => {
+                    console.error('Error loading user settings:', error);
+                    
+                    // Use default settings if there's an error
+                    const settings = DEFAULT_SETTINGS;
                     settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
-                }
-                
-                console.log('User settings loaded:', settings);
-                
-                // Generate schedule with settings
-                generateSchedule(settings);
-            })
-            .catch(error => {
-                console.error('Error loading user settings:', error);
-                hideLoading();
-                
-                // Use default settings if there's an error
-                const settings = DEFAULT_SETTINGS;
-                settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
-                generateSchedule(settings);
-            });
+                    generateSchedule(settings);
+                    
+                    reject(error);
+                });
+        });
     }
 
     function generateSchedule(settings) {
-        showLoading();
+        // Create or show the loading overlay
+        const existingOverlay = document.getElementById('loadingOverlay');
+        if (existingOverlay) {
+            existingOverlay.classList.remove('hidden');
+        }
         
         const container = document.querySelector('.p-4');
         container.innerHTML = '';
@@ -194,14 +252,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 const date = new Date(weekStart);
                 date.setDate(weekStart.getDate() + i);
                 
-                // Format the date as YYYY-MM-DD for comparison with booking dates
-                const dateString = date.toISOString().split('T')[0];
-                
-                // Get bookings for this date
-                const dateBookings = bookingsByDate[dateString] || [];
-                
                 // Skip days that are not working days AND have no bookings
                 const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, etc.
+                const dateString = date.toISOString().split('T')[0];
+                const dateBookings = bookingsByDate[dateString] || [];
+                
                 if (!settings.workingDays[dayOfWeek] && dateBookings.length === 0) {
                     console.log('Skipping non-working day with no bookings:', date.toDateString());
                     continue;
@@ -233,6 +288,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Add booking cards
                 dateBookings.forEach(booking => {
                     console.log('Adding booking card for:', booking);
+                    
+                    // Ensure booking has all required fields
+                    booking.clientAddress = booking.clientAddress || '';
+                    booking.clientPhone = booking.clientPhone || '';
+                    booking.accessInfo = booking.accessInfo || '';
+                    booking.notes = booking.notes || '';
+                    
                     bookedSlots.add(`${booking.startTime}-${booking.endTime}`);
                     addBookingCard(dayContainer, booking, isToday);
                 });
@@ -244,7 +306,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const timeSlots = settings.calculatedTimeSlots || [];
                     console.log('Available time slots for', dateText, ':', timeSlots);
                     
-        timeSlots.forEach(slot => {
+                    timeSlots.forEach(slot => {
                         const slotKey = `${slot.start}-${slot.end}`;
                         if (!bookedSlots.has(slotKey)) {
                             addTimeSlot(dayContainer, slot.start, slot.end, date);
@@ -258,10 +320,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
             
-            hideLoading();
+            // Hide the loading overlay
+            if (existingOverlay) {
+                existingOverlay.classList.add('hidden');
+            }
         }).catch(error => {
             console.error('Error generating schedule:', error);
-            hideLoading();
+            
+            // Hide the loading overlay
+            if (existingOverlay) {
+                existingOverlay.classList.add('hidden');
+            }
             
             // Show error message
             container.innerHTML = `
@@ -855,13 +924,8 @@ function addBookingCard(container, booking, isToday) {
             break;
     }
     
-    // Handle missing data gracefully
-    const clientName = booking.clientName || 'Client';
-    const clientAddress = booking.clientAddress || '';
-    const clientPhone = booking.clientPhone || '';
-    const accessInfo = booking.accessInfo || '';
-    
-    card.innerHTML = `
+    // Create the card HTML with consistent format
+    let cardHTML = `
         <div class="p-6">
             <!-- Time and Status -->
             <div class="flex justify-between items-center mb-4">
@@ -874,35 +938,58 @@ function addBookingCard(container, booking, isToday) {
                 </button>
             </div>
             
-            <!-- Customer Info -->
-            <div class="mb-4">
-                <h3 class="font-medium text-gray-900">${clientName}</h3>
-                ${clientAddress ? `
-                <div class="flex items-center text-gray-600 text-sm mt-1">
-                    <a href="https://maps.google.com/?q=${encodeURIComponent(clientAddress)}" target="_blank" class="flex items-center">
-                        <i class="fas fa-map-marker-alt mr-2 text-gray-500"></i>
-                        ${clientAddress}
-                    </a>
-                </div>
-                ` : ''}
-                ${accessInfo ? `
-                <div class="flex items-center text-gray-600 text-sm mt-1">
-                    <i class="fas fa-key mr-2 text-gray-500"></i>
-                    ${accessInfo}
-                </div>
-                ` : ''}
-                ${clientPhone ? `
-                <div class="flex items-center text-primary text-sm mt-1">
-                    <a href="tel:${clientPhone}" class="flex items-center">
-                        <i class="fas fa-phone-alt mr-2"></i>
-                        ${clientPhone}
-                    </a>
-                </div>
-                ` : ''}
+            <!-- Client Name -->
+            <h3 class="font-medium text-gray-900">${booking.clientName}</h3>
+    `;
+    
+    // Add address if available
+    if (booking.clientAddress) {
+        cardHTML += `
+            <div class="flex items-center text-gray-600 text-sm mt-1">
+                <i class="fas fa-map-marker-alt mr-2 text-gray-500"></i>
+                <a href="https://maps.google.com/?q=${encodeURIComponent(booking.clientAddress)}" target="_blank">
+                    ${booking.clientAddress}
+                </a>
             </div>
-            
+        `;
+    }
+    
+    // Add notes if available
+    if (booking.notes) {
+        cardHTML += `
+            <div class="flex items-center text-gray-600 text-sm mt-1">
+                <i class="fas fa-info-circle mr-2 text-gray-500"></i>
+                ${booking.notes}
+            </div>
+        `;
+    }
+    
+    // Add access info if available and different from notes
+    if (booking.accessInfo && booking.accessInfo !== booking.notes) {
+        cardHTML += `
+            <div class="flex items-center text-gray-600 text-sm mt-1">
+                <i class="fas fa-key mr-2 text-gray-500"></i>
+                ${booking.accessInfo}
+            </div>
+        `;
+    }
+    
+    // Add phone if available
+    if (booking.clientPhone) {
+        cardHTML += `
+            <div class="flex items-center text-primary text-sm mt-1">
+                <i class="fas fa-phone-alt mr-2"></i>
+                <a href="tel:${booking.clientPhone}">
+                    ${booking.clientPhone}
+                </a>
+            </div>
+        `;
+    }
+    
+    // Add action buttons
+    cardHTML += `
             <!-- Action Buttons -->
-            <div class="flex gap-2">
+            <div class="flex gap-2 mt-4">
                 <button class="flex-1 py-2 px-4 bg-gray-100 rounded-lg text-center text-gray-700 text-sm font-medium view-details" data-booking-id="${booking.id}">
                     View Details
                 </button>
@@ -912,6 +999,8 @@ function addBookingCard(container, booking, isToday) {
             </div>
         </div>
     `;
+    
+    card.innerHTML = cardHTML;
     
     // Add to container
     container.appendChild(card);
@@ -1129,70 +1218,144 @@ function showBookingDetails(booking) {
                 }
             });
             
-            // Show loading indicator
-            showLoading();
+            // Create and show a loading overlay
+            const loadingOverlay = document.createElement('div');
+            loadingOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
+            loadingOverlay.innerHTML = `
+                <div class="bg-white p-4 rounded-lg shadow-lg flex items-center">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-3"></div>
+                    <p class="text-gray-700">Updating status...</p>
+                </div>
+            `;
+            document.body.appendChild(loadingOverlay);
             
             // Get a reference to the booking document
             const user = firebase.auth().currentUser;
             if (!user) {
-                hideLoading();
+                loadingOverlay.remove();
                 alert('You must be logged in to update a booking');
                 return;
             }
             
-            const bookingRef = firebase.firestore().collection('users').doc(user.uid).collection('bookings').doc(booking.id);
+            console.log('Current user ID:', user.uid);
+            console.log('Booking ID:', booking.id);
             
-            // Update the booking status directly
-            bookingRef.update({
-                status: newStatus,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            })
-            .then(() => {
-                console.log('Booking status updated successfully');
+            try {
+                const bookingRef = firebase.firestore().collection('users').doc(user.uid).collection('bookings').doc(booking.id);
                 
-                // Show a brief success message
-                const successMessage = document.createElement('div');
-                successMessage.className = 'fixed bottom-20 left-1/2 transform -translate-x-1/2 bg-green-100 text-green-800 px-4 py-2 rounded-lg shadow-lg z-50';
+                // Create the update data
+                const updateData = {
+                    status: newStatus,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                };
                 
-                // Format the status for display
-                let displayStatus = newStatus.replace(/-/g, ' ');
-                displayStatus = displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1);
+                console.log('Updating booking with data:', updateData);
                 
-                successMessage.innerHTML = `<i class="fas fa-check-circle mr-1"></i> Status updated to ${displayStatus}`;
-                document.body.appendChild(successMessage);
-                
-                // Remove the success message after 3 seconds
-                setTimeout(() => {
-                    successMessage.remove();
-                }, 3000);
-                
-                // Reload the schedule to reflect the changes
-                loadUserSchedule();
-                
-                hideLoading();
-            })
-            .catch(error => {
-                console.error('Error updating booking status:', error);
-                hideLoading();
-                alert('Error updating booking status. Please try again.');
-                
-                // Revert UI changes if there was an error
-                bookingRef.get().then(doc => {
-                    if (doc.exists) {
-                        const currentStatus = doc.data().status || 'scheduled';
-                        statusButtons.forEach(btn => {
-                            const status = btn.getAttribute('data-status');
-                            if (status === currentStatus) {
-                                btn.classList.remove('text-gray-900');
-                                btn.classList.add('text-white', 'bg-primary');
-                            } else {
-                                btn.classList.remove('text-white', 'bg-primary');
-                                btn.classList.add('text-gray-900');
+                // Update the booking status directly
+                bookingRef.update(updateData)
+                    .then(() => {
+                        console.log('Booking status updated successfully');
+                        
+                        // Update the booking object to reflect the new status
+                        booking.status = newStatus;
+                        
+                        // Remove loading overlay
+                        loadingOverlay.remove();
+                        
+                        // Show a brief success message
+                        const successMessage = document.createElement('div');
+                        successMessage.className = 'fixed bottom-20 left-1/2 transform -translate-x-1/2 bg-green-100 text-green-800 px-4 py-2 rounded-lg shadow-lg z-50';
+                        
+                        // Format the status for display
+                        let displayStatus = newStatus.replace(/-/g, ' ');
+                        displayStatus = displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1);
+                        
+                        successMessage.innerHTML = `<i class="fas fa-check-circle mr-1"></i> Status updated to ${displayStatus}`;
+                        document.body.appendChild(successMessage);
+                        
+                        // Remove the success message after 3 seconds
+                        setTimeout(() => {
+                            successMessage.remove();
+                        }, 3000);
+                        
+                        // Update the card in the schedule view without closing the modal
+                        const cards = document.querySelectorAll('.bg-white.rounded-lg.shadow-sm.mb-4');
+                        cards.forEach(card => {
+                            // Find the card that matches this booking
+                            const timeText = card.querySelector('.text-xl.font-bold.text-gray-900')?.textContent;
+                            const nameText = card.querySelector('h3.font-medium.text-gray-900')?.textContent;
+                            
+                            if (timeText === `${booking.startTime} - ${booking.endTime}` && 
+                                nameText === booking.clientName) {
+                                
+                                // Update the status button in the card
+                                const statusBtn = card.querySelector('button.px-3.py-2.text-sm.font-medium.rounded-lg');
+                                if (statusBtn) {
+                                    // Determine status display and class
+                                    let statusDisplay = 'Upcoming';
+                                    let statusClass = 'bg-gray-100 text-gray-800';
+                                    
+                                    switch(newStatus) {
+                                        case 'in-progress':
+                                            statusDisplay = 'In Progress';
+                                            statusClass = 'bg-blue-100 text-blue-800';
+                                            break;
+                                        case 'completed':
+                                            statusDisplay = 'Done';
+                                            statusClass = 'bg-green-100 text-green-800';
+                                            break;
+                                        case 'paid':
+                                            statusDisplay = 'Done & Paid';
+                                            statusClass = 'bg-green-100 text-green-800';
+                                            break;
+                                        case 'cancelled':
+                                            statusDisplay = 'Cancelled';
+                                            statusClass = 'bg-red-100 text-red-800';
+                                            break;
+                                    }
+                                    
+                                    // Update the button text and class
+                                    statusBtn.textContent = statusDisplay;
+                                    statusBtn.className = `px-3 py-2 text-sm font-medium rounded-lg ${statusClass}`;
+                                    
+                                    console.log('Updated card status to:', statusDisplay);
+                                }
                             }
                         });
-                    }
-                });
-            });
+                    })
+                    .catch(error => {
+                        console.error('Error updating booking status:', error);
+                        
+                        // Remove loading overlay
+                        loadingOverlay.remove();
+                        
+                        // Show detailed error message
+                        alert(`Error updating booking status: ${error.message || 'Unknown error'}`);
+                        
+                        // Revert UI changes if there was an error
+                        bookingRef.get().then(doc => {
+                            if (doc.exists) {
+                                const currentStatus = doc.data().status || 'scheduled';
+                                statusButtons.forEach(btn => {
+                                    const status = btn.getAttribute('data-status');
+                                    if (status === currentStatus) {
+                                        btn.classList.remove('text-gray-900');
+                                        btn.classList.add('text-white', 'bg-primary');
+                                    } else {
+                                        btn.classList.remove('text-white', 'bg-primary');
+                                        btn.classList.add('text-gray-900');
+                                    }
+                                });
+                            }
+                        }).catch(err => {
+                            console.error('Error getting current booking status:', err);
+                        });
+                    });
+            } catch (error) {
+                console.error('Exception in update process:', error);
+                loadingOverlay.remove();
+                alert(`Error in update process: ${error.message || 'Unknown error'}`);
+            }
         });
     });
 }
@@ -1255,4 +1418,329 @@ async function cancelBooking(bookingId) {
 function showRescheduleOptions(booking) {
     // For now, just show an alert
     alert('Reschedule functionality will be implemented in a future update.');
+}
+
+// Function to navigate to the previous week
+function navigateToPreviousWeek() {
+    console.log('Navigating to previous week');
+    
+    try {
+        const prevWeekDate = new Date(currentWeekStart);
+        prevWeekDate.setDate(prevWeekDate.getDate() - 7);
+        
+        if (!isInPast(prevWeekDate)) {
+            // Create and show a loading overlay
+            const loadingOverlay = document.createElement('div');
+            loadingOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
+            loadingOverlay.innerHTML = `
+                <div class="bg-white p-4 rounded-lg shadow-lg flex items-center">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-3"></div>
+                    <p class="text-gray-700">Loading previous week...</p>
+                </div>
+            `;
+            document.body.appendChild(loadingOverlay);
+            
+            // Update the current week start date
+            currentWeekStart = new Date(prevWeekDate);
+            console.log('New week start date:', currentWeekStart.toDateString());
+            
+            // Update the week display in the UI
+            const weekRangeElement = document.getElementById('week-range');
+            if (weekRangeElement) {
+                const weekStart = new Date(currentWeekStart);
+                const weekEnd = new Date(weekStart);
+                weekEnd.setDate(weekStart.getDate() + 6);
+                
+                // Format the dates
+                const options = { month: 'long', day: 'numeric', year: 'numeric' };
+                const startStr = weekStart.toLocaleDateString('en-US', options);
+                const endStr = weekEnd.toLocaleDateString('en-US', options);
+                
+                // Update the week range display
+                weekRangeElement.textContent = `${startStr} - ${endStr}`;
+                console.log('Week range updated:', weekRangeElement.textContent);
+            }
+            
+            // Update navigation state
+            const prevWeekBtn = document.getElementById('prev-week');
+            if (prevWeekBtn) {
+                const newPrevWeekDate = new Date(currentWeekStart);
+                newPrevWeekDate.setDate(newPrevWeekDate.getDate() - 7);
+                
+                prevWeekBtn.disabled = isInPast(newPrevWeekDate);
+                prevWeekBtn.classList.toggle('opacity-50', prevWeekBtn.disabled);
+                prevWeekBtn.classList.toggle('cursor-not-allowed', prevWeekBtn.disabled);
+            }
+            
+            // Load the user schedule for the new week
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                console.log('No user found, cannot load schedule');
+                loadingOverlay.remove();
+                return;
+            }
+            
+            console.log('Loading schedule for user:', user.uid);
+            
+            // Get user settings from Firestore
+            firebase.firestore().collection('users').doc(user.uid).get()
+                .then(doc => {
+                    let settings;
+                    
+                    if (doc.exists && doc.data().settings) {
+                        settings = doc.data().settings;
+                        console.log('User settings loaded:', settings);
+                    } else {
+                        console.log('No user settings found, using defaults');
+                        settings = DEFAULT_SETTINGS;
+                    }
+                    
+                    // Calculate time slots based on settings
+                    if (!settings.calculatedTimeSlots) {
+                        settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
+                    }
+                    
+                    // Generate schedule with settings
+                    generateSchedule(settings);
+                    
+                    // Remove loading overlay
+                    loadingOverlay.remove();
+                })
+                .catch(error => {
+                    console.error('Error loading user settings:', error);
+                    
+                    // Use default settings if there's an error
+                    const settings = DEFAULT_SETTINGS;
+                    settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
+                    generateSchedule(settings);
+                    
+                    // Remove loading overlay
+                    loadingOverlay.remove();
+                });
+        } else {
+            console.log('Cannot navigate to past week');
+        }
+    } catch (error) {
+        console.error('Error navigating to previous week:', error);
+        
+        // Remove any existing loading overlay
+        const existingOverlay = document.querySelector('.fixed.inset-0.bg-black.bg-opacity-50.z-50');
+        if (existingOverlay) {
+            existingOverlay.remove();
+        }
+    }
+}
+
+// Function to navigate to the next week
+function navigateToNextWeek() {
+    console.log('Navigating to next week');
+    
+    try {
+        // Create and show a loading overlay
+        const loadingOverlay = document.createElement('div');
+        loadingOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
+        loadingOverlay.innerHTML = `
+            <div class="bg-white p-4 rounded-lg shadow-lg flex items-center">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-3"></div>
+                <p class="text-gray-700">Loading next week...</p>
+            </div>
+        `;
+        document.body.appendChild(loadingOverlay);
+        
+        // Calculate the next week's start date
+        const nextWeekDate = new Date(currentWeekStart);
+        nextWeekDate.setDate(nextWeekDate.getDate() + 7);
+        currentWeekStart = nextWeekDate;
+        
+        console.log('New week start date:', currentWeekStart.toDateString());
+        
+        // Update the week display in the UI
+        const weekRangeElement = document.getElementById('week-range');
+        if (weekRangeElement) {
+            const weekStart = new Date(currentWeekStart);
+            const weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekStart.getDate() + 6);
+            
+            // Format the dates
+            const options = { month: 'long', day: 'numeric', year: 'numeric' };
+            const startStr = weekStart.toLocaleDateString('en-US', options);
+            const endStr = weekEnd.toLocaleDateString('en-US', options);
+            
+            // Update the week range display
+            weekRangeElement.textContent = `${startStr} - ${endStr}`;
+            console.log('Week range updated:', weekRangeElement.textContent);
+        }
+        
+        // Update navigation state
+        const prevWeekBtn = document.getElementById('prev-week');
+        if (prevWeekBtn) {
+            const prevWeekDate = new Date(currentWeekStart);
+            prevWeekDate.setDate(prevWeekDate.getDate() - 7);
+            
+            prevWeekBtn.disabled = isInPast(prevWeekDate);
+            prevWeekBtn.classList.toggle('opacity-50', prevWeekBtn.disabled);
+            prevWeekBtn.classList.toggle('cursor-not-allowed', prevWeekBtn.disabled);
+        }
+        
+        // Load the user schedule for the new week
+        const user = firebase.auth().currentUser;
+        if (!user) {
+            console.log('No user found, cannot load schedule');
+            loadingOverlay.remove();
+            return;
+        }
+        
+        console.log('Loading schedule for user:', user.uid);
+        
+        // Get user settings from Firestore
+        firebase.firestore().collection('users').doc(user.uid).get()
+            .then(doc => {
+                let settings;
+                
+                if (doc.exists && doc.data().settings) {
+                    settings = doc.data().settings;
+                    console.log('User settings loaded:', settings);
+                } else {
+                    console.log('No user settings found, using defaults');
+                    settings = DEFAULT_SETTINGS;
+                }
+                
+                // Calculate time slots based on settings
+                if (!settings.calculatedTimeSlots) {
+                    settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
+                }
+                
+                // Generate schedule with settings
+                generateSchedule(settings);
+                
+                // Remove loading overlay
+                loadingOverlay.remove();
+            })
+            .catch(error => {
+                console.error('Error loading user settings:', error);
+                
+                // Use default settings if there's an error
+                const settings = DEFAULT_SETTINGS;
+                settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
+                generateSchedule(settings);
+                
+                // Remove loading overlay
+                loadingOverlay.remove();
+            });
+    } catch (error) {
+        console.error('Error navigating to next week:', error);
+        
+        // Remove any existing loading overlay
+        const existingOverlay = document.querySelector('.fixed.inset-0.bg-black.bg-opacity-50.z-50');
+        if (existingOverlay) {
+            existingOverlay.remove();
+        }
+    }
+}
+
+// Function to navigate to the current week
+function navigateToCurrentWeek() {
+    console.log('Navigating to current week');
+    
+    try {
+        // Create and show a loading overlay
+        const loadingOverlay = document.createElement('div');
+        loadingOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
+        loadingOverlay.innerHTML = `
+            <div class="bg-white p-4 rounded-lg shadow-lg flex items-center">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-3"></div>
+                <p class="text-gray-700">Loading current week...</p>
+            </div>
+        `;
+        document.body.appendChild(loadingOverlay);
+        
+        // Set current week start date to the beginning of the current week
+        const today = new Date();
+        currentWeekStart = new Date(today);
+        currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekStart.getDay());
+        currentWeekStart.setHours(0, 0, 0, 0);
+        console.log('New week start date:', currentWeekStart.toDateString());
+        
+        // Update the week display in the UI
+        const weekRangeElement = document.getElementById('week-range');
+        if (weekRangeElement) {
+            const weekStart = new Date(currentWeekStart);
+            const weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekStart.getDate() + 6);
+            
+            // Format the dates
+            const options = { month: 'long', day: 'numeric', year: 'numeric' };
+            const startStr = weekStart.toLocaleDateString('en-US', options);
+            const endStr = weekEnd.toLocaleDateString('en-US', options);
+            
+            // Update the week range display
+            weekRangeElement.textContent = `${startStr} - ${endStr}`;
+            console.log('Week range updated:', weekRangeElement.textContent);
+        }
+        
+        // Update navigation state
+        const prevWeekBtn = document.getElementById('prev-week');
+        if (prevWeekBtn) {
+            const prevWeekDate = new Date(currentWeekStart);
+            prevWeekDate.setDate(prevWeekDate.getDate() - 7);
+            
+            prevWeekBtn.disabled = isInPast(prevWeekDate);
+            prevWeekBtn.classList.toggle('opacity-50', prevWeekBtn.disabled);
+            prevWeekBtn.classList.toggle('cursor-not-allowed', prevWeekBtn.disabled);
+        }
+        
+        // Load the user schedule for the current week
+        const user = firebase.auth().currentUser;
+        if (!user) {
+            console.log('No user found, cannot load schedule');
+            loadingOverlay.remove();
+            return;
+        }
+        
+        console.log('Loading schedule for user:', user.uid);
+        
+        // Get user settings from Firestore
+        firebase.firestore().collection('users').doc(user.uid).get()
+            .then(doc => {
+                let settings;
+                
+                if (doc.exists && doc.data().settings) {
+                    settings = doc.data().settings;
+                    console.log('User settings loaded:', settings);
+                } else {
+                    console.log('No user settings found, using defaults');
+                    settings = DEFAULT_SETTINGS;
+                }
+                
+                // Calculate time slots based on settings
+                if (!settings.calculatedTimeSlots) {
+                    settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
+                }
+                
+                // Generate schedule with settings
+                generateSchedule(settings);
+                
+                // Remove loading overlay
+                loadingOverlay.remove();
+            })
+            .catch(error => {
+                console.error('Error loading user settings:', error);
+                
+                // Use default settings if there's an error
+                const settings = DEFAULT_SETTINGS;
+                settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
+                generateSchedule(settings);
+                
+                // Remove loading overlay
+                loadingOverlay.remove();
+            });
+    } catch (error) {
+        console.error('Error navigating to current week:', error);
+        
+        // Remove any existing loading overlay
+        const existingOverlay = document.querySelector('.fixed.inset-0.bg-black.bg-opacity-50.z-50');
+        if (existingOverlay) {
+            existingOverlay.remove();
+        }
+    }
 }

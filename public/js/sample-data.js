@@ -58,6 +58,30 @@ const sampleBookings = [
         frequency: "biweekly",
         status: "scheduled",
         notes: "Has a cat. Prefers morning appointments."
+    },
+    {
+        clientName: "David Wilson",
+        clientAddress: "456 Oak Avenue, Somewhere, CA 90211",
+        clientPhone: "555-789-0123",
+        accessInfo: "Key under doormat",
+        date: getTodayString(),
+        startTime: "10:15 AM",
+        endTime: "12:15 PM",
+        frequency: "weekly",
+        status: "completed",
+        notes: "Allergic to strong fragrances"
+    },
+    {
+        clientName: "Bob Smith",
+        clientAddress: "123 Elm Street, Anytown, CA 90210",
+        clientPhone: "555-321-7654",
+        accessInfo: "Garage code: 5678",
+        date: getTodayString(),
+        startTime: "10:15 AM",
+        endTime: "12:15 PM",
+        frequency: "weekly",
+        status: "completed",
+        notes: "Has a dog. Use pet-friendly products."
     }
 ];
 
@@ -154,28 +178,122 @@ async function addSampleBookings() {
     }
 }
 
-// Add a button to trigger sample data creation
+// Function to reset the database and repopulate with sample data
+async function resetAndPopulateDatabase() {
+    const user = firebase.auth().currentUser;
+    
+    if (!user) {
+        console.error('No user logged in. Please log in to reset data.');
+        return;
+    }
+    
+    // Show loading indicator
+    const loadingOverlay = document.createElement('div');
+    loadingOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
+    loadingOverlay.innerHTML = `
+        <div class="bg-white p-4 rounded-lg shadow-lg flex flex-col items-center">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-3"></div>
+            <p class="text-gray-700 mb-2">Resetting database...</p>
+            <p class="text-gray-500 text-sm">This may take a moment</p>
+        </div>
+    `;
+    document.body.appendChild(loadingOverlay);
+    
+    try {
+        console.log('Resetting database for user:', user.uid);
+        
+        // Delete all clients
+        const clientsRef = firebase.firestore().collection('users').doc(user.uid).collection('clients');
+        const clientsSnapshot = await clientsRef.get();
+        
+        const clientDeleteBatch = firebase.firestore().batch();
+        clientsSnapshot.forEach(doc => {
+            clientDeleteBatch.delete(clientsRef.doc(doc.id));
+        });
+        
+        await clientDeleteBatch.commit();
+        console.log('All clients deleted');
+        
+        // Delete all bookings
+        const bookingsRef = firebase.firestore().collection('users').doc(user.uid).collection('bookings');
+        const bookingsSnapshot = await bookingsRef.get();
+        
+        const bookingDeleteBatch = firebase.firestore().batch();
+        bookingsSnapshot.forEach(doc => {
+            bookingDeleteBatch.delete(bookingsRef.doc(doc.id));
+        });
+        
+        await bookingDeleteBatch.commit();
+        console.log('All bookings deleted');
+        
+        // Add sample clients
+        await addSampleClients();
+        
+        // Add sample bookings
+        await addSampleBookings();
+        
+        console.log('Database reset and repopulated successfully');
+        
+        // Show success message
+        loadingOverlay.innerHTML = `
+            <div class="bg-white p-4 rounded-lg shadow-lg flex flex-col items-center">
+                <div class="bg-green-100 text-green-700 rounded-full w-16 h-16 flex items-center justify-center mb-3">
+                    <i class="fas fa-check text-2xl"></i>
+                </div>
+                <p class="text-gray-700 font-medium mb-2">Database Reset Complete</p>
+                <p class="text-gray-500 text-sm mb-4">Sample data has been added</p>
+                <button id="closeResetBtn" class="bg-primary text-white py-2 px-4 rounded-lg font-medium hover:bg-primary-dark">
+                    Reload Schedule
+                </button>
+            </div>
+        `;
+        
+        document.getElementById('closeResetBtn').addEventListener('click', function() {
+            loadingOverlay.remove();
+            window.location.reload();
+        });
+        
+    } catch (error) {
+        console.error('Error resetting database:', error);
+        
+        // Show error message
+        loadingOverlay.innerHTML = `
+            <div class="bg-white p-4 rounded-lg shadow-lg flex flex-col items-center">
+                <div class="bg-red-100 text-red-700 rounded-full w-16 h-16 flex items-center justify-center mb-3">
+                    <i class="fas fa-exclamation-triangle text-2xl"></i>
+                </div>
+                <p class="text-gray-700 font-medium mb-2">Error Resetting Database</p>
+                <p class="text-red-500 text-sm mb-4">${error.message || 'Unknown error'}</p>
+                <button id="closeErrorBtn" class="bg-primary text-white py-2 px-4 rounded-lg font-medium hover:bg-primary-dark">
+                    Close
+                </button>
+            </div>
+        `;
+        
+        document.getElementById('closeErrorBtn').addEventListener('click', function() {
+            loadingOverlay.remove();
+        });
+    }
+}
+
+// Add a button to trigger database reset
 document.addEventListener('DOMContentLoaded', function() {
     // Check if we're on the index page
     if (window.location.pathname.includes('index.html') || window.location.pathname === '/' || window.location.pathname.endsWith('/')) {
-        // Create a hidden button that we'll trigger programmatically
-        const dataButton = document.createElement('button');
-        dataButton.id = 'add-sample-data';
-        dataButton.style.display = 'none';
-        dataButton.addEventListener('click', async function() {
-            await addSampleClients();
-            await addSampleBookings();
-        });
-        document.body.appendChild(dataButton);
-        
-        // Check if user is logged in and trigger sample data creation
-        firebase.auth().onAuthStateChanged(user => {
-            if (user) {
-                // Wait a bit to ensure Firestore is initialized
-                setTimeout(() => {
-                    dataButton.click();
-                }, 2000);
+        // Create a reset button in the top right corner
+        const resetButton = document.createElement('button');
+        resetButton.className = 'fixed top-4 right-4 bg-red-500 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg z-40';
+        resetButton.innerHTML = '<i class="fas fa-redo-alt"></i>';
+        resetButton.title = 'Reset Database';
+        resetButton.addEventListener('click', function() {
+            if (confirm('Are you sure you want to reset the database? This will delete all your data and replace it with sample data.')) {
+                resetAndPopulateDatabase();
             }
         });
+        
+        // Add the button after the page has loaded
+        setTimeout(() => {
+            document.body.appendChild(resetButton);
+        }, 1000);
     }
 }); 
