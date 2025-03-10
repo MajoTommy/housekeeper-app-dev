@@ -244,7 +244,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const timeSlots = settings.calculatedTimeSlots || [];
                     console.log('Available time slots for', dateText, ':', timeSlots);
                     
-                    timeSlots.forEach(slot => {
+        timeSlots.forEach(slot => {
                         const slotKey = `${slot.start}-${slot.end}`;
                         if (!bookedSlots.has(slotKey)) {
                             addTimeSlot(dayContainer, slot.start, slot.end, date);
