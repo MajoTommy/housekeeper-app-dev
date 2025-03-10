@@ -280,9 +280,9 @@ async function resetAndPopulateDatabase() {
 document.addEventListener('DOMContentLoaded', function() {
     // Check if we're on the index page
     if (window.location.pathname.includes('index.html') || window.location.pathname === '/' || window.location.pathname.endsWith('/')) {
-        // Create a reset button in the top right corner
+        // Create a reset button in the bottom right corner
         const resetButton = document.createElement('button');
-        resetButton.className = 'fixed top-4 right-4 bg-red-500 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg z-40';
+        resetButton.className = 'fixed bottom-20 right-4 bg-red-500 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg z-40';
         resetButton.innerHTML = '<i class="fas fa-redo-alt"></i>';
         resetButton.title = 'Reset Database';
         resetButton.addEventListener('click', function() {
