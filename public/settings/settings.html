@@ -52,64 +52,112 @@
             </div>
         </div>
 
-        <!-- Working Hours -->
+        <!-- Work Schedule -->
         <div class="bg-white rounded-lg p-4 shadow-sm">
-            <h2 class="text-lg font-medium text-gray-900">Working Hours</h2>
+            <h2 class="text-lg font-medium text-gray-900">Work Schedule</h2>
             
-            <!-- Days Selection -->
-            <div class="flex gap-2 mt-4">
-                <button class="h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center text-sm font-medium">M</button>
-                <button class="h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center text-sm font-medium">T</button>
-                <button class="h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center text-sm font-medium">W</button>
-                <button class="h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center text-sm font-medium">T</button>
-                <button class="h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center text-sm font-medium">F</button>
-                <button class="h-10 w-10 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center text-sm font-medium">S</button>
-                <button class="h-10 w-10 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center text-sm font-medium">S</button>
-            </div>
-
-            <!-- Time Selection -->
-            <div class="mt-4 grid grid-cols-2 gap-3">
-                <select id="start-time" class="block w-full rounded-lg border-gray-300 py-2 pl-3 pr-10 text-base focus:border-primary focus:outline-none focus:ring-primary">
-                    <option value="6:00">Start: 6:00 AM</option>
-                    <option value="6:30">Start: 6:30 AM</option>
-                    <option value="7:00">Start: 7:00 AM</option>
-                    <option value="7:30">Start: 7:30 AM</option>
-                    <option value="8:00" selected>Start: 8:00 AM</option>
-                    <option value="8:30">Start: 8:30 AM</option>
-                    <option value="9:00">Start: 9:00 AM</option>
-                    <option value="9:30">Start: 9:30 AM</option>
-                    <option value="10:00">Start: 10:00 AM</option>
-                </select>
-                <select id="end-time" class="block w-full rounded-lg border-gray-300 py-2 pl-3 pr-10 text-base focus:border-primary focus:outline-none focus:ring-primary">
-                    <option value="15:00">End: 3:00 PM</option>
-                    <option value="15:30">End: 3:30 PM</option>
-                    <option value="16:00">End: 4:00 PM</option>
-                    <option value="16:30">End: 4:30 PM</option>
-                    <option value="17:00" selected>End: 5:00 PM</option>
-                    <option value="17:30">End: 5:30 PM</option>
-                    <option value="18:00">End: 6:00 PM</option>
-                    <option value="18:30">End: 6:30 PM</option>
-                    <option value="19:00">End: 7:00 PM</option>
-                    <option value="19:30">End: 7:30 PM</option>
-                    <option value="20:00">End: 8:00 PM</option>
-                </select>
-            </div>
-        </div>
-
-        <!-- Cleaning Preferences -->
-        <div class="bg-white rounded-lg p-4 shadow-sm">
-            <h2 class="text-lg font-medium text-gray-900">Cleaning Preferences</h2>
-            
+            <!-- Working Days -->
             <div class="mt-4">
-                <!-- Cleanings Per Day -->
+                <label class="block text-sm font-medium text-gray-700 mb-2">Working Days</label>
+                <div class="flex gap-2">
+                    <button class="h-10 w-10 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center text-sm font-medium">S</button>
+                    <button class="h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center text-sm font-medium">M</button>
+                    <button class="h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center text-sm font-medium">T</button>
+                    <button class="h-10 w-10 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center text-sm font-medium">W</button>
+                    <button class="h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center text-sm font-medium">T</button>
+                    <button class="h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center text-sm font-medium">F</button>
+                    <button class="h-10 w-10 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center text-sm font-medium">S</button>
+                </div>
+                <p class="mt-1 text-sm text-gray-500">Tap a day to toggle it on/off. Gray days are your rest days.</p>
+            </div>
+
+            <!-- Working Hours -->
+            <div class="mt-4 grid grid-cols-2 gap-3">
                 <div>
-                    <label for="cleanings-per-day" class="block text-sm font-medium text-gray-700 mb-2">Cleanings Per Day</label>
-                    <select id="cleanings-per-day" class="block w-full rounded-lg border-gray-300 py-2 pl-3 pr-10 text-base focus:border-primary focus:outline-none focus:ring-primary">
-                        <option value="1">1 cleaning per day</option>
-                        <option value="2" selected>2 cleanings per day</option>
-                        <option value="3">3 cleanings per day</option>
-                        <option value="4">4 cleanings per day</option>
+                    <label for="start-time" class="block text-sm font-medium text-gray-700 mb-2">Start Time</label>
+                    <select id="start-time" class="block w-full rounded-lg border-gray-300 py-2 pl-3 pr-10 text-base focus:border-primary focus:outline-none focus:ring-primary">
+                        <option value="6:00 AM">6:00 AM</option>
+                        <option value="6:30 AM">6:30 AM</option>
+                        <option value="7:00 AM">7:00 AM</option>
+                        <option value="7:30 AM">7:30 AM</option>
+                        <option value="8:00 AM" selected>8:00 AM</option>
+                        <option value="8:30 AM">8:30 AM</option>
+                        <option value="9:00 AM">9:00 AM</option>
+                        <option value="9:30 AM">9:30 AM</option>
+                        <option value="10:00 AM">10:00 AM</option>
                     </select>
+                </div>
+                <div>
+                    <label for="end-time" class="block text-sm font-medium text-gray-700 mb-2">End Time</label>
+                    <select id="end-time" class="block w-full rounded-lg border-gray-300 py-2 pl-3 pr-10 text-base focus:border-primary focus:outline-none focus:ring-primary">
+                        <option value="3:00 PM">3:00 PM</option>
+                        <option value="3:30 PM">3:30 PM</option>
+                        <option value="4:00 PM">4:00 PM</option>
+                        <option value="4:30 PM">4:30 PM</option>
+                        <option value="5:00 PM" selected>5:00 PM</option>
+                        <option value="5:30 PM">5:30 PM</option>
+                        <option value="6:00 PM">6:00 PM</option>
+                        <option value="6:30 PM">6:30 PM</option>
+                        <option value="7:00 PM">7:00 PM</option>
+                    </select>
+                </div>
+            </div>
+            <p class="mt-1 text-xs text-blue-600"><i class="fas fa-info-circle mr-1"></i> Your working hours must be long enough to accommodate all your jobs plus break times</p>
+            
+            <div class="mt-4 space-y-4">
+                <!-- Jobs Per Day -->
+                <div>
+                    <label for="cleanings-per-day" class="block text-sm font-medium text-gray-700 mb-2">Jobs Per Day</label>
+                    <select id="cleanings-per-day" class="block w-full rounded-lg border-gray-300 py-2 pl-3 pr-10 text-base focus:border-primary focus:outline-none focus:ring-primary">
+                        <option value="1">1 job per day</option>
+                        <option value="2" selected>2 jobs per day</option>
+                        <option value="3">3 jobs per day (only for small jobs)</option>
+                    </select>
+                    <p class="mt-1 text-sm text-gray-500">Most housekeepers prefer 1-2 jobs per day to avoid burnout</p>
+                    <p class="mt-1 text-xs text-blue-600"><i class="fas fa-info-circle mr-1"></i> The number of jobs must fit within your working hours and maximum working hours</p>
+                </div>
+                
+                <!-- Job Settings -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Job Duration -->
+                    <div>
+                        <label for="cleaning-duration" class="block text-sm font-medium text-gray-700 mb-2">Job Duration</label>
+                        <select id="cleaning-duration" class="block w-full rounded-lg border-gray-300 py-2 pl-3 pr-10 text-base focus:border-primary focus:outline-none focus:ring-primary">
+                            <option value="120">2 hours</option>
+                            <option value="150">2.5 hours</option>
+                            <option value="180" selected>3 hours</option>
+                            <option value="210">3.5 hours</option>
+                            <option value="240">4 hours</option>
+                        </select>
+                        <p class="mt-1 text-xs text-blue-600"><i class="fas fa-info-circle mr-1"></i> Longer jobs may limit how many you can do per day</p>
+                    </div>
+                    
+                    <!-- Break Time -->
+                    <div>
+                        <label for="break-time" class="block text-sm font-medium text-gray-700 mb-2">Break Between Jobs</label>
+                        <select id="break-time" class="block w-full rounded-lg border-gray-300 py-2 pl-3 pr-10 text-base focus:border-primary focus:outline-none focus:ring-primary">
+                            <option value="30">30 minutes</option>
+                            <option value="60">1 hour</option>
+                            <option value="90" selected>1.5 hours</option>
+                            <option value="120">2 hours</option>
+                        </select>
+                        <p class="mt-1 text-xs text-blue-600"><i class="fas fa-info-circle mr-1"></i> Includes travel time between jobs</p>
+                    </div>
+                </div>
+                
+                <!-- Maximum Working Hours -->
+                <div>
+                    <label for="max-hours" class="block text-sm font-medium text-gray-700 mb-2">Maximum Working Hours Per Day</label>
+                    <select id="max-hours" class="block w-full rounded-lg border-gray-300 py-2 pl-3 pr-10 text-base focus:border-primary focus:outline-none focus:ring-primary">
+                        <option value="300">5 hours</option>
+                        <option value="360">6 hours</option>
+                        <option value="420" selected>7 hours</option>
+                        <option value="480">8 hours</option>
+                        <option value="540">9 hours</option>
+                        <option value="600">10 hours</option>
+                    </select>
+                    <p class="mt-1 text-sm text-gray-500">Including cleaning time but not breaks or travel time</p>
+                    <p class="mt-1 text-xs text-blue-600"><i class="fas fa-info-circle mr-1"></i> This limits the total cleaning time across all jobs</p>
                 </div>
             </div>
         </div>

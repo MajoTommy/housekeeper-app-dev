@@ -4,17 +4,626 @@ let currentWeekStart = new Date();
 currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekStart.getDay());
 currentWeekStart.setHours(0, 0, 0, 0);
 
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize Firebase Auth
-    firebase.auth().onAuthStateChanged(function(user) {
-        if (user) {
-            console.log('User found after auth state change:', user.uid);
-            loadUserSchedule();
-        } else {
-            console.log('No user found, redirecting to login');
-            window.location.href = 'login.html';
+// Global booking data
+let currentBookingData = {
+    dateTime: null,
+    client: null,
+    frequency: null
+};
+
+// Flag to track if booking handlers are set up
+let bookingHandlersInitialized = false;
+
+// Global loading indicator functions
+function showLoading(message = 'Loading...') {
+    const existingOverlay = document.getElementById('loadingOverlay');
+    if (existingOverlay) {
+        existingOverlay.classList.remove('hidden');
+    } else {
+        const loadingOverlay = document.createElement('div');
+        loadingOverlay.id = 'loadingOverlay';
+        loadingOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
+        loadingOverlay.innerHTML = `
+            <div class="bg-white p-4 rounded-lg shadow-lg flex items-center">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-3"></div>
+                <p class="text-gray-700">${message}</p>
+        </div>
+    `;
+        document.body.appendChild(loadingOverlay);
+    }
+}
+
+function hideLoading() {
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    if (loadingOverlay) {
+        loadingOverlay.remove();
+    }
+}
+
+// Function to check if a date is in the past
+function isInPast(date) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return date < today;
+}
+
+// Function to update the navigation state
+function updateNavigationState() {
+    const prevWeekBtn = document.getElementById('prev-week');
+    if (!prevWeekBtn) {
+        console.error('Previous week button not found');
+        return;
+    }
+    
+    // Check if the previous week is in the past
+    const prevWeekDate = new Date(currentWeekStart);
+    prevWeekDate.setDate(prevWeekDate.getDate() - 7);
+    
+    // Check if previous week is in the past
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const isPast = prevWeekDate < today;
+    
+    // Disable the previous week button if the previous week is in the past
+    prevWeekBtn.disabled = isPast;
+    prevWeekBtn.classList.toggle('opacity-50', prevWeekBtn.disabled);
+    prevWeekBtn.classList.toggle('cursor-not-allowed', prevWeekBtn.disabled);
+    
+    console.log('Navigation state updated, prev week button disabled:', prevWeekBtn.disabled);
+}
+
+// Function to update the week display
+function updateWeekDisplay() {
+    try {
+        const weekRangeElement = document.getElementById('week-range');
+        if (!weekRangeElement) {
+            console.error('Week range element not found');
+            return;
         }
+        
+        // Get the start and end of the current week
+        const weekStart = new Date(currentWeekStart);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        
+        // Format the dates
+        const options = { month: 'long', day: 'numeric', year: 'numeric' };
+        const startStr = weekStart.toLocaleDateString('en-US', options);
+        const endStr = weekEnd.toLocaleDateString('en-US', options);
+        
+        // Update the week range display
+        weekRangeElement.textContent = `${startStr} - ${endStr}`;
+        console.log('Week range updated:', weekRangeElement.textContent);
+    } catch (error) {
+        console.error('Error updating week display:', error);
+    }
+}
+
+// Function to load user schedule
+async function loadUserSchedule(showLoadingIndicator = true) {
+    console.log('loadUserSchedule called');
+    
+    if (showLoadingIndicator) {
+        showLoading('Loading your schedule...');
+    }
+
+    try {
+        const user = firebase.auth().currentUser;
+        console.log('Current user:', user);
+        if (!user) {
+            console.error('No user found');
+            hideLoading();
+            return;
+        }
+
+        // Get user settings from Firestore
+        console.log('Fetching user settings from Firestore...');
+        const userDoc = await firebase.firestore().collection('users').doc(user.uid).get();
+        let settings = DEFAULT_SETTINGS;
+        console.log('Default settings:', DEFAULT_SETTINGS);
+
+        if (userDoc.exists) {
+            const userData = userDoc.data();
+            console.log('User data from Firestore:', userData);
+            
+            // Check if settings are in a nested 'settings' field or directly in the document
+            if (userData.settings) {
+                // Settings are in a nested 'settings' field
+                settings = { ...DEFAULT_SETTINGS, ...userData.settings };
+            } else {
+                // Settings might be directly in the document (old format)
+                settings = { ...DEFAULT_SETTINGS, ...userData };
+            }
+            console.log('Merged settings:', settings);
+        } else {
+            console.log('User document does not exist, using default settings');
+        }
+
+        // Calculate available time slots based on settings
+        settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
+        console.log('Calculated time slots:', settings.calculatedTimeSlots);
+
+        // Generate the schedule with the settings
+        console.log('Calling generateSchedule with settings:', settings);
+        generateSchedule(settings);
+    } catch (error) {
+        console.error('Error loading user schedule:', error);
+        hideLoading();
+        
+        // Show error message to user
+        const container = document.querySelector('.p-4');
+        if (container) {
+            container.innerHTML = `
+                <div class="text-center py-8">
+                    <div class="bg-red-100 text-red-700 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-exclamation-triangle text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-2">Error Loading Schedule</h3>
+                    <p class="text-gray-600 mb-6">${error.message || 'There was an error loading your schedule. Please try again.'}</p>
+                    <button id="retryBtn" class="bg-primary text-white py-3 px-6 rounded-lg font-medium hover:bg-primary-dark">
+                        Retry
+                    </button>
+                </div>
+            `;
+            
+            document.getElementById('retryBtn').addEventListener('click', function() {
+                loadUserSchedule();
+            });
+        }
+    }
+}
+
+// Function to calculate available time slots
+function calculateAvailableTimeSlots(settings) {
+    const slots = [];
+    
+    // Convert time format if needed (handle both "09:00" and "09:00 AM" formats)
+    let startTimeStr = settings.workingHours.start;
+    let endTimeStr = settings.workingHours.end;
+    
+    console.log('Original time settings:', startTimeStr, endTimeStr);
+    
+    // Handle 24-hour format like "15:00"
+    if (startTimeStr.includes(':') && !startTimeStr.includes('AM') && !startTimeStr.includes('PM')) {
+        const [startHours, startMinutes] = startTimeStr.split(':').map(Number);
+        const startPeriod = startHours >= 12 ? 'PM' : 'AM';
+        const startHours12 = startHours % 12 || 12;
+        startTimeStr = `${startHours12}:${startMinutes.toString().padStart(2, '0')} ${startPeriod}`;
+    }
+    
+    if (endTimeStr.includes(':') && !endTimeStr.includes('AM') && !endTimeStr.includes('PM')) {
+        const [endHours, endMinutes] = endTimeStr.split(':').map(Number);
+        const endPeriod = endHours >= 12 ? 'PM' : 'AM';
+        const endHours12 = endHours % 12 || 12;
+        endTimeStr = `${endHours12}:${endMinutes.toString().padStart(2, '0')} ${endPeriod}`;
+    }
+    
+    console.log('Converted time formats:', startTimeStr, endTimeStr);
+    
+    const startTime = new Date('2000-01-01 ' + startTimeStr);
+    const endTime = new Date('2000-01-01 ' + endTimeStr);
+    
+    // Get settings with defaults
+    const cleaningsPerDay = settings.cleaningsPerDay || 2;
+    const cleaningDuration = settings.cleaningDuration || 120; // Default 2 hours (120 minutes)
+    const breakTime = settings.breakTime || 90; // Default 1.5 hours (90 minutes)
+    const maxHours = settings.maxHours || 8 * 60; // Default 8 hours (in minutes)
+    
+    console.log('Settings for time slots:', {
+        cleaningsPerDay,
+        cleaningDuration: `${cleaningDuration} minutes (${cleaningDuration/60} hours)`,
+        breakTime: `${breakTime} minutes (${breakTime/60} hours)`,
+        maxHours: `${maxHours} minutes (${maxHours/60} hours)`
     });
+    
+    // Calculate total working minutes
+    const totalWorkingMinutes = Math.min((endTime - startTime) / 60000, maxHours); // Convert milliseconds to minutes, cap at max hours
+    console.log('Total working minutes:', totalWorkingMinutes);
+    
+    // Calculate time needed for each cleaning + break
+    const timePerCleaning = cleaningDuration + breakTime;
+    console.log('Time per cleaning (including break):', timePerCleaning, 'minutes');
+    
+    // Check if we can fit all cleanings within the working hours
+    const totalTimeNeeded = (cleaningDuration * cleaningsPerDay) + (breakTime * (cleaningsPerDay - 1));
+    console.log('Total time needed for all cleanings:', totalTimeNeeded, 'minutes');
+    
+    if (totalTimeNeeded > totalWorkingMinutes) {
+        console.warn(`Not enough time for ${cleaningsPerDay} cleanings. Adjusting number of slots.`);
+        // Calculate how many cleanings we can actually fit
+        const maxCleanings = Math.floor((totalWorkingMinutes + breakTime) / timePerCleaning);
+        console.log('Adjusted to fit', maxCleanings, 'cleanings');
+        
+        // Generate time slots based on adjusted cleanings count
+        for (let i = 0; i < maxCleanings; i++) {
+            const slotStart = new Date(startTime.getTime() + (i * timePerCleaning * 60000));
+            const slotEnd = new Date(slotStart.getTime() + (cleaningDuration * 60000));
+            
+            // Only add the slot if it ends before or at the end time
+            if (slotEnd <= endTime) {
+                slots.push({
+                    start: slotStart.toLocaleTimeString('en-US', { 
+                        hour: 'numeric', 
+                        minute: '2-digit', 
+                        hour12: true 
+                    }),
+                    end: slotEnd.toLocaleTimeString('en-US', { 
+                        hour: 'numeric', 
+                        minute: '2-digit', 
+                        hour12: true 
+                    }),
+                    durationMinutes: cleaningDuration
+                });
+            }
+        }
+    } else {
+        // We can fit all cleanings, so distribute them evenly
+        console.log('Can fit all cleanings. Distributing evenly.');
+        
+        // Generate time slots based on cleaningsPerDay
+        for (let i = 0; i < cleaningsPerDay; i++) {
+            const slotStart = new Date(startTime.getTime() + (i * timePerCleaning * 60000));
+            const slotEnd = new Date(slotStart.getTime() + (cleaningDuration * 60000));
+            
+            // Only add the slot if it ends before or at the end time
+            if (slotEnd <= endTime) {
+                slots.push({
+                    start: slotStart.toLocaleTimeString('en-US', { 
+                        hour: 'numeric', 
+                        minute: '2-digit', 
+                        hour12: true 
+                    }),
+                    end: slotEnd.toLocaleTimeString('en-US', { 
+                        hour: 'numeric', 
+                        minute: '2-digit', 
+                        hour12: true 
+                    }),
+                    durationMinutes: cleaningDuration
+                });
+            }
+        }
+    }
+    
+    // If no slots were generated, create at least one default slot
+    if (slots.length === 0) {
+        console.warn('No slots were generated, creating default slot');
+        const defaultSlotEnd = new Date(startTime.getTime() + (cleaningDuration * 60000));
+        
+        // Only add the default slot if it ends before or at the end time
+        if (defaultSlotEnd <= endTime) {
+            slots.push({
+                start: startTime.toLocaleTimeString('en-US', { 
+                    hour: 'numeric', 
+                    minute: '2-digit', 
+                    hour12: true 
+                }),
+                end: defaultSlotEnd.toLocaleTimeString('en-US', { 
+                    hour: 'numeric', 
+                    minute: '2-digit', 
+                    hour12: true 
+                }),
+                durationMinutes: cleaningDuration
+            });
+        }
+    }
+    
+    console.log('Generated slots:', slots);
+    return slots;
+}
+
+// Function to generate schedule
+function generateSchedule(settings) {
+    console.log('generateSchedule called with settings:', settings);
+    console.log('Working days configuration:', settings.workingDays);
+    
+    // Get the container element
+    const container = document.querySelector('.p-4');
+    if (!container) {
+        console.error('Schedule container not found');
+        hideLoading(); // Hide loading if container not found
+        return;
+    }
+    
+    // Clear existing content
+    container.innerHTML = '';
+    
+    // Get the current week's start and end dates
+    const weekStart = new Date(currentWeekStart);
+    const weekEnd = new Date(currentWeekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    
+    console.log('Generating schedule for week:', weekStart, 'to', weekEnd);
+    
+    // Format dates for display
+    const options = { month: 'short', day: 'numeric' };
+    const weekStartFormatted = weekStart.toLocaleDateString('en-US', options);
+    const weekEndFormatted = weekEnd.toLocaleDateString('en-US', options);
+    
+    // Update the week display
+    const weekDisplay = document.getElementById('week-range');
+    if (weekDisplay) {
+        weekDisplay.textContent = `${weekStartFormatted} - ${weekEndFormatted}`;
+    }
+    
+    // Load user bookings for the current week
+    loadUserBookings(weekStart, weekEnd).then(bookings => {
+        console.log('Loaded bookings:', bookings);
+        
+        // Group bookings by date
+        const bookingsByDate = {};
+        bookings.forEach(booking => {
+            const dateKey = booking.date;
+            if (!bookingsByDate[dateKey]) {
+                bookingsByDate[dateKey] = [];
+            }
+            bookingsByDate[dateKey].push(booking);
+        });
+        
+        console.log('Bookings grouped by date:', bookingsByDate);
+        
+        // Generate schedule for each day of the week
+        for (let i = 0; i < 7; i++) {
+            const date = new Date(weekStart);
+            date.setDate(date.getDate() + i);
+            
+            // Format the date for display
+            const dateText = date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+            
+            // Check if this is today
+            const today = new Date();
+            const isToday = date.getDate() === today.getDate() && 
+                           date.getMonth() === today.getMonth() && 
+                           date.getFullYear() === today.getFullYear();
+            
+            // Get the day of the week (0-6, where 0 is Sunday)
+            const dayOfWeek = date.getDay();
+            
+            // Get bookings for this date
+            const dateKey = date.toISOString().split('T')[0];
+            const dateBookings = bookingsByDate[dateKey] || [];
+            
+            // Add date header
+            addDateHeader(container, dateText, isToday);
+            
+            // Create a container for this day's cards
+            const dayContainer = document.createElement('div');
+            dayContainer.className = isToday ? 'bg-primary-light/70 rounded-lg p-4 mb-6' : 'space-y-4 mb-6';
+            dayContainer.setAttribute('data-date', date.toISOString().split('T')[0]);
+            dayContainer.setAttribute('data-day-of-week', dayOfWeek);
+            container.appendChild(dayContainer);
+            
+            // Helper function to convert time string to minutes since midnight
+            const timeToMinutes = (timeStr) => {
+                // Extract hours, minutes, and period (AM/PM)
+                const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+                if (!match) return 0;
+                
+                let hours = parseInt(match[1]);
+                const minutes = parseInt(match[2]);
+                const period = match[3].toUpperCase();
+                
+                // Convert to 24-hour format
+                if (period === 'PM' && hours < 12) hours += 12;
+                if (period === 'AM' && hours === 12) hours = 0;
+                
+                return hours * 60 + minutes;
+            };
+            
+            // Sort bookings by start time (morning to evening)
+            dateBookings.sort((a, b) => {
+                const aMinutes = timeToMinutes(a.startTime);
+                const bMinutes = timeToMinutes(b.startTime);
+                return aMinutes - bMinutes;
+            });
+            
+            // Track booked time slots
+            const bookedSlots = new Set();
+            
+            // Add booking cards to booked slots set first
+            dateBookings.forEach(booking => {
+                bookedSlots.add(`${booking.startTime}-${booking.endTime}`);
+                booking.type = 'booked';
+            });
+            
+            // Prepare available time slots
+            let availableTimeSlots = [];
+            
+            // Check if this day is a working day - use loose equality to handle different data types
+            const isWorkingDay = settings.workingDays && (settings.workingDays[dayOfWeek] == true);
+            
+            console.log(`Day ${dayOfWeek} (${date.toDateString()}) working status:`, settings.workingDays[dayOfWeek], 'isWorkingDay:', isWorkingDay);
+            
+            if (isWorkingDay) {
+                const timeSlots = settings.calculatedTimeSlots || [];
+                
+                timeSlots.forEach(slot => {
+                    const slotKey = `${slot.start}-${slot.end}`;
+                    
+                    // Check if this slot overlaps with any booked slot
+                    let overlapsWithBooking = false;
+                    
+                    // Convert this slot's times to minutes for comparison
+                    const slotStartMinutes = timeToMinutes(slot.start);
+                    const slotEndMinutes = timeToMinutes(slot.end);
+                    
+                    // Check against each booking
+                    for (const booking of dateBookings) {
+                        const bookingStartMinutes = timeToMinutes(booking.startTime);
+                        const bookingEndMinutes = timeToMinutes(booking.endTime);
+                        
+                        // Check for overlap
+                        if (
+                            // Slot starts during a booking
+                            (slotStartMinutes >= bookingStartMinutes && slotStartMinutes < bookingEndMinutes) ||
+                            // Slot ends during a booking
+                            (slotEndMinutes > bookingStartMinutes && slotEndMinutes <= bookingEndMinutes) ||
+                            // Slot completely contains a booking
+                            (slotStartMinutes <= bookingStartMinutes && slotEndMinutes >= bookingEndMinutes) ||
+                            // Booking completely contains the slot
+                            (bookingStartMinutes <= slotStartMinutes && bookingEndMinutes >= slotEndMinutes)
+                        ) {
+                            overlapsWithBooking = true;
+                            break;
+                        }
+                    }
+                    
+                    // Check if this slot is in the past
+                    const now = new Date();
+                    const slotDate = new Date(date);
+                    const slotStartTime = slot.start;
+                    
+                    // Parse the time (e.g., "9:00 AM")
+                    const timeMatch = slotStartTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
+                    if (timeMatch) {
+                        let hours = parseInt(timeMatch[1]);
+                        const minutes = parseInt(timeMatch[2]);
+                        const period = timeMatch[3].toUpperCase();
+                        
+                        // Convert to 24-hour format
+                        if (period === 'PM' && hours < 12) hours += 12;
+                        if (period === 'AM' && hours === 12) hours = 0;
+                        
+                        // Set the slot's start time
+                        slotDate.setHours(hours, minutes, 0, 0);
+                        
+                        // Check if the slot is in the past
+                        const isPastSlot = slotDate < now;
+                        
+                        if (isPastSlot) {
+                            console.log(`Skipping past time slot: ${slotStartTime} on ${slotDate.toDateString()}`);
+                            overlapsWithBooking = true; // Use this flag to skip the slot
+                        }
+                    }
+                    
+                    // Only add the slot if it doesn't overlap with any booking and is not in the past
+                    if (!overlapsWithBooking) {
+                        availableTimeSlots.push({
+                            type: 'available',
+                            startTime: slot.start,
+                            endTime: slot.end,
+                            date: date,
+                            durationMinutes: settings.cleaningDuration
+                        });
+                    }
+                });
+            } else {
+                // Add a message indicating this is not a working day
+                // Check if workingDays has this day explicitly set to false (rest day) or if it's undefined/null (non-working day)
+                const isRestDay = settings.workingDays && settings.workingDays[dayOfWeek] === false;
+                const messageType = isRestDay ? 'rest_day' : 'non_working_day';
+                addUnavailableMessage(dayContainer, messageType);
+            }
+            
+            // Combine booked and available slots and sort them all together
+            const allTimeSlots = [...dateBookings, ...availableTimeSlots];
+            allTimeSlots.sort((a, b) => {
+                const aMinutes = timeToMinutes(a.startTime);
+                const bMinutes = timeToMinutes(b.startTime);
+                return aMinutes - bMinutes;
+            });
+            
+            // Add all time slots to the container in chronological order
+            allTimeSlots.forEach(slot => {
+                if (slot.type === 'booked') {
+                    // Ensure booking has all required fields
+                    slot.clientAddress = slot.clientAddress || '';
+                    slot.clientPhone = slot.clientPhone || '';
+                    slot.accessInfo = slot.accessInfo || '';
+                    slot.notes = slot.notes || '';
+                    
+                    addBookingCard(dayContainer, slot, isToday);
+                } else {
+                    addTimeSlot(dayContainer, slot.startTime, slot.endTime, slot.date, slot.durationMinutes);
+                }
+            });
+            
+            // If no slots at all and it's a working day, show unavailable message
+            if (allTimeSlots.length === 0 && isWorkingDay) {
+                console.warn('No time slots available for', dateText);
+                addUnavailableMessage(dayContainer, 'fully_booked');
+            }
+        }
+        
+        // Hide the loading overlay when done
+        hideLoading();
+    }).catch(error => {
+        console.error('Error loading bookings:', error);
+        hideLoading();
+    });
+}
+
+// Function to add date header
+function addDateHeader(container, dateText, isToday) {
+    const dateHeader = document.createElement('div');
+    dateHeader.className = 'mb-4';
+    
+    // Create the date header with today indicator if applicable
+    dateHeader.innerHTML = `
+        <h2 class="text-xl font-bold text-gray-900 mb-1 flex items-center">
+            ${dateText}
+            ${isToday ? '<span class="ml-2 bg-primary text-white text-xs py-1 px-2 rounded-full">Today</span>' : ''}
+        </h2>
+        <div class="h-1 w-24 bg-primary rounded"></div>
+    `;
+    
+    container.appendChild(dateHeader);
+}
+
+// Function to add unavailable message
+function addUnavailableMessage(container, reason = 'default') {
+    const unavailableMessage = document.createElement('div');
+    unavailableMessage.className = 'text-center py-8 bg-gray-100 rounded-lg mb-4';
+    
+    let messageContent = '';
+    
+    switch (reason) {
+        case 'past':
+            messageContent = `
+                <i class="fas fa-clock text-gray-400 text-3xl mb-2"></i>
+                <h3 class="text-xl font-semibold text-gray-800">Past Time</h3>
+                <p class="text-gray-600">This time has already passed.</p>
+            `;
+            break;
+        case 'rest_day':
+            messageContent = `
+                <i class="fas fa-moon text-primary text-3xl mb-2"></i>
+                <h3 class="text-xl font-semibold text-gray-800">Rest Day</h3>
+                <p class="text-gray-600">This is your designated rest day.</p>
+            `;
+            break;
+        case 'non_working_day':
+            messageContent = `
+                <i class="fas fa-calendar-times text-gray-400 text-3xl mb-2"></i>
+                <h3 class="text-xl font-semibold text-gray-800">Non-Working Day</h3>
+                <p class="text-gray-600">You're not scheduled to work on this day.</p>
+                <p class="text-gray-600 mt-2">You can change your working days in Settings.</p>
+            `;
+            break;
+        case 'fully_booked':
+            messageContent = `
+                <i class="fas fa-calendar-check text-primary text-3xl mb-2"></i>
+                <h3 class="text-xl font-semibold text-gray-800">Fully Booked</h3>
+                <p class="text-gray-600">All available slots for this day are booked.</p>
+            `;
+            break;
+        default:
+            messageContent = `
+                <i class="fas fa-calendar-times text-gray-400 text-3xl mb-2"></i>
+                <h3 class="text-xl font-semibold text-gray-800">Not Available</h3>
+                <p class="text-gray-600">No available time slots for this day.</p>
+            `;
+    }
+    
+    unavailableMessage.innerHTML = messageContent;
+    container.appendChild(unavailableMessage);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM fully loaded');
+    
+    // Initialize booking modal
+    const modalInitialized = initializeBookingModal();
+    console.log('Booking modal initialized:', modalInitialized);
     
     // Set up week navigation
     const prevWeekBtn = document.getElementById('prev-week');
@@ -37,357 +646,34 @@ document.addEventListener('DOMContentLoaded', function() {
         console.error('Week navigation buttons not found');
     }
     
-    // Update navigation state initially
+    // Initialize the week display
+    updateWeekDisplay();
+    
+    // Update navigation state
     updateNavigationState();
-
-    // Firebase initialization check
-    if (!firebase.apps.length) {
-        console.error('Firebase not initialized');
-        return;
-    }
-
-    console.log('Schedule.js loaded');
-
-    // Set up week navigation
-    const weekRangeDisplay = document.getElementById('week-range');
-
-    // Add loading indicator
-    const loadingIndicator = document.createElement('div');
-    loadingIndicator.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden';
-    loadingIndicator.innerHTML = `
-        <div class="bg-white rounded-lg p-4 flex items-center space-x-3">
-            <div class="animate-spin rounded-full h-6 w-6 border-4 border-primary border-t-transparent"></div>
-            <span class="text-gray-700">Loading...</span>
-        </div>
-    `;
-    document.body.appendChild(loadingIndicator);
-
-    // Global loading indicator functions
-    function showLoading() {
-        const existingOverlay = document.getElementById('loadingOverlay');
-        if (existingOverlay) {
-            existingOverlay.classList.remove('hidden');
-        } else {
-            const loadingOverlay = document.createElement('div');
-            loadingOverlay.id = 'loadingOverlay';
-            loadingOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
-            loadingOverlay.innerHTML = `
-                <div class="bg-white p-4 rounded-lg shadow-lg flex items-center">
-                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-3"></div>
-                    <p class="text-gray-700">Loading...</p>
-                </div>
-            `;
-            document.body.appendChild(loadingOverlay);
-        }
-    }
-
-    function hideLoading() {
-        const loadingOverlay = document.getElementById('loadingOverlay');
-        if (loadingOverlay) {
-            loadingOverlay.classList.add('hidden');
-        }
-    }
-
-    // Check if a date is in the past (before today)
-    function isInPast(date) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        return date < today;
-    }
-
-    // Function to update the navigation state
-    function updateNavigationState() {
-        const prevWeekBtn = document.getElementById('prev-week');
-        if (!prevWeekBtn) {
-            console.error('Previous week button not found');
-            return;
-        }
-        
-        // Check if the previous week is in the past
-        const prevWeekDate = new Date(currentWeekStart);
-        prevWeekDate.setDate(prevWeekDate.getDate() - 7);
-        
-        // Disable the previous week button if the previous week is in the past
-        prevWeekBtn.disabled = isInPast(prevWeekDate);
-        prevWeekBtn.classList.toggle('opacity-50', prevWeekBtn.disabled);
-        prevWeekBtn.classList.toggle('cursor-not-allowed', prevWeekBtn.disabled);
-        
-        console.log('Navigation state updated, prev week button disabled:', prevWeekBtn.disabled);
-    }
-
-    // Function to update the week display
-    function updateWeekDisplay() {
-        try {
-            const weekRangeElement = document.getElementById('week-range');
-            if (!weekRangeElement) {
-                console.error('Week range element not found');
-                return;
-            }
-            
-            // Get the start and end of the current week
-            const weekStart = new Date(currentWeekStart);
-            const weekEnd = new Date(weekStart);
-            weekEnd.setDate(weekStart.getDate() + 6);
-            
-            // Format the dates
-            const options = { month: 'long', day: 'numeric', year: 'numeric' };
-            const startStr = weekStart.toLocaleDateString('en-US', options);
-            const endStr = weekEnd.toLocaleDateString('en-US', options);
-            
-            // Update the week range display
-            weekRangeElement.textContent = `${startStr} - ${endStr}`;
-            console.log('Week range updated:', weekRangeElement.textContent);
-        } catch (error) {
-            console.error('Error updating week display:', error);
-        }
-    }
-
-    // Get current user and their settings
-    const user = firebase.auth().currentUser;
-    if (!user) {
-        console.log('No user found initially, waiting for auth state change');
-        firebase.auth().onAuthStateChanged(function(user) {
-            if (user) {
-                console.log('User found after auth state change:', user.uid);
-                loadUserSchedule();
-            } else {
-                console.log('No user after auth state change, redirecting to login');
-                window.location.href = 'login.html';
-            }
-        });
-    } else {
-        console.log('User found immediately:', user.uid);
-        loadUserSchedule();
-    }
-
-    // Function to load user schedule
-    function loadUserSchedule() {
-        return new Promise((resolve, reject) => {
-            const user = firebase.auth().currentUser;
-            if (!user) {
-                console.log('No user found, waiting for auth state change');
-                reject(new Error('No user found'));
-                return;
-            }
-            
-            console.log('Loading schedule for user:', user.uid);
-            
-            // Update the week display
-            updateWeekDisplay();
-            
-            // Get user settings from Firestore
-            firebase.firestore().collection('users').doc(user.uid).get()
-                .then(doc => {
-                    let settings;
-                    
-                    if (doc.exists && doc.data().settings) {
-                        settings = doc.data().settings;
-                        console.log('User settings loaded:', settings);
-                    } else {
-                        console.log('No user settings found, using defaults');
-                        settings = DEFAULT_SETTINGS;
-                    }
-                    
-                    // Calculate time slots based on settings
-                    if (!settings.calculatedTimeSlots) {
-                        settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
-                    }
-                    
-                    console.log('User settings loaded:', settings);
-                    
-                    // Generate schedule with settings
-                    generateSchedule(settings);
-                    
-                    resolve();
-                })
-                .catch(error => {
-                    console.error('Error loading user settings:', error);
-                    
-                    // Use default settings if there's an error
-                    const settings = DEFAULT_SETTINGS;
-                    settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
-                    generateSchedule(settings);
-                    
-                    reject(error);
-                });
-        });
-    }
-
-    function generateSchedule(settings) {
-        // Create or show the loading overlay
-        const existingOverlay = document.getElementById('loadingOverlay');
-        if (existingOverlay) {
-            existingOverlay.classList.remove('hidden');
-        }
-        
-        const container = document.querySelector('.p-4');
-        container.innerHTML = '';
-        
-        // Get the current week's start and end dates
-        const currentDate = new Date();
-        const weekStart = new Date(currentWeekStart);
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6);
-        
-        console.log('Generating schedule for week:', weekStart.toDateString(), 'to', weekEnd.toDateString());
-        console.log('Settings:', settings);
-        
-        // Load user's bookings for this week
-        loadUserBookings(weekStart, weekEnd).then(bookings => {
-            console.log('Loaded bookings:', bookings);
-            
-            // Group bookings by date
-            const bookingsByDate = {};
-            bookings.forEach(booking => {
-                if (!bookingsByDate[booking.date]) {
-                    bookingsByDate[booking.date] = [];
-                }
-                bookingsByDate[booking.date].push(booking);
-            });
-            
-            console.log('Bookings by date:', bookingsByDate);
-            
-            // Generate schedule for each day of the week
-            for (let i = 0; i < 7; i++) {
-                const date = new Date(weekStart);
-                date.setDate(weekStart.getDate() + i);
-                
-                // Skip days that are not working days AND have no bookings
-                const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, etc.
-                const dateString = date.toISOString().split('T')[0];
-                const dateBookings = bookingsByDate[dateString] || [];
-                
-                if (!settings.workingDays[dayOfWeek] && dateBookings.length === 0) {
-                    console.log('Skipping non-working day with no bookings:', date.toDateString());
-                    continue;
-                }
-                
-                console.log('Processing day:', date.toDateString(), 'with', dateBookings.length, 'bookings');
-                
-                // Add date header
-                const options = { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' };
-                const dateText = date.toLocaleDateString('en-US', options);
-                addDateHeader(container, dateText);
-                
-                // Check if this date is today
-                const isToday = date.toDateString() === currentDate.toDateString();
-                
-                // Create a container for this day's cards
-                const dayContainer = document.createElement('div');
-                dayContainer.className = isToday ? 'bg-primary-light/70 rounded-lg p-4 mb-6' : 'space-y-4 mb-6';
-                container.appendChild(dayContainer);
-                
-                // Sort bookings by start time
-                dateBookings.sort((a, b) => {
-                    return a.startTime.localeCompare(b.startTime);
-                });
-                
-                // Track booked time slots
-                const bookedSlots = new Set();
-                
-                // Add booking cards
-                dateBookings.forEach(booking => {
-                    console.log('Adding booking card for:', booking);
-                    
-                    // Ensure booking has all required fields
-                    booking.clientAddress = booking.clientAddress || '';
-                    booking.clientPhone = booking.clientPhone || '';
-                    booking.accessInfo = booking.accessInfo || '';
-                    booking.notes = booking.notes || '';
-                    
-                    bookedSlots.add(`${booking.startTime}-${booking.endTime}`);
-                    addBookingCard(dayContainer, booking, isToday);
-                });
-                
-                // Only add available time slots if it's a working day
-                if (settings.workingDays[dayOfWeek]) {
-                    // Add available time slots
-                    // Use the time slots from settings instead of calculating them again
-                    const timeSlots = settings.calculatedTimeSlots || [];
-                    console.log('Available time slots for', dateText, ':', timeSlots);
-                    
-                    timeSlots.forEach(slot => {
-                        const slotKey = `${slot.start}-${slot.end}`;
-                        if (!bookedSlots.has(slotKey)) {
-                            addTimeSlot(dayContainer, slot.start, slot.end, date);
-                        }
-                    });
-                    
-                    // If no slots (booked or available), show unavailable message
-                    if (timeSlots.length === 0 && dateBookings.length === 0) {
-                        addUnavailableMessage(dayContainer);
-                    }
-                }
-            }
-            
-            // Hide the loading overlay
-            if (existingOverlay) {
-                existingOverlay.classList.add('hidden');
-            }
-        }).catch(error => {
-            console.error('Error generating schedule:', error);
-            
-            // Hide the loading overlay
-            if (existingOverlay) {
-                existingOverlay.classList.add('hidden');
-            }
-            
-            // Show error message
-            container.innerHTML = `
-                <div class="text-center py-8">
-                    <div class="bg-red-100 text-red-700 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                        <i class="fas fa-exclamation-triangle text-2xl"></i>
-                    </div>
-                    <h3 class="text-xl font-bold mb-2">Error Loading Schedule</h3>
-                    <p class="text-gray-600 mb-6">There was an error loading your schedule. Please try again.</p>
-                    <button id="retryBtn" class="bg-primary text-white py-3 px-6 rounded-lg font-medium hover:bg-primary-dark">
-                        Retry
-                    </button>
-                </div>
-            `;
-            
-            document.getElementById('retryBtn').addEventListener('click', function() {
-                loadUserSchedule();
-            });
-        });
-    }
-
-    function addDateHeader(container, dateText) {
-        const dateHeader = document.createElement('div');
-        dateHeader.className = 'mb-4';
-        dateHeader.innerHTML = `
-            <h2 class="text-lg font-medium text-gray-900">${dateText}</h2>
-        `;
-        container.appendChild(dateHeader);
-    }
-
-    function addUnavailableMessage(container) {
-        const unavailableDiv = document.createElement('div');
-        unavailableDiv.className = 'space-y-4 mb-6';
-        unavailableDiv.innerHTML = `
-            <div class="bg-gray-100 rounded-lg p-6 mb-4">
-                <div class="flex items-center justify-center">
-                    <span class="text-gray-500 font-medium">Not Available</span>
-                </div>
-            </div>
-        `;
-        container.appendChild(unavailableDiv);
-    }
-
-    // Global booking data
-    let currentBookingData = {
-        dateTime: null,
-        client: null,
-        frequency: null
-    };
-
+    
     // Set up modal close button
-    document.getElementById('closeBookingModal').addEventListener('click', function() {
-        document.getElementById('bookingModal').classList.add('hidden');
-    });
+    const closeModalBtn = document.getElementById('closeBookingModal');
+    if (closeModalBtn) {
+        closeModalBtn.addEventListener('click', function() {
+            document.getElementById('bookingModal').classList.add('hidden');
+        });
+    }
     
     // Set up booking form handlers
     setupBookingHandlers();
+    
+    // Initialize Firebase Auth
+    firebase.auth().onAuthStateChanged(function(user) {
+        if (user) {
+            console.log('User found after auth state change:', user.uid);
+            // Load the user schedule
+            loadUserSchedule();
+        } else {
+            console.log('No user found, redirecting to login');
+            window.location.href = 'login.html';
+        }
+    });
 });
 
 function setupBookingHandlers() {
@@ -412,24 +698,51 @@ function setupBookingHandlers() {
 }
 
 function showBookingStep(stepId) {
+    // Check if the booking modal exists
+    const bookingModal = document.getElementById('bookingModal');
+    if (!bookingModal) {
+        console.error('Booking modal not found in the DOM');
+        return;
+    }
+    
     // Hide all steps
     document.querySelectorAll('.booking-step').forEach(step => {
         step.classList.add('hidden');
     });
     
     // Show the requested step
-    document.getElementById(stepId).classList.remove('hidden');
+    const stepElement = document.getElementById(stepId);
+    if (stepElement) {
+        stepElement.classList.remove('hidden');
+    } else {
+        console.error(`Step element with ID "${stepId}" not found`);
+    }
 }
 
 function selectFrequency(frequency) {
+    console.log('Frequency selected:', frequency);
+    
+    // Update booking data with frequency
     currentBookingData.frequency = frequency;
+    
+    // Update the booking date/time display
     updateBookingDateTime();
+    
+    // Ensure the confirmation step exists
+    const confirmationStep = document.getElementById('confirmationStep');
+    if (!confirmationStep) {
+        console.error('Confirmation step not found in the DOM');
+        alert('Unable to proceed with booking. Please refresh the page and try again.');
+        return;
+    }
+    
+    // Show the confirmation step
     showBookingStep('confirmationStep');
 }
 
 function updateBookingDateTime() {
     const dateTimeEl = document.getElementById('bookingDateTime');
-    if (currentBookingData.dateTime) {
+    if (dateTimeEl && currentBookingData.dateTime) {
         const { date, startTime, endTime } = currentBookingData.dateTime;
         const formattedDate = new Date(date).toLocaleDateString('en-US', { 
             weekday: 'long', 
@@ -446,7 +759,7 @@ function updateBookingDateTime() {
     
     // Update confirmation details
     const confirmationEl = document.getElementById('confirmationDetails');
-    if (currentBookingData.dateTime && currentBookingData.frequency) {
+    if (confirmationEl && currentBookingData.dateTime && currentBookingData.frequency) {
         const { date, startTime, endTime } = currentBookingData.dateTime;
         const formattedDate = new Date(date).toLocaleDateString('en-US', { 
             weekday: 'long', 
@@ -455,19 +768,68 @@ function updateBookingDateTime() {
             day: 'numeric' 
         });
         
+        // Get client name
+        const clientName = currentBookingData.client?.name || 'New Client';
+        
+        // Format frequency text
         let frequencyText = '';
-        switch(currentBookingData.frequency) {
-            case 'one-time': frequencyText = 'One-time cleaning'; break;
-            case 'weekly': frequencyText = 'Weekly cleaning'; break;
-            case 'biweekly': frequencyText = 'Bi-weekly cleaning'; break;
-            case 'monthly': frequencyText = 'Monthly cleaning'; break;
+        let occurrences = 1;
+        
+        if (currentBookingData.frequency === 'one-time') {
+            frequencyText = 'One-time booking';
+        } else if (currentBookingData.frequency === 'weekly') {
+            occurrences = 8; // 8 weeks (2 months)
+            frequencyText = `Weekly recurring (${occurrences} occurrences)`;
+        } else if (currentBookingData.frequency === 'bi-weekly') {
+            occurrences = 6; // 6 bi-weekly occurrences (3 months)
+            frequencyText = `Bi-weekly recurring (${occurrences} occurrences)`;
+        } else if (currentBookingData.frequency === 'monthly') {
+            occurrences = 3; // 3 monthly occurrences (3 months)
+            frequencyText = `Monthly recurring (${occurrences} occurrences)`;
+        }
+        
+        // Calculate end date for recurring bookings
+        let endDateText = '';
+        if (occurrences > 1) {
+            const startDate = new Date(date);
+            let endDate;
+            
+            if (currentBookingData.frequency === 'weekly') {
+                endDate = new Date(startDate);
+                endDate.setDate(startDate.getDate() + (7 * (occurrences - 1)));
+            } else if (currentBookingData.frequency === 'bi-weekly') {
+                endDate = new Date(startDate);
+                endDate.setDate(startDate.getDate() + (14 * (occurrences - 1)));
+            } else if (currentBookingData.frequency === 'monthly') {
+                endDate = new Date(startDate);
+                endDate.setMonth(startDate.getMonth() + (occurrences - 1));
+            } // No else needed here - one-time bookings don't need an end date
+            
+            if (endDate) {
+                const formattedEndDate = endDate.toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+                endDateText = `<p class="text-sm text-gray-600">Final booking on: ${formattedEndDate}</p>`;
+            }
         }
         
         confirmationEl.innerHTML = `
-            <p class="font-medium">${formattedDate}</p>
-            <p class="text-lg font-bold">${startTime} - ${endTime}</p>
-            <p class="mt-2">${frequencyText}</p>
-            <p class="mt-2">Client: ${currentBookingData.client?.name || 'New Client'}</p>
+            <div class="mb-3">
+                <p class="font-medium text-gray-700">Client</p>
+                <p class="text-lg font-bold">${clientName}</p>
+            </div>
+            <div class="mb-3">
+                <p class="font-medium text-gray-700">Date & Time</p>
+                <p class="text-lg font-bold">${formattedDate}</p>
+                <p class="text-lg font-bold">${startTime} - ${endTime}</p>
+            </div>
+            <div>
+                <p class="font-medium text-gray-700">Frequency</p>
+                <p class="text-lg font-bold">${frequencyText}</p>
+                ${endDateText}
+            </div>
         `;
     }
 }
@@ -477,6 +839,11 @@ async function loadClients() {
     if (!user) return;
     
     const clientsContainer = document.getElementById('existingClients');
+    if (!clientsContainer) {
+        console.error('Clients container not found in the DOM');
+        return;
+    }
+    
     clientsContainer.innerHTML = '<p class="text-gray-600 mb-2">Loading clients...</p>';
     
     try {
@@ -496,14 +863,18 @@ async function loadClients() {
             clientEl.className = 'w-full p-3 bg-gray-100 rounded-lg text-left mb-2 hover:bg-gray-200';
             clientEl.innerHTML = `
                 <div class="flex items-center">
-                    <div class="bg-primary text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">
-                        <i class="fas fa-user"></i>
+                    <div class="h-10 w-10 rounded-full bg-primary-light flex items-center justify-center text-primary font-bold mr-3">
+                        ${client.name.substring(0, 2).toUpperCase()}
                     </div>
-                    <span>${client.name}</span>
+                    <div>
+                        <p class="font-medium">${client.name}</p>
+                        <p class="text-sm text-gray-600">${client.address || 'No address'}</p>
+                    </div>
                 </div>
             `;
             
-            clientEl.addEventListener('click', function() {
+            // Add click handler
+            clientEl.addEventListener('click', () => {
                 selectClient(doc.id, client.name);
             });
             
@@ -511,15 +882,30 @@ async function loadClients() {
         });
     } catch (error) {
         console.error('Error loading clients:', error);
-        clientsContainer.innerHTML = '<p class="text-red-500">Error loading clients</p>';
+        if (clientsContainer) {
+            clientsContainer.innerHTML = '<p class="text-red-600 mb-2">Error loading clients. Please try again.</p>';
+        }
     }
 }
 
 function selectClient(clientId, clientName) {
+    console.log('Client selected:', clientId, clientName);
+    
+    // Update booking data with client info
     currentBookingData.client = {
         id: clientId,
         name: clientName
     };
+    
+    // Ensure the frequency selection step exists
+    const frequencySelectionStep = document.getElementById('frequencySelection');
+    if (!frequencySelectionStep) {
+        console.error('Frequency selection step not found in the DOM');
+        alert('Unable to proceed with booking. Please refresh the page and try again.');
+        return;
+    }
+    
+    // Show the frequency selection step
     showBookingStep('frequencySelection');
 }
 
@@ -556,58 +942,145 @@ async function saveBooking() {
             }
         }
         
-        const bookingRef = firebase.firestore().collection('users').doc(user.uid).collection('bookings').doc();
+        // Check if a booking with the same date, time, and client already exists
+        const bookingsRef = firebase.firestore().collection('users').doc(user.uid).collection('bookings');
+        const existingBookingsQuery = await bookingsRef
+            .where('date', '==', currentBookingData.dateTime.date)
+            .where('startTime', '==', currentBookingData.dateTime.startTime)
+            .where('endTime', '==', currentBookingData.dateTime.endTime)
+            .get();
         
-        // Determine if the booking is for today
-        const bookingDate = new Date(currentBookingData.dateTime.date);
-        const today = new Date();
-        const isToday = bookingDate.toDateString() === today.toDateString();
-        
-        // Determine initial status based on date and time
-        let initialStatus = 'scheduled';
-        if (isToday) {
-            const now = new Date();
-            const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} ${now.getHours() >= 12 ? 'PM' : 'AM'}`;
+        if (!existingBookingsQuery.empty) {
+            console.warn('A booking with the same date and time already exists');
             
-            if (currentBookingData.dateTime.startTime <= currentTime && currentTime <= currentBookingData.dateTime.endTime) {
-                initialStatus = 'in-progress';
+            // Check if any of the existing bookings have the same client
+            let duplicateFound = false;
+            existingBookingsQuery.forEach(doc => {
+                const existingBooking = doc.data();
+                if (existingBooking.clientName === (currentBookingData.client?.name || 'New Client')) {
+                    duplicateFound = true;
+                }
+            });
+            
+            if (duplicateFound) {
+                console.error('A booking with the same date, time, and client already exists');
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = 'Confirm Booking';
+                showAlertModal('A booking with the same date, time, and client already exists. Please choose a different time slot.');
+                return;
             }
         }
         
-        // Ensure the date is in the correct format (YYYY-MM-DD)
-        const bookingData = {
-            date: currentBookingData.dateTime.date,
-            startTime: currentBookingData.dateTime.startTime,
-            endTime: currentBookingData.dateTime.endTime,
-            clientId: currentBookingData.client?.id || null,
-            clientName: currentBookingData.client?.name || 'New Client',
-            frequency: currentBookingData.frequency,
-            status: initialStatus,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            ...clientDetails
-        };
+        // Determine the number of occurrences based on frequency
+        let occurrences = 1; // Default for one-time bookings
         
-        console.log('Saving booking with data:', bookingData);
-        await bookingRef.set(bookingData);
-        console.log('Booking saved successfully with ID:', bookingRef.id);
+        if (currentBookingData.frequency === 'weekly') {
+            occurrences = 8; // 8 weeks (2 months)
+        } else if (currentBookingData.frequency === 'bi-weekly') {
+            occurrences = 6; // 6 bi-weekly occurrences (3 months)
+        } else if (currentBookingData.frequency === 'monthly') {
+            occurrences = 3; // 3 monthly occurrences (3 months)
+        }
         
-        // Show success message
-        document.getElementById('bookingContent').innerHTML = `
-            <div class="text-center py-8">
-                <div class="bg-green-100 text-green-700 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                    <i class="fas fa-check text-2xl"></i>
-                </div>
-                <h3 class="text-xl font-bold mb-2">Booking Confirmed!</h3>
-                <p class="text-gray-600 mb-6">Your cleaning has been scheduled successfully.</p>
-                <button id="closeSuccessBtn" class="bg-primary text-white py-3 px-6 rounded-lg font-medium hover:bg-primary-dark">
-                    Back to Schedule
-                </button>
-            </div>
-        `;
+        console.log(`Creating ${occurrences} booking(s) for ${currentBookingData.frequency} frequency`);
         
-        document.getElementById('closeSuccessBtn').addEventListener('click', function() {
-            document.getElementById('bookingModal').classList.add('hidden');
-            // Reload the schedule to show the new booking
+        // Create an array to hold all booking promises
+        const bookingPromises = [];
+        
+        // Generate a series ID for recurring bookings
+        const seriesId = occurrences > 1 ? `series-${Date.now()}-${Math.random().toString(36).substring(2, 15)}` : null;
+        
+        // Create bookings for each occurrence
+        for (let i = 0; i < occurrences; i++) {
+            // Calculate the date for this occurrence
+            const baseDate = new Date(currentBookingData.dateTime.date);
+            let occurrenceDate;
+            
+            if (i === 0) {
+                // First occurrence is on the selected date
+                occurrenceDate = baseDate;
+            } else if (currentBookingData.frequency === 'weekly') {
+                // Add i weeks to the base date
+                occurrenceDate = new Date(baseDate);
+                occurrenceDate.setDate(baseDate.getDate() + (i * 7));
+            } else if (currentBookingData.frequency === 'bi-weekly') {
+                // Add i*2 weeks to the base date
+                occurrenceDate = new Date(baseDate);
+                occurrenceDate.setDate(baseDate.getDate() + (i * 14));
+            } else if (currentBookingData.frequency === 'monthly') {
+                // Add i months to the base date
+                occurrenceDate = new Date(baseDate);
+                occurrenceDate.setMonth(baseDate.getMonth() + i);
+            } else {
+                // One-time booking, should only run once with i=0
+                // Skip this iteration for one-time bookings after the first occurrence
+                continue;
+            }
+            
+            // Format the date as YYYY-MM-DD
+            const formattedDate = occurrenceDate.toISOString().split('T')[0];
+            
+            // Create a new document reference for this occurrence
+            const bookingRef = bookingsRef.doc();
+            
+            // Determine if the booking is for today
+            const today = new Date();
+            const isToday = occurrenceDate.toDateString() === today.toDateString();
+            
+            // Determine initial status based on date and time
+            let initialStatus = 'scheduled';
+            if (isToday) {
+                const now = new Date();
+                const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} ${now.getHours() >= 12 ? 'PM' : 'AM'}`;
+                
+                if (currentBookingData.dateTime.startTime <= currentTime && currentTime <= currentBookingData.dateTime.endTime) {
+                    initialStatus = 'in-progress';
+                }
+            }
+            
+            // Create the booking data for this occurrence
+            const bookingData = {
+                date: formattedDate,
+                startTime: currentBookingData.dateTime.startTime,
+                endTime: currentBookingData.dateTime.endTime,
+                clientId: currentBookingData.client?.id || null,
+                clientName: currentBookingData.client?.name || 'New Client',
+                frequency: currentBookingData.frequency,
+                occurrenceNumber: i + 1,
+                totalOccurrences: occurrences,
+                status: initialStatus,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                ...clientDetails
+            };
+            
+            // Add series ID for recurring bookings
+            if (seriesId) {
+                bookingData.seriesId = seriesId;
+            }
+            
+            console.log(`Creating booking ${i+1}/${occurrences} for ${formattedDate}:`, bookingData);
+            
+            // Add the promise to set this booking
+            bookingPromises.push(bookingRef.set(bookingData));
+        }
+        
+        // Wait for all bookings to be saved
+        await Promise.all(bookingPromises);
+        console.log(`Successfully created ${bookingPromises.length} booking(s)`);
+        
+        // Hide the booking modal
+        const bookingModal = document.getElementById('bookingModal');
+        if (bookingModal) {
+            bookingModal.classList.add('hidden');
+        }
+        
+        // Show success message as a separate modal
+        const message = occurrences > 1 
+            ? `Booking confirmed successfully! Created ${occurrences} ${currentBookingData.frequency} bookings.`
+            : 'Booking confirmed successfully!';
+            
+        showAlertModal(message, () => {
+            // Reload the schedule to show the new booking(s)
             loadUserSchedule();
         });
         
@@ -615,27 +1088,188 @@ async function saveBooking() {
         console.error('Error saving booking:', error);
         confirmBtn.disabled = false;
         confirmBtn.innerHTML = 'Confirm Booking';
-        alert('Error saving booking. Please try again.');
+        showAlertModal('Error saving booking. Please try again.');
     }
 }
 
-function addTimeSlot(container, startTime, endTime, date) {
+// Function to reset the booking modal to its initial state
+function resetBookingModal() {
+    console.log('Resetting booking modal...');
+    
+    const bookingModal = document.getElementById('bookingModal');
+    if (!bookingModal) {
+        console.error('Booking modal not found in the DOM');
+        return false;
+    }
+    
+    const bookingContent = document.getElementById('bookingContent');
+    if (!bookingContent) {
+        console.error('Booking content not found in the DOM');
+        return false;
+    }
+    
+    // Reset the booking content to its original structure
+    bookingContent.innerHTML = `
+        <div id="bookingDateTime" class="mb-4 p-3 bg-primary-light/30 rounded-lg">
+            <p class="font-medium">Loading booking details...</p>
+        </div>
+        
+        <div id="bookingSteps">
+            <!-- Client Selection -->
+            <div id="clientSelection" class="booking-step">
+                <h3 class="text-lg font-bold mb-3">Select Client</h3>
+                <div id="existingClients" class="mb-4">
+                    <p class="text-gray-600 mb-2">Loading clients...</p>
+                </div>
+                <button id="newClientBtn" class="w-full p-3 bg-gray-100 rounded-lg text-left mb-2 hover:bg-gray-200">
+                    <div class="flex items-center">
+                        <div class="bg-primary text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">
+                            <i class="fas fa-plus"></i>
+                        </div>
+                        <span>Add New Client</span>
+                    </div>
+                </button>
+            </div>
+            
+            <!-- Frequency Selection -->
+            <div id="frequencySelection" class="booking-step hidden">
+                <h3 class="text-lg font-bold mb-3">Select Frequency</h3>
+                <div class="grid grid-cols-1 gap-3">
+                    <button class="frequency-option p-3 bg-gray-100 rounded-lg text-left hover:bg-gray-200" data-frequency="one-time">
+                        <div class="flex items-center">
+                            <div class="bg-primary text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">
+                                <i class="fas fa-calendar-day"></i>
+                            </div>
+                            <div>
+                                <span class="font-medium">One-time</span>
+                                <p class="text-sm text-gray-600">Single cleaning service</p>
+                            </div>
+                        </div>
+                    </button>
+                    <button class="frequency-option p-3 bg-gray-100 rounded-lg text-left hover:bg-gray-200" data-frequency="weekly">
+                        <div class="flex items-center">
+                            <div class="bg-primary text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">
+                                <i class="fas fa-calendar-week"></i>
+                            </div>
+                            <div>
+                                <span class="font-medium">Weekly</span>
+                                <p class="text-sm text-gray-600">Every week on this day</p>
+                            </div>
+                        </div>
+                    </button>
+                    <button class="frequency-option p-3 bg-gray-100 rounded-lg text-left hover:bg-gray-200" data-frequency="biweekly">
+                        <div class="flex items-center">
+                            <div class="bg-primary text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">
+                                <i class="fas fa-calendar-alt"></i>
+                            </div>
+                            <div>
+                                <span class="font-medium">Bi-weekly</span>
+                                <p class="text-sm text-gray-600">Every two weeks on this day</p>
+                            </div>
+                        </div>
+                    </button>
+                    <button class="frequency-option p-3 bg-gray-100 rounded-lg text-left hover:bg-gray-200" data-frequency="monthly">
+                        <div class="flex items-center">
+                            <div class="bg-primary text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">
+                                <i class="fas fa-calendar-check"></i>
+                            </div>
+                            <div>
+                                <span class="font-medium">Monthly</span>
+                                <p class="text-sm text-gray-600">Once a month on this day</p>
+                            </div>
+                        </div>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Confirmation -->
+            <div id="confirmationStep" class="booking-step hidden">
+                <h3 class="text-lg font-bold mb-3">Confirm Booking</h3>
+                <div class="bg-gray-100 p-4 rounded-lg mb-4">
+                    <div id="confirmationDetails">
+                        <p class="text-gray-600">Loading confirmation details...</p>
+                    </div>
+                </div>
+                <button id="confirmBookingBtn" class="w-full bg-primary text-white py-3 rounded-lg font-medium hover:bg-primary-dark">
+                    Confirm Booking
+                </button>
+            </div>
+        </div>
+    `;
+    
+    // Set up booking handlers again
+    setupBookingHandlers();
+    
+    console.log('Booking modal reset successfully');
+    return true;
+}
+
+function addTimeSlot(container, startTime, endTime, date, durationMinutes) {
+    // Ensure date is a proper Date object
+    if (!(date instanceof Date)) {
+        console.error('Invalid date passed to addTimeSlot:', date);
+        date = new Date(date);
+    }
+    
+    console.log('Adding time slot:', {
+        container: container,
+        startTime: startTime,
+        endTime: endTime,
+        date: date.toDateString(),
+        durationMinutes: durationMinutes
+    });
+    
     const timeSlot = document.createElement('button');
     const formattedDate = date.toISOString().split('T')[0];
+    
+    // Double-check that this time slot is not in the past
+    const now = new Date();
+    const slotDate = new Date(date);
+    
+    // Parse the time (e.g., "9:00 AM")
+    const timeMatch = startTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (timeMatch) {
+        let hours = parseInt(timeMatch[1]);
+        const minutes = parseInt(timeMatch[2]);
+        const period = timeMatch[3].toUpperCase();
+        
+        // Convert to 24-hour format
+        if (period === 'PM' && hours < 12) hours += 12;
+        if (period === 'AM' && hours === 12) hours = 0;
+        
+        // Set the slot's start time
+        slotDate.setHours(hours, minutes, 0, 0);
+        
+        // Check if the slot is in the past
+        if (slotDate < now) {
+            console.log(`Not adding past time slot: ${startTime} on ${slotDate.toDateString()}`);
+            return; // Skip this slot entirely
+        }
+    }
+    
+    // Format the duration for display
+    const durationHours = durationMinutes ? Math.floor(durationMinutes / 60) : 2;
+    const durationText = durationHours === 1 ? '1 hour' : `${durationHours} hours`;
     
     timeSlot.className = 'block w-full bg-primary-light/40 rounded-lg border-2 border-dashed border-primary/30 p-6 hover:bg-primary-light/60 transition-all mb-4';
     timeSlot.innerHTML = `
             <div class="flex items-center justify-between">
                 <div>
-                <span class="text-xl font-bold text-gray-900">${startTime} - ${endTime}</span>
+                    <span class="text-xl font-bold text-gray-900">${startTime} - ${endTime}</span>
                     <p class="text-primary font-medium mt-1">Available</p>
+                    <p class="text-gray-600 text-sm mt-1">${durationText} cleaning</p>
                 </div>
                 <div class="bg-primary text-white rounded-full w-10 h-10 flex items-center justify-center">
                     <i class="fas fa-plus"></i>
                 </div>
             </div>
         `;
-
+    
+    // Add data attributes for debugging
+    timeSlot.setAttribute('data-date', formattedDate);
+    timeSlot.setAttribute('data-start', startTime);
+    timeSlot.setAttribute('data-end', endTime);
+    
     // Add click handler to show modal
     timeSlot.addEventListener('click', () => {
         const user = firebase.auth().currentUser;
@@ -647,7 +1281,14 @@ function addTimeSlot(container, startTime, endTime, date) {
             return;
         }
 
-        // Set booking data
+        // Reset the booking modal to its initial state
+        if (!resetBookingModal()) {
+            console.error('Failed to reset booking modal');
+            showAlertModal('Unable to open booking form. Please refresh the page and try again.');
+            return;
+        }
+
+        // Reset and set booking data
         currentBookingData = {
             dateTime: {
                 date: formattedDate,
@@ -658,6 +1299,12 @@ function addTimeSlot(container, startTime, endTime, date) {
             frequency: null
         };
         
+        console.log('Set currentBookingData:', currentBookingData);
+        
+        // Show the booking modal
+        const bookingModal = document.getElementById('bookingModal');
+        bookingModal.classList.remove('hidden');
+        
         // Update booking date/time display
         updateBookingDateTime();
         
@@ -666,12 +1313,10 @@ function addTimeSlot(container, startTime, endTime, date) {
         
         // Show client selection step
         showBookingStep('clientSelection');
-        
-        // Show modal
-        document.getElementById('bookingModal').classList.remove('hidden');
     });
     
     container.appendChild(timeSlot);
+    console.log('Time slot added successfully');
 }
 
 // Function to show the new client form
@@ -858,19 +1503,30 @@ async function loadUserBookings(startDate, endDate) {
         const snapshot = await bookingsRef.get();
         
         const bookings = [];
+        const bookingKeys = new Set(); // Track unique bookings
+        
         snapshot.forEach(doc => {
             const booking = {
                 id: doc.id,
                 ...doc.data()
             };
             
-            // Only include bookings within the date range
-            if (booking.date >= startDateStr && booking.date <= endDateStr) {
-                bookings.push(booking);
+            // Only include bookings within the date range and not cancelled
+            if (booking.date >= startDateStr && booking.date <= endDateStr && booking.status !== 'cancelled') {
+                // Create a unique key for this booking based on date, time, and client
+                const bookingKey = `${booking.date}_${booking.startTime}_${booking.endTime}_${booking.clientName}`;
+                
+                // Only add this booking if we haven't seen it before
+                if (!bookingKeys.has(bookingKey)) {
+                    bookingKeys.add(bookingKey);
+                    bookings.push(booking);
+                } else {
+                    console.warn('Duplicate booking found and skipped:', bookingKey);
+                }
             }
         });
         
-        console.log('Found', bookings.length, 'bookings in date range');
+        console.log('Found', bookings.length, 'unique bookings in date range');
         return bookings;
     } catch (error) {
         console.error('Error loading bookings:', error);
@@ -882,8 +1538,13 @@ async function loadUserBookings(startDate, endDate) {
 function addBookingCard(container, booking, isToday) {
     console.log('Adding booking card for:', booking);
     
-    const card = document.createElement('div');
-    card.className = 'bg-white rounded-lg shadow-sm mb-4';
+        const card = document.createElement('div');
+        card.className = 'bg-white rounded-lg shadow-sm mb-4';
+    
+    // Add a data attribute with the booking ID for easy reference
+    if (booking.id) {
+        card.setAttribute('data-booking-id', booking.id);
+    }
     
     // Determine status based on booking status in database
     let status = 'Upcoming';
@@ -926,18 +1587,18 @@ function addBookingCard(container, booking, isToday) {
     
     // Create the card HTML with consistent format
     let cardHTML = `
-        <div class="p-6">
-            <!-- Time and Status -->
-            <div class="flex justify-between items-center mb-4">
-                <div class="flex items-center gap-x-2">
+            <div class="p-6">
+                <!-- Time and Status -->
+                <div class="flex justify-between items-center mb-4">
+                    <div class="flex items-center gap-x-2">
                     <span class="text-xl font-bold text-gray-900">${booking.startTime} - ${booking.endTime}</span>
-                </div>
+                    </div>
                 <!-- Status Button -->
                 <button class="px-3 py-2 text-sm font-medium rounded-lg ${statusClass}">
                     ${status}
                 </button>
-            </div>
-            
+                </div>
+                
             <!-- Client Name -->
             <h3 class="font-medium text-gray-900">${booking.clientName}</h3>
     `;
@@ -978,27 +1639,27 @@ function addBookingCard(container, booking, isToday) {
     if (booking.clientPhone) {
         cardHTML += `
             <div class="flex items-center text-primary text-sm mt-1">
-                <i class="fas fa-phone-alt mr-2"></i>
+                        <i class="fas fa-phone-alt mr-2"></i>
                 <a href="tel:${booking.clientPhone}">
                     ${booking.clientPhone}
-                </a>
-            </div>
+                    </a>
+                </div>
         `;
     }
-    
+                
     // Add action buttons
     cardHTML += `
-            <!-- Action Buttons -->
+                <!-- Action Buttons -->
             <div class="flex gap-2 mt-4">
                 <button class="flex-1 py-2 px-4 bg-gray-100 rounded-lg text-center text-gray-700 text-sm font-medium view-details" data-booking-id="${booking.id}">
-                    View Details
+                        View Details
                 </button>
                 <button class="flex-1 py-2 px-4 bg-primary-light rounded-lg text-center text-primary text-sm font-medium reschedule" data-booking-id="${booking.id}">
-                    Reschedule
+                        Reschedule
                 </button>
+                </div>
             </div>
-        </div>
-    `;
+        `;
     
     card.innerHTML = cardHTML;
     
@@ -1034,13 +1695,19 @@ function showBookingDetails(booking) {
     });
     
     // Determine if the booking is in the past
-    const isPastBooking = new Date(booking.date + 'T' + booking.endTime.replace(' PM', ':00 PM').replace(' AM', ':00 AM')) < new Date();
+    const bookingEndTime = new Date(booking.date + 'T' + booking.endTime.replace(' PM', ':00 PM').replace(' AM', ':00 AM'));
+    const now = new Date();
+    const isPastBooking = bookingEndTime < now;
     
     // Determine if the booking is cancelled
     const isCancelled = booking.status === 'cancelled';
     
     // Determine the current status
     const currentStatus = booking.status || 'scheduled';
+    
+    // Determine if this is a recurring booking
+    const isRecurring = booking.frequency && booking.frequency !== 'one-time' && booking.seriesId;
+    const isPartOfSeries = !!booking.seriesId;
     
     modal.innerHTML = `
         <div class="bg-white rounded-lg w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
@@ -1054,84 +1721,61 @@ function showBookingDetails(booking) {
                 <!-- Time and Date -->
                 <div class="mb-4 p-4 bg-primary-light/30 rounded-lg">
                     <div class="text-2xl font-bold text-primary">${booking.startTime} - ${booking.endTime}</div>
-                    <p class="font-medium text-gray-700">${formattedDate}</p>
+                    <div class="text-gray-700">${formattedDate}</div>
+                    ${isPartOfSeries ? `
+                    <div class="mt-1 text-sm text-gray-600">
+                        <i class="fas fa-sync-alt mr-1"></i> 
+                        ${booking.frequency === 'weekly' ? 'Weekly' : 
+                          booking.frequency === 'bi-weekly' ? 'Bi-weekly' : 
+                          booking.frequency === 'monthly' ? 'Monthly' : ''} 
+                        (${booking.occurrenceNumber}/${booking.totalOccurrences})
+                    </div>
+                    ` : ''}
                 </div>
                 
-                <!-- Status Toggle -->
-                <div class="bg-white rounded-lg shadow-sm p-4 mb-4">
-                    <h3 class="text-sm font-medium text-gray-500 mb-3">Status</h3>
-                    <div class="grid grid-cols-4 gap-1 rounded-lg bg-gray-100 p-1">
-                        <button type="button" class="py-2.5 text-xs font-medium ${currentStatus === 'scheduled' ? 'text-white bg-primary' : 'text-gray-900'} rounded-md status-btn" data-status="scheduled">
-                            Upcoming
+                <!-- Status -->
+                <div class="mb-4">
+                    <div class="text-sm text-gray-500 mb-1">Status</div>
+                    <div class="flex space-x-2">
+                        <button class="status-btn px-3 py-2 rounded-lg text-sm font-medium ${currentStatus === 'scheduled' ? 'bg-primary text-white' : 'text-gray-900'}" data-status="scheduled">
+                            Scheduled
                         </button>
-                        <button type="button" class="py-2.5 text-xs font-medium ${currentStatus === 'in-progress' ? 'text-white bg-primary' : 'text-gray-900'} rounded-md status-btn" data-status="in-progress">
+                        <button class="status-btn px-3 py-2 rounded-lg text-sm font-medium ${currentStatus === 'in-progress' ? 'bg-primary text-white' : 'text-gray-900'}" data-status="in-progress">
                             In Progress
                         </button>
-                        <button type="button" class="py-2.5 text-xs font-medium ${currentStatus === 'completed' ? 'text-white bg-primary' : 'text-gray-900'} rounded-md status-btn" data-status="completed">
-                            Done
+                        <button class="status-btn px-3 py-2 rounded-lg text-sm font-medium ${currentStatus === 'completed' ? 'bg-primary text-white' : 'text-gray-900'}" data-status="completed">
+                            Completed
                         </button>
-                        <button type="button" class="py-2.5 text-xs font-medium ${currentStatus === 'paid' ? 'text-white bg-primary' : 'text-gray-900'} rounded-md status-btn" data-status="paid">
-                            Done & Paid
+                        <button class="status-btn px-3 py-2 rounded-lg text-sm font-medium ${currentStatus === 'paid' ? 'bg-primary text-white' : 'text-gray-900'}" data-status="paid">
+                            Paid
                         </button>
                     </div>
                 </div>
                 
-                <!-- Client Information -->
-                <div class="bg-white rounded-lg shadow-sm p-4 mb-4">
-                    <h3 class="text-sm font-medium text-gray-500 mb-3">Client Information</h3>
-                    <div class="space-y-4">
-                        <div>
-                            <div class="text-sm text-gray-500">Name</div>
-                            <div class="text-base font-medium text-gray-900">${booking.clientName}</div>
-                        </div>
+                <!-- Client Details -->
+                <div class="mb-4">
+                    <div class="text-sm text-gray-500">Client</div>
+                    <div class="text-lg font-medium text-gray-900">${booking.clientName}</div>
+                    
+                    <div class="mt-4 space-y-3">
                         ${booking.clientAddress ? `
                         <div>
                             <div class="text-sm text-gray-500">Address</div>
-                            <div class="text-base font-medium text-gray-900">
-                                <a href="https://maps.google.com/?q=${encodeURIComponent(booking.clientAddress)}" target="_blank" class="text-primary hover:underline flex items-center">
-                                    <i class="fas fa-map-marker-alt mr-1"></i>
-                                    ${booking.clientAddress}
-                                </a>
+                            <div class="text-base text-gray-900 bg-gray-50 rounded-md p-3 mt-1">
+                                <i class="fas fa-map-marker-alt text-primary mr-1"></i>
+                                ${booking.clientAddress}
                             </div>
                         </div>
                         ` : ''}
                         ${booking.clientPhone ? `
                         <div>
                             <div class="text-sm text-gray-500">Phone</div>
-                            <div class="text-base font-medium text-gray-900">
-                                <a href="tel:${booking.clientPhone}" class="text-primary hover:underline flex items-center">
-                                    <i class="fas fa-phone-alt mr-1"></i>
-                                    ${booking.clientPhone}
-                                </a>
+                            <div class="text-base text-gray-900 bg-gray-50 rounded-md p-3 mt-1">
+                                <i class="fas fa-phone text-primary mr-1"></i>
+                                ${booking.clientPhone}
                             </div>
                         </div>
                         ` : ''}
-                        ${booking.clientEmail ? `
-                        <div>
-                            <div class="text-sm text-gray-500">Email</div>
-                            <div class="text-base font-medium text-gray-900">
-                                <a href="mailto:${booking.clientEmail}" class="text-primary hover:underline flex items-center">
-                                    <i class="fas fa-envelope mr-1"></i>
-                                    ${booking.clientEmail}
-                                </a>
-                            </div>
-                        </div>
-                        ` : ''}
-                    </div>
-                </div>
-                
-                <!-- Cleaning Details -->
-                <div class="bg-white rounded-lg shadow-sm p-4 mb-4">
-                    <h3 class="text-sm font-medium text-gray-500 mb-3">Cleaning Details</h3>
-                    <div class="space-y-4">
-                        <div>
-                            <div class="text-sm text-gray-500">Type</div>
-                            <div class="text-base font-medium text-gray-900">Regular Cleaning</div>
-                        </div>
-                        <div>
-                            <div class="text-sm text-gray-500">Frequency</div>
-                            <div class="text-base font-medium text-gray-900">${booking.frequency.charAt(0).toUpperCase() + booking.frequency.slice(1)}</div>
-                        </div>
                         ${booking.notes ? `
                         <div>
                             <div class="text-sm text-gray-500">Special Instructions</div>
@@ -1173,9 +1817,9 @@ function showBookingDetails(booking) {
                         <i class="fas fa-check mr-1"></i> Close
                     </button>
                 </div>
+                </div>
             </div>
-        </div>
-    `;
+        `;
     
     document.body.appendChild(modal);
     
@@ -1191,11 +1835,19 @@ function showBookingDetails(booking) {
     const cancelButton = modal.querySelector('.cancel-booking');
     if (cancelButton) {
         cancelButton.addEventListener('click', () => {
-            // Show a confirmation dialog
-            const confirmCancel = confirm('Are you sure you want to cancel this booking? This action cannot be undone.');
-            if (confirmCancel) {
-                modal.remove(); // Close the modal first
-                cancelBooking(booking.id);
+            // Check if this is a recurring booking
+            if (isPartOfSeries && booking.occurrenceNumber < booking.totalOccurrences) {
+                // Show enhanced cancellation options for recurring bookings
+                showCancellationOptions(booking);
+                modal.remove();
+            } else {
+                // Show a standard confirmation modal for one-time bookings
+                showConfirmationModal('Are you sure you want to cancel this booking? This action cannot be undone.', () => {
+                    modal.remove();
+                    cancelBooking(booking.id);
+                }, () => {
+                    // Do nothing if the user cancels
+                });
             }
         });
     }
@@ -1233,104 +1885,60 @@ function showBookingDetails(booking) {
             const user = firebase.auth().currentUser;
             if (!user) {
                 loadingOverlay.remove();
-                alert('You must be logged in to update a booking');
+                alert('You must be logged in to update a booking status');
                 return;
             }
             
-            console.log('Current user ID:', user.uid);
-            console.log('Booking ID:', booking.id);
-            
             try {
+                // Update the booking status in Firestore
                 const bookingRef = firebase.firestore().collection('users').doc(user.uid).collection('bookings').doc(booking.id);
                 
-                // Create the update data
-                const updateData = {
+                bookingRef.update({
                     status: newStatus,
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                };
-                
-                console.log('Updating booking with data:', updateData);
-                
-                // Update the booking status directly
-                bookingRef.update(updateData)
+                })
                     .then(() => {
                         console.log('Booking status updated successfully');
-                        
-                        // Update the booking object to reflect the new status
-                        booking.status = newStatus;
-                        
-                        // Remove loading overlay
                         loadingOverlay.remove();
                         
-                        // Show a brief success message
-                        const successMessage = document.createElement('div');
-                        successMessage.className = 'fixed bottom-20 left-1/2 transform -translate-x-1/2 bg-green-100 text-green-800 px-4 py-2 rounded-lg shadow-lg z-50';
-                        
-                        // Format the status for display
-                        let displayStatus = newStatus.replace(/-/g, ' ');
-                        displayStatus = displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1);
-                        
-                        successMessage.innerHTML = `<i class="fas fa-check-circle mr-1"></i> Status updated to ${displayStatus}`;
-                        document.body.appendChild(successMessage);
-                        
-                        // Remove the success message after 3 seconds
-                        setTimeout(() => {
-                            successMessage.remove();
-                        }, 3000);
-                        
-                        // Update the card in the schedule view without closing the modal
-                        const cards = document.querySelectorAll('.bg-white.rounded-lg.shadow-sm.mb-4');
-                        cards.forEach(card => {
-                            // Find the card that matches this booking
-                            const timeText = card.querySelector('.text-xl.font-bold.text-gray-900')?.textContent;
-                            const nameText = card.querySelector('h3.font-medium.text-gray-900')?.textContent;
+                        // Update the booking card in the UI
+                        const bookingCard = document.querySelector(`[data-booking-id="${booking.id}"]`);
+                        if (bookingCard) {
+                            // Determine status display and class
+                            let statusDisplay = 'Upcoming';
+                            let statusClass = 'bg-gray-100 text-gray-800';
                             
-                            if (timeText === `${booking.startTime} - ${booking.endTime}` && 
-                                nameText === booking.clientName) {
-                                
-                                // Update the status button in the card
-                                const statusBtn = card.querySelector('button.px-3.py-2.text-sm.font-medium.rounded-lg');
-                                if (statusBtn) {
-                                    // Determine status display and class
-                                    let statusDisplay = 'Upcoming';
-                                    let statusClass = 'bg-gray-100 text-gray-800';
-                                    
-                                    switch(newStatus) {
-                                        case 'in-progress':
-                                            statusDisplay = 'In Progress';
-                                            statusClass = 'bg-blue-100 text-blue-800';
-                                            break;
-                                        case 'completed':
-                                            statusDisplay = 'Done';
-                                            statusClass = 'bg-green-100 text-green-800';
-                                            break;
-                                        case 'paid':
-                                            statusDisplay = 'Done & Paid';
-                                            statusClass = 'bg-green-100 text-green-800';
-                                            break;
-                                        case 'cancelled':
-                                            statusDisplay = 'Cancelled';
-                                            statusClass = 'bg-red-100 text-red-800';
-                                            break;
-                                    }
-                                    
-                                    // Update the button text and class
-                                    statusBtn.textContent = statusDisplay;
-                                    statusBtn.className = `px-3 py-2 text-sm font-medium rounded-lg ${statusClass}`;
-                                    
-                                    console.log('Updated card status to:', statusDisplay);
-                                }
+                            switch(newStatus) {
+                                case 'in-progress':
+                                    statusDisplay = 'In Progress';
+                                    statusClass = 'bg-blue-100 text-blue-800';
+                                    break;
+                                case 'completed':
+                                    statusDisplay = 'Done';
+                                    statusClass = 'bg-green-100 text-green-800';
+                                    break;
+                                case 'paid':
+                                    statusDisplay = 'Done & Paid';
+                                    statusClass = 'bg-green-100 text-green-800';
+                                    break;
+                                case 'cancelled':
+                                    statusDisplay = 'Cancelled';
+                                    statusClass = 'bg-red-100 text-red-800';
+                                    break;
                             }
-                        });
+                            
+                            // Update the button text and class
+                            const statusBtn = bookingCard.querySelector('.status-badge');
+                            if (statusBtn) {
+                                statusBtn.textContent = statusDisplay;
+                                statusBtn.className = `px-3 py-2 text-sm font-medium rounded-lg ${statusClass}`;
+                            }
+                        }
                     })
-                    .catch(error => {
+                    .catch((error) => {
                         console.error('Error updating booking status:', error);
-                        
-                        // Remove loading overlay
                         loadingOverlay.remove();
-                        
-                        // Show detailed error message
-                        alert(`Error updating booking status: ${error.message || 'Unknown error'}`);
+                        alert('Error updating booking status: ' + error.message);
                         
                         // Revert UI changes if there was an error
                         bookingRef.get().then(doc => {
@@ -1364,11 +1972,11 @@ function showBookingDetails(booking) {
 async function cancelBooking(bookingId) {
     const user = firebase.auth().currentUser;
     if (!user) {
-        alert('You must be logged in to cancel a booking');
+        showAlertModal('You must be logged in to cancel a booking');
         return;
     }
     
-    showLoading();
+    showLoading('Cancelling booking...');
     
     try {
         console.log('Attempting to cancel booking with ID:', bookingId);
@@ -1380,24 +1988,181 @@ async function cancelBooking(bookingId) {
         if (!bookingDoc.exists) {
             console.error('Booking not found:', bookingId);
             hideLoading();
-            alert('Booking not found. It may have been already deleted.');
+            showAlertModal('Booking not found. It may have been already deleted.');
             return;
         }
+        
+        // Get the booking data before updating it
+        const bookingData = bookingDoc.data();
+        console.log('Booking data to be cancelled:', bookingData);
         
         // Update the booking status to cancelled
         await bookingRef.update({
             status: 'cancelled',
-            cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         
         console.log('Booking cancelled successfully:', bookingId);
         hideLoading();
         
-        // Show success message
-        alert('Booking cancelled successfully');
+        // Immediately update the booking card in the UI
+        const bookingCard = document.querySelector(`[data-booking-id="${bookingId}"]`);
+        if (bookingCard) {
+            console.log('Removing booking card from UI');
+            bookingCard.remove();
+            
+            // Get the booking details needed to create an available slot
+            const dateString = bookingData.date;
+            const startTime = bookingData.startTime;
+            const endTime = bookingData.endTime;
+            
+            // Try to find the day container directly using the data-date attribute
+            const dayContainer = document.querySelector(`div[data-date="${dateString}"]`);
+            
+            if (dayContainer) {
+                console.log('Found day container directly using data-date attribute');
+                
+                // Get user settings to check if this is a working day
+                const userDoc = await firebase.firestore().collection('users').doc(user.uid).get();
+                let settings = DEFAULT_SETTINGS;
+                
+                if (userDoc.exists) {
+                    const userData = userDoc.data();
+                    if (userData.settings) {
+                        settings = { ...DEFAULT_SETTINGS, ...userData.settings };
+                    } else {
+                        settings = { ...DEFAULT_SETTINGS, ...userData };
+                    }
+                }
+                
+                // Create a proper date object from the booking date string (YYYY-MM-DD)
+                const [year, month, day] = dateString.split('-').map(num => parseInt(num, 10));
+                const bookingDate = new Date(year, month - 1, day); // month is 0-indexed in JS Date
+                
+                const dayOfWeek = bookingDate.getDay();
+                const isWorkingDay = settings.workingDays && (settings.workingDays[dayOfWeek] == true);
+                
+                console.log('Checking if working day:', { 
+                    dayOfWeek, 
+                    isWorkingDay, 
+                    workingDays: settings.workingDays,
+                    dateString: bookingDate.toDateString()
+                });
+                
+                if (isWorkingDay) {
+                    console.log('Adding available time slot for cancelled booking:', {
+                        date: bookingDate.toDateString(),
+                        startTime,
+                        endTime
+                    });
+                    
+                    // Get the cleaning duration from settings
+                    const cleaningDuration = settings.cleaningDuration || 180; // Default to 3 hours (180 minutes)
+                    
+                    // Add an available time slot
+                    addTimeSlot(dayContainer, startTime, endTime, bookingDate, cleaningDuration);
+                    
+                    // Check if we need to remove the "Fully Booked" message
+                    const unavailableMessage = dayContainer.querySelector('.text-center.py-8.bg-gray-100.rounded-lg.mb-4');
+                    if (unavailableMessage && unavailableMessage.textContent.includes('Fully Booked')) {
+                        console.log('Removing "Fully Booked" message');
+                        unavailableMessage.remove();
+                    }
+                } else {
+                    console.log('Not adding time slot - not a working day');
+                }
+            } else {
+                console.warn('Could not find day container using data-date attribute, falling back to header search');
+                
+                // Format the date string exactly as it would appear in the header
+                const formattedDateHeader = new Date(dateString).toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    month: 'long', 
+                    day: 'numeric'
+                });
+                
+                console.log('Looking for date header with text containing:', formattedDateHeader);
+                
+                // Find all date headers in the document
+                const dateHeaders = Array.from(document.querySelectorAll('h2'));
+                console.log('All date headers:', dateHeaders.map(h => h.textContent));
+                
+                // Find the exact date header for this booking's date
+                const dateHeader = dateHeaders.find(h => h.textContent.includes(formattedDateHeader));
+                
+                if (dateHeader) {
+                    console.log('Found date header for cancelled booking:', dateHeader.textContent);
+                    
+                    // Find the day container - it's the next sibling div after the header's parent
+                    const headerParent = dateHeader.closest('div');
+                    const dayContainer = headerParent.nextElementSibling;
+                    
+                    if (dayContainer) {
+                        console.log('Found day container for cancelled booking');
+                        
+                        // Get user settings to check if this is a working day
+                        const userDoc = await firebase.firestore().collection('users').doc(user.uid).get();
+                        let settings = DEFAULT_SETTINGS;
+                        
+                        if (userDoc.exists) {
+                            const userData = userDoc.data();
+                            if (userData.settings) {
+                                settings = { ...DEFAULT_SETTINGS, ...userData.settings };
+                            } else {
+                                settings = { ...DEFAULT_SETTINGS, ...userData };
+                            }
+                        }
+                        
+                        // Create a proper date object from the booking date string (YYYY-MM-DD)
+                        const [year, month, day] = dateString.split('-').map(num => parseInt(num, 10));
+                        const bookingDate = new Date(year, month - 1, day); // month is 0-indexed in JS Date
+                        
+                        const dayOfWeek = bookingDate.getDay();
+                        const isWorkingDay = settings.workingDays && (settings.workingDays[dayOfWeek] == true);
+                        
+                        console.log('Checking if working day:', { 
+                            dayOfWeek, 
+                            isWorkingDay, 
+                            workingDays: settings.workingDays,
+                            dateString: bookingDate.toDateString()
+                        });
+                        
+                        if (isWorkingDay) {
+                            console.log('Adding available time slot for cancelled booking:', {
+                                date: bookingDate.toDateString(),
+                                startTime,
+                                endTime
+                            });
+                            
+                            // Get the cleaning duration from settings
+                            const cleaningDuration = settings.cleaningDuration || 180; // Default to 3 hours (180 minutes)
+                            
+                            // Add an available time slot
+                            addTimeSlot(dayContainer, startTime, endTime, bookingDate, cleaningDuration);
+                            
+                            // Check if we need to remove the "Fully Booked" message
+                            const unavailableMessage = dayContainer.querySelector('.text-center.py-8.bg-gray-100.rounded-lg.mb-4');
+                            if (unavailableMessage && unavailableMessage.textContent.includes('Fully Booked')) {
+                                console.log('Removing "Fully Booked" message');
+                                unavailableMessage.remove();
+                            }
+                        } else {
+                            console.log('Not adding time slot - not a working day');
+                        }
+                    } else {
+                        console.warn('Day container not found for date header');
+                    }
+                } else {
+                    console.warn('Date header not found for booking date:', formattedDateHeader);
+                    console.log('Available headers:', dateHeaders.map(h => h.textContent));
+                }
+            }
+        } else {
+            console.warn('Booking card not found in the UI');
+        }
         
-        // Reload the schedule to reflect the changes
-        loadUserSchedule();
+        // Show success message
+        showAlertModal('Booking cancelled successfully');
     } catch (error) {
         console.error('Error cancelling booking:', error);
         hideLoading();
@@ -1410,8 +2175,52 @@ async function cancelBooking(bookingId) {
             errorMessage = 'Booking not found. It may have been already deleted.';
         }
         
-        alert(errorMessage);
+        showAlertModal(errorMessage);
     }
+}
+
+// Function to show a custom alert modal
+function showAlertModal(message, onClose) {
+    // Create the modal element
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
+    
+    // Create the modal content
+    modal.innerHTML = `
+        <div class="bg-white rounded-lg w-full max-w-md mx-4">
+            <div class="p-4 border-b border-gray-200">
+                <h2 class="text-xl font-bold text-gray-900">Message</h2>
+            </div>
+            <div class="p-6">
+                <p class="text-gray-700 mb-6">${message}</p>
+                <div class="flex justify-end">
+                    <button class="ok-btn px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark">
+                        OK
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add the modal to the document
+    document.body.appendChild(modal);
+    
+    // Add event listener for the OK button
+    const okBtn = modal.querySelector('.ok-btn');
+    okBtn.addEventListener('click', () => {
+        modal.remove();
+        if (onClose) onClose();
+    });
+    
+    // Also close the modal when clicking outside
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.remove();
+            if (onClose) onClose();
+        }
+    });
+    
+    return modal;
 }
 
 // Function to show reschedule options
@@ -1422,325 +2231,502 @@ function showRescheduleOptions(booking) {
 
 // Function to navigate to the previous week
 function navigateToPreviousWeek() {
-    console.log('Navigating to previous week');
+    showLoading('Loading previous week...');
     
     try {
-        const prevWeekDate = new Date(currentWeekStart);
-        prevWeekDate.setDate(prevWeekDate.getDate() - 7);
+        // Calculate the previous week's start date
+        const prevWeekStart = new Date(currentWeekStart);
+        prevWeekStart.setDate(currentWeekStart.getDate() - 7);
         
-        if (!isInPast(prevWeekDate)) {
-            // Create and show a loading overlay
-            const loadingOverlay = document.createElement('div');
-            loadingOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
-            loadingOverlay.innerHTML = `
-                <div class="bg-white p-4 rounded-lg shadow-lg flex items-center">
-                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-3"></div>
-                    <p class="text-gray-700">Loading previous week...</p>
-                </div>
-            `;
-            document.body.appendChild(loadingOverlay);
-            
-            // Update the current week start date
-            currentWeekStart = new Date(prevWeekDate);
-            console.log('New week start date:', currentWeekStart.toDateString());
-            
-            // Update the week display in the UI
-            const weekRangeElement = document.getElementById('week-range');
-            if (weekRangeElement) {
-                const weekStart = new Date(currentWeekStart);
-                const weekEnd = new Date(weekStart);
-                weekEnd.setDate(weekStart.getDate() + 6);
-                
-                // Format the dates
-                const options = { month: 'long', day: 'numeric', year: 'numeric' };
-                const startStr = weekStart.toLocaleDateString('en-US', options);
-                const endStr = weekEnd.toLocaleDateString('en-US', options);
-                
-                // Update the week range display
-                weekRangeElement.textContent = `${startStr} - ${endStr}`;
-                console.log('Week range updated:', weekRangeElement.textContent);
-            }
-            
-            // Update navigation state
-            const prevWeekBtn = document.getElementById('prev-week');
-            if (prevWeekBtn) {
-                const newPrevWeekDate = new Date(currentWeekStart);
-                newPrevWeekDate.setDate(newPrevWeekDate.getDate() - 7);
-                
-                prevWeekBtn.disabled = isInPast(newPrevWeekDate);
-                prevWeekBtn.classList.toggle('opacity-50', prevWeekBtn.disabled);
-                prevWeekBtn.classList.toggle('cursor-not-allowed', prevWeekBtn.disabled);
-            }
-            
-            // Load the user schedule for the new week
-            const user = firebase.auth().currentUser;
-            if (!user) {
-                console.log('No user found, cannot load schedule');
-                loadingOverlay.remove();
-                return;
-            }
-            
-            console.log('Loading schedule for user:', user.uid);
-            
-            // Get user settings from Firestore
-            firebase.firestore().collection('users').doc(user.uid).get()
-                .then(doc => {
-                    let settings;
-                    
-                    if (doc.exists && doc.data().settings) {
-                        settings = doc.data().settings;
-                        console.log('User settings loaded:', settings);
-                    } else {
-                        console.log('No user settings found, using defaults');
-                        settings = DEFAULT_SETTINGS;
-                    }
-                    
-                    // Calculate time slots based on settings
-                    if (!settings.calculatedTimeSlots) {
-                        settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
-                    }
-                    
-                    // Generate schedule with settings
-                    generateSchedule(settings);
-                    
-                    // Remove loading overlay
-                    loadingOverlay.remove();
-                })
-                .catch(error => {
-                    console.error('Error loading user settings:', error);
-                    
-                    // Use default settings if there's an error
-                    const settings = DEFAULT_SETTINGS;
-                    settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
-                    generateSchedule(settings);
-                    
-                    // Remove loading overlay
-                    loadingOverlay.remove();
-                });
-        } else {
-            console.log('Cannot navigate to past week');
+        // Check if the previous week is in the past
+        const todayForCheck = new Date();
+        todayForCheck.setHours(0, 0, 0, 0);
+        const isPast = prevWeekStart < todayForCheck;
+        
+        console.log('Previous week start:', prevWeekStart.toDateString(), 'Is past:', isPast);
+        
+        if (isPast) {
+            console.log('Cannot navigate to past weeks');
+            hideLoading();
+            showAlertModal('Cannot navigate to past weeks');
+            return;
         }
+        
+        // Update the current week start date
+        currentWeekStart = prevWeekStart;
+        console.log('New week start date:', currentWeekStart.toDateString());
+        
+        // Update the week display in the UI
+        updateWeekDisplay();
+        
+        // Update navigation state
+        updateNavigationState();
+        
+        // Load the user schedule for the new week without showing another loading indicator
+        loadUserSchedule(false).finally(() => {
+            hideLoading();
+        });
     } catch (error) {
         console.error('Error navigating to previous week:', error);
-        
-        // Remove any existing loading overlay
-        const existingOverlay = document.querySelector('.fixed.inset-0.bg-black.bg-opacity-50.z-50');
-        if (existingOverlay) {
-            existingOverlay.remove();
-        }
+        hideLoading();
+        showAlertModal('Error navigating to previous week: ' + error.message);
     }
 }
 
 // Function to navigate to the next week
 function navigateToNextWeek() {
-    console.log('Navigating to next week');
+    showLoading('Loading next week...');
     
     try {
-        // Create and show a loading overlay
-        const loadingOverlay = document.createElement('div');
-        loadingOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
-        loadingOverlay.innerHTML = `
-            <div class="bg-white p-4 rounded-lg shadow-lg flex items-center">
-                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-3"></div>
-                <p class="text-gray-700">Loading next week...</p>
-            </div>
-        `;
-        document.body.appendChild(loadingOverlay);
-        
         // Calculate the next week's start date
-        const nextWeekDate = new Date(currentWeekStart);
-        nextWeekDate.setDate(nextWeekDate.getDate() + 7);
-        currentWeekStart = nextWeekDate;
+        const nextWeekStart = new Date(currentWeekStart);
+        nextWeekStart.setDate(currentWeekStart.getDate() + 7);
         
+        // Update the current week start date
+        currentWeekStart = nextWeekStart;
         console.log('New week start date:', currentWeekStart.toDateString());
         
         // Update the week display in the UI
-        const weekRangeElement = document.getElementById('week-range');
-        if (weekRangeElement) {
-            const weekStart = new Date(currentWeekStart);
-            const weekEnd = new Date(weekStart);
-            weekEnd.setDate(weekStart.getDate() + 6);
-            
-            // Format the dates
-            const options = { month: 'long', day: 'numeric', year: 'numeric' };
-            const startStr = weekStart.toLocaleDateString('en-US', options);
-            const endStr = weekEnd.toLocaleDateString('en-US', options);
-            
-            // Update the week range display
-            weekRangeElement.textContent = `${startStr} - ${endStr}`;
-            console.log('Week range updated:', weekRangeElement.textContent);
-        }
+        updateWeekDisplay();
         
         // Update navigation state
-        const prevWeekBtn = document.getElementById('prev-week');
-        if (prevWeekBtn) {
-            const prevWeekDate = new Date(currentWeekStart);
-            prevWeekDate.setDate(prevWeekDate.getDate() - 7);
-            
-            prevWeekBtn.disabled = isInPast(prevWeekDate);
-            prevWeekBtn.classList.toggle('opacity-50', prevWeekBtn.disabled);
-            prevWeekBtn.classList.toggle('cursor-not-allowed', prevWeekBtn.disabled);
-        }
+        updateNavigationState();
         
-        // Load the user schedule for the new week
-        const user = firebase.auth().currentUser;
-        if (!user) {
-            console.log('No user found, cannot load schedule');
-            loadingOverlay.remove();
-            return;
-        }
-        
-        console.log('Loading schedule for user:', user.uid);
-        
-        // Get user settings from Firestore
-        firebase.firestore().collection('users').doc(user.uid).get()
-            .then(doc => {
-                let settings;
-                
-                if (doc.exists && doc.data().settings) {
-                    settings = doc.data().settings;
-                    console.log('User settings loaded:', settings);
-                } else {
-                    console.log('No user settings found, using defaults');
-                    settings = DEFAULT_SETTINGS;
-                }
-                
-                // Calculate time slots based on settings
-                if (!settings.calculatedTimeSlots) {
-                    settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
-                }
-                
-                // Generate schedule with settings
-                generateSchedule(settings);
-                
-                // Remove loading overlay
-                loadingOverlay.remove();
-            })
-            .catch(error => {
-                console.error('Error loading user settings:', error);
-                
-                // Use default settings if there's an error
-                const settings = DEFAULT_SETTINGS;
-                settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
-                generateSchedule(settings);
-                
-                // Remove loading overlay
-                loadingOverlay.remove();
-            });
+        // Load the user schedule for the new week without showing another loading indicator
+        loadUserSchedule(false).finally(() => {
+            hideLoading();
+        });
     } catch (error) {
         console.error('Error navigating to next week:', error);
-        
-        // Remove any existing loading overlay
-        const existingOverlay = document.querySelector('.fixed.inset-0.bg-black.bg-opacity-50.z-50');
-        if (existingOverlay) {
-            existingOverlay.remove();
-        }
+        hideLoading();
+        showAlertModal('Error navigating to next week: ' + error.message);
     }
 }
 
 // Function to navigate to the current week
 function navigateToCurrentWeek() {
-    console.log('Navigating to current week');
+    showLoading('Loading current week...');
     
     try {
-        // Create and show a loading overlay
-        const loadingOverlay = document.createElement('div');
-        loadingOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
-        loadingOverlay.innerHTML = `
-            <div class="bg-white p-4 rounded-lg shadow-lg flex items-center">
-                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-3"></div>
-                <p class="text-gray-700">Loading current week...</p>
-            </div>
-        `;
-        document.body.appendChild(loadingOverlay);
-        
         // Set current week start date to the beginning of the current week
         const today = new Date();
         currentWeekStart = new Date(today);
-        currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekStart.getDay());
+        currentWeekStart.setDate(today.getDate() - today.getDay());
         currentWeekStart.setHours(0, 0, 0, 0);
         console.log('New week start date:', currentWeekStart.toDateString());
         
         // Update the week display in the UI
-        const weekRangeElement = document.getElementById('week-range');
-        if (weekRangeElement) {
-            const weekStart = new Date(currentWeekStart);
-            const weekEnd = new Date(weekStart);
-            weekEnd.setDate(weekStart.getDate() + 6);
-            
-            // Format the dates
-            const options = { month: 'long', day: 'numeric', year: 'numeric' };
-            const startStr = weekStart.toLocaleDateString('en-US', options);
-            const endStr = weekEnd.toLocaleDateString('en-US', options);
-            
-            // Update the week range display
-            weekRangeElement.textContent = `${startStr} - ${endStr}`;
-            console.log('Week range updated:', weekRangeElement.textContent);
-        }
+        updateWeekDisplay();
         
         // Update navigation state
-        const prevWeekBtn = document.getElementById('prev-week');
-        if (prevWeekBtn) {
-            const prevWeekDate = new Date(currentWeekStart);
-            prevWeekDate.setDate(prevWeekDate.getDate() - 7);
-            
-            prevWeekBtn.disabled = isInPast(prevWeekDate);
-            prevWeekBtn.classList.toggle('opacity-50', prevWeekBtn.disabled);
-            prevWeekBtn.classList.toggle('cursor-not-allowed', prevWeekBtn.disabled);
-        }
+        updateNavigationState();
         
         // Load the user schedule for the current week
         const user = firebase.auth().currentUser;
         if (!user) {
             console.log('No user found, cannot load schedule');
-            loadingOverlay.remove();
+            hideLoading();
             return;
         }
         
-        console.log('Loading schedule for user:', user.uid);
-        
-        // Get user settings from Firestore
-        firebase.firestore().collection('users').doc(user.uid).get()
-            .then(doc => {
-                let settings;
-                
-                if (doc.exists && doc.data().settings) {
-                    settings = doc.data().settings;
-                    console.log('User settings loaded:', settings);
-                } else {
-                    console.log('No user settings found, using defaults');
-                    settings = DEFAULT_SETTINGS;
-                }
-                
-                // Calculate time slots based on settings
-                if (!settings.calculatedTimeSlots) {
-                    settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
-                }
-                
-                // Generate schedule with settings
-                generateSchedule(settings);
-                
-                // Remove loading overlay
-                loadingOverlay.remove();
-            })
-            .catch(error => {
-                console.error('Error loading user settings:', error);
-                
-                // Use default settings if there's an error
-                const settings = DEFAULT_SETTINGS;
-                settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
-                generateSchedule(settings);
-                
-                // Remove loading overlay
-                loadingOverlay.remove();
-            });
+        // Load user settings and generate schedule without showing another loading indicator
+        loadUserSchedule(false).finally(() => {
+            hideLoading();
+        });
     } catch (error) {
         console.error('Error navigating to current week:', error);
-        
-        // Remove any existing loading overlay
-        const existingOverlay = document.querySelector('.fixed.inset-0.bg-black.bg-opacity-50.z-50');
-        if (existingOverlay) {
-            existingOverlay.remove();
+        hideLoading();
+        showAlertModal('Error navigating to current week: ' + error.message);
+    }
+}
+
+// Function to initialize booking modal
+function initializeBookingModal() {
+    console.log('Initializing booking modal...');
+    
+    // Check if booking modal exists
+    const bookingModal = document.getElementById('bookingModal');
+    if (!bookingModal) {
+        console.error('Booking modal not found in the DOM');
+        return false;
+    }
+    
+    // Check if client selection step exists
+    const clientSelectionStep = document.getElementById('clientSelection');
+    if (!clientSelectionStep) {
+        console.error('Client selection step not found in the DOM');
+        return false;
+    }
+    
+    // Check if frequency selection step exists
+    const frequencySelectionStep = document.getElementById('frequencySelection');
+    if (!frequencySelectionStep) {
+        console.error('Frequency selection step not found in the DOM');
+        return false;
+    }
+    
+    // Check if confirmation step exists
+    const confirmationStep = document.getElementById('confirmationStep');
+    if (!confirmationStep) {
+        console.error('Confirmation step not found in the DOM');
+        return false;
+    }
+    
+    // Set up booking handlers if not already initialized
+    if (!bookingHandlersInitialized) {
+        setupBookingHandlers();
+        bookingHandlersInitialized = true;
+    }
+    
+    console.log('Booking modal initialized successfully');
+    return true;
+}
+
+// Function to show a custom confirmation modal
+function showConfirmationModal(message, onConfirm, onCancel) {
+    // Create the modal element
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
+    
+    // Create the modal content
+    modal.innerHTML = `
+        <div class="bg-white rounded-lg w-full max-w-md mx-4">
+            <div class="p-4 border-b border-gray-200">
+                <h2 class="text-xl font-bold text-gray-900">Confirm Action</h2>
+            </div>
+            <div class="p-6">
+                <p class="text-gray-700 mb-6">${message}</p>
+                <div class="flex justify-end space-x-3">
+                    <button class="cancel-btn px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">
+                        Cancel
+                    </button>
+                    <button class="confirm-btn px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark">
+                        OK
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add the modal to the document
+    document.body.appendChild(modal);
+    
+    // Add event listeners for the buttons
+    const confirmBtn = modal.querySelector('.confirm-btn');
+    const cancelBtn = modal.querySelector('.cancel-btn');
+    
+    confirmBtn.addEventListener('click', () => {
+        modal.remove();
+        if (onConfirm) onConfirm();
+    });
+    
+    cancelBtn.addEventListener('click', () => {
+        modal.remove();
+        if (onCancel) onCancel();
+    });
+    
+    // Also close the modal when clicking outside
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.remove();
+            if (onCancel) onCancel();
         }
+    });
+    
+    return modal;
+}
+
+// Function to show cancellation options for recurring bookings
+function showCancellationOptions(booking) {
+    // Create a modal to show cancellation options
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
+    
+    // Format the date for display
+    const formattedDate = new Date(booking.date).toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        month: 'long', 
+        day: 'numeric' 
+    });
+    
+    // Calculate how many future bookings there are in the series
+    const futureBookingsCount = booking.totalOccurrences - booking.occurrenceNumber;
+    
+    modal.innerHTML = `
+        <div class="bg-white rounded-lg w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="p-4 border-b border-gray-200">
+                <h2 class="text-xl font-bold text-gray-900">Cancel Booking</h2>
+            </div>
+            <div class="p-4">
+                <p class="text-gray-700 mb-4">This is part of a recurring booking series. What would you like to cancel?</p>
+                
+                <div class="space-y-3">
+                    <!-- Option 1: Cancel This Cleaning Only -->
+                    <button class="cancel-option w-full p-4 border border-gray-300 rounded-lg text-left hover:bg-gray-50" data-option="this">
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0 mt-0.5">
+                                <i class="fas fa-calendar-day text-red-600 text-lg"></i>
+                            </div>
+                            <div class="ml-3">
+                                <h3 class="font-medium text-gray-900">Cancel This Cleaning Only</h3>
+                                <p class="text-sm text-gray-500">Only this ${formattedDate} booking will be cancelled.</p>
+                            </div>
+                        </div>
+                    </button>
+                    
+                    <!-- Option 2: Cancel This and All Future Cleanings -->
+                    <button class="cancel-option w-full p-4 border border-gray-300 rounded-lg text-left hover:bg-gray-50" data-option="future">
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0 mt-0.5">
+                                <i class="fas fa-calendar-alt text-red-600 text-lg"></i>
+                            </div>
+                            <div class="ml-3">
+                                <h3 class="font-medium text-gray-900">Cancel This and All Future Cleanings</h3>
+                                <p class="text-sm text-gray-500">This and ${futureBookingsCount} future bookings will be cancelled.</p>
+                            </div>
+                        </div>
+                    </button>
+                    
+                    <!-- Option 3: Cancel All Cleanings in Series -->
+                    <button class="cancel-option w-full p-4 border border-gray-300 rounded-lg text-left hover:bg-gray-50" data-option="all">
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0 mt-0.5">
+                                <i class="fas fa-calendar-times text-red-600 text-lg"></i>
+                            </div>
+                            <div class="ml-3">
+                                <h3 class="font-medium text-gray-900">Cancel All Cleanings in Series</h3>
+                                <p class="text-sm text-gray-500">All ${booking.totalOccurrences} bookings in this series will be cancelled.</p>
+                            </div>
+                        </div>
+                    </button>
+                </div>
+                
+                <div class="mt-6">
+                    <button class="back-btn w-full py-3 px-4 bg-gray-100 rounded-lg text-center text-gray-700 text-sm font-medium hover:bg-gray-200">
+                        <i class="fas fa-arrow-left mr-1"></i> Back
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Add event listener for the back button
+    const backButton = modal.querySelector('.back-btn');
+    backButton.addEventListener('click', () => {
+        modal.remove();
+        showBookingDetails(booking);
+    });
+    
+    // Add event listeners for the cancellation options
+    const cancelOptions = modal.querySelectorAll('.cancel-option');
+    cancelOptions.forEach(option => {
+        option.addEventListener('click', () => {
+            const cancelOption = option.getAttribute('data-option');
+            
+            // Show a confirmation modal based on the selected option
+            let confirmationMessage = '';
+            
+            if (cancelOption === 'this') {
+                confirmationMessage = `Are you sure you want to cancel only this cleaning on ${formattedDate}?`;
+            } else if (cancelOption === 'future') {
+                confirmationMessage = `Are you sure you want to cancel this and all future cleanings (${futureBookingsCount + 1} total)?`;
+            } else if (cancelOption === 'all') {
+                confirmationMessage = `Are you sure you want to cancel all ${booking.totalOccurrences} cleanings in this series?`;
+            }
+            
+            showConfirmationModal(confirmationMessage, () => {
+                modal.remove();
+                
+                // Call the appropriate cancellation function based on the option
+                if (cancelOption === 'this') {
+                    cancelBooking(booking.id);
+                } else if (cancelOption === 'future') {
+                    cancelFutureBookings(booking);
+                } else if (cancelOption === 'all') {
+                    cancelAllBookingsInSeries(booking);
+                }
+            }, () => {
+                // Do nothing if the user cancels
+            });
+        });
+    });
+}
+
+// Function to cancel future bookings in a series
+async function cancelFutureBookings(booking) {
+    const user = firebase.auth().currentUser;
+    if (!user) {
+        showAlertModal('You must be logged in to cancel bookings');
+        return;
+    }
+    
+    showLoading('Cancelling bookings...');
+    
+    try {
+        console.log('Cancelling future bookings for series:', booking.seriesId);
+        
+        // Get all bookings in the series with occurrence number >= the current booking
+        const bookingsRef = firebase.firestore().collection('users').doc(user.uid).collection('bookings');
+        const snapshot = await bookingsRef
+            .where('seriesId', '==', booking.seriesId)
+            .where('occurrenceNumber', '>=', booking.occurrenceNumber)
+            .get();
+        
+        if (snapshot.empty) {
+            console.warn('No future bookings found for series:', booking.seriesId);
+            hideLoading();
+            showAlertModal('No future bookings found to cancel.');
+            return;
+        }
+        
+        // Count how many bookings will be cancelled
+        const bookingsToCancel = snapshot.docs.length;
+        console.log(`Found ${bookingsToCancel} bookings to cancel`);
+        
+        // Create an array to hold all cancellation promises
+        const cancellationPromises = [];
+        
+        // Create an array to hold all booking IDs that were cancelled
+        const cancelledBookingIds = [];
+        
+        // Cancel each booking
+        snapshot.forEach(doc => {
+            const bookingId = doc.id;
+            console.log('Cancelling booking:', bookingId);
+            
+            // Add the promise to update this booking
+            cancellationPromises.push(
+                bookingsRef.doc(bookingId).update({
+                    status: 'cancelled',
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                })
+            );
+            
+            // Add the booking ID to the list of cancelled bookings
+            cancelledBookingIds.push(bookingId);
+        });
+        
+        // Wait for all cancellations to complete
+        await Promise.all(cancellationPromises);
+        console.log(`Successfully cancelled ${cancellationPromises.length} bookings`);
+        
+        hideLoading();
+        
+        // Show success message
+        showAlertModal(`Successfully cancelled ${bookingsToCancel} bookings.`, () => {
+            // Reload the schedule to reflect the changes
+            loadUserSchedule();
+        });
+        
+        // Remove the cancelled booking cards from the UI
+        cancelledBookingIds.forEach(bookingId => {
+            const bookingCard = document.querySelector(`[data-booking-id="${bookingId}"]`);
+            if (bookingCard) {
+                console.log('Removing booking card from UI:', bookingId);
+                bookingCard.remove();
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error cancelling future bookings:', error);
+        hideLoading();
+        
+        // Show a more user-friendly error message
+        let errorMessage = 'Error cancelling bookings. Please try again.';
+        if (error.code === 'permission-denied') {
+            errorMessage = 'You do not have permission to cancel these bookings.';
+        }
+        
+        showAlertModal(errorMessage);
+    }
+}
+
+// Function to cancel all bookings in a series
+async function cancelAllBookingsInSeries(booking) {
+    const user = firebase.auth().currentUser;
+    if (!user) {
+        showAlertModal('You must be logged in to cancel bookings');
+        return;
+    }
+    
+    showLoading('Cancelling all bookings in series...');
+    
+    try {
+        console.log('Cancelling all bookings for series:', booking.seriesId);
+        
+        // Get all bookings in the series
+        const bookingsRef = firebase.firestore().collection('users').doc(user.uid).collection('bookings');
+        const snapshot = await bookingsRef
+            .where('seriesId', '==', booking.seriesId)
+            .get();
+        
+        if (snapshot.empty) {
+            console.warn('No bookings found for series:', booking.seriesId);
+            hideLoading();
+            showAlertModal('No bookings found to cancel.');
+            return;
+        }
+        
+        // Count how many bookings will be cancelled
+        const bookingsToCancel = snapshot.docs.length;
+        console.log(`Found ${bookingsToCancel} bookings to cancel`);
+        
+        // Create an array to hold all cancellation promises
+        const cancellationPromises = [];
+        
+        // Create an array to hold all booking IDs that were cancelled
+        const cancelledBookingIds = [];
+        
+        // Cancel each booking
+        snapshot.forEach(doc => {
+            const bookingId = doc.id;
+            console.log('Cancelling booking:', bookingId);
+            
+            // Add the promise to update this booking
+            cancellationPromises.push(
+                bookingsRef.doc(bookingId).update({
+                    status: 'cancelled',
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                })
+            );
+            
+            // Add the booking ID to the list of cancelled bookings
+            cancelledBookingIds.push(bookingId);
+        });
+        
+        // Wait for all cancellations to complete
+        await Promise.all(cancellationPromises);
+        console.log(`Successfully cancelled ${cancellationPromises.length} bookings`);
+        
+        hideLoading();
+        
+        // Show success message
+        showAlertModal(`Successfully cancelled ${bookingsToCancel} bookings.`, () => {
+            // Reload the schedule to reflect the changes
+            loadUserSchedule();
+        });
+        
+        // Remove the cancelled booking cards from the UI
+        cancelledBookingIds.forEach(bookingId => {
+            const bookingCard = document.querySelector(`[data-booking-id="${bookingId}"]`);
+            if (bookingCard) {
+                console.log('Removing booking card from UI:', bookingId);
+                bookingCard.remove();
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error cancelling all bookings in series:', error);
+        hideLoading();
+        
+        // Show a more user-friendly error message
+        let errorMessage = 'Error cancelling bookings. Please try again.';
+        if (error.code === 'permission-denied') {
+            errorMessage = 'You do not have permission to cancel these bookings.';
+        }
+        
+        showAlertModal(errorMessage);
     }
 }

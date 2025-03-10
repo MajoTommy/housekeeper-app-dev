@@ -4,16 +4,19 @@ const DEFAULT_SETTINGS = {
         0: false,  // Sunday
         1: true,   // Monday
         2: true,   // Tuesday
-        3: true,   // Wednesday
+        3: false,  // Wednesday (rest day)
         4: true,   // Thursday
         5: true,   // Friday
         6: false   // Saturday
     },
     workingHours: {
-        start: "09:00",
-        end: "17:00"
+        start: "8:00 AM",
+        end: "5:00 PM"
     },
-    cleaningsPerDay: 3,
+    cleaningsPerDay: 2,
+    breakTime: 90, // 1.5 hours in minutes
+    cleaningDuration: 120, // 2 hours in minutes
+    maxHours: 480, // 8 hours in minutes
     hourlyRate: 30,
     autoSendReceipts: false
 };
