@@ -846,27 +846,53 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function setupBookingHandlers() {
+    console.log('Setting up booking handlers');
+    
     // New client button
-    document.getElementById('newClientBtn').addEventListener('click', function() {
-        // Show new client form
-        showNewClientForm();
-    });
+    const newClientBtn = document.getElementById('newClientBtn');
+    if (newClientBtn) {
+        console.log('Found new client button');
+        newClientBtn.addEventListener('click', function() {
+            console.log('New client button clicked');
+            // Show new client form
+            showNewClientForm();
+        });
+    } else {
+        console.error('New client button not found');
+    }
     
     // Frequency options
-    document.querySelectorAll('.frequency-option').forEach(button => {
+    const frequencyOptions = document.querySelectorAll('.frequency-option');
+    console.log(`Found ${frequencyOptions.length} frequency options`);
+    
+    frequencyOptions.forEach(button => {
+        const frequency = button.getAttribute('data-frequency');
+        console.log(`Setting up listener for frequency: ${frequency}`);
+        
         button.addEventListener('click', function() {
-            const frequency = this.getAttribute('data-frequency');
+            console.log(`Frequency option clicked: ${frequency}`);
             selectFrequency(frequency);
         });
     });
     
     // Confirm booking button
-    document.getElementById('confirmBookingBtn').addEventListener('click', function() {
-        saveBooking();
-    });
+    const confirmBookingBtn = document.getElementById('confirmBookingBtn');
+    if (confirmBookingBtn) {
+        console.log('Found confirm booking button');
+        confirmBookingBtn.addEventListener('click', function() {
+            console.log('Confirm booking button clicked');
+            saveBooking();
+        });
+    } else {
+        console.error('Confirm booking button not found');
+    }
+    
+    console.log('Booking handlers setup complete');
 }
 
 function showBookingStep(stepId) {
+    console.log(`Attempting to show booking step: ${stepId}`);
+    
     // Check if the booking modal exists
     const bookingModal = document.getElementById('bookingModal');
     if (!bookingModal) {
@@ -874,15 +900,24 @@ function showBookingStep(stepId) {
         return;
     }
     
+    // Log all available steps for debugging
+    const allSteps = document.querySelectorAll('.booking-step');
+    console.log(`Found ${allSteps.length} booking steps:`);
+    allSteps.forEach(step => {
+        console.log(`- Step ID: ${step.id}, visibility: ${step.classList.contains('hidden') ? 'hidden' : 'visible'}`);
+    });
+    
     // Hide all steps
-    document.querySelectorAll('.booking-step').forEach(step => {
+    allSteps.forEach(step => {
         step.classList.add('hidden');
+        console.log(`Hidden step: ${step.id}`);
     });
     
     // Show the requested step
     const stepElement = document.getElementById(stepId);
     if (stepElement) {
         stepElement.classList.remove('hidden');
+        console.log(`Showed step: ${stepId}`);
     } else {
         console.error(`Step element with ID "${stepId}" not found`);
     }
@@ -910,20 +945,37 @@ function selectFrequency(frequency) {
 }
 
 function updateBookingDateTime() {
+    console.log('Updating booking date and time display');
+    
     const dateTimeEl = document.getElementById('bookingDateTime');
+    console.log('Booking date time element:', dateTimeEl);
+    console.log('Current booking data:', currentBookingData);
+    
     if (dateTimeEl && currentBookingData.dateTime) {
         const { date, startTime, endTime } = currentBookingData.dateTime;
-        const formattedDate = new Date(date).toLocaleDateString('en-US', { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-        });
+        console.log('Formatting date:', date);
         
-        dateTimeEl.innerHTML = `
-            <p class="font-medium">${formattedDate}</p>
-            <p class="text-lg font-bold">${startTime} - ${endTime}</p>
-        `;
+        try {
+            const formattedDate = new Date(date).toLocaleDateString('en-US', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+            });
+            
+            console.log('Formatted date:', formattedDate);
+            
+            dateTimeEl.innerHTML = `
+                <p class="font-medium">${formattedDate}</p>
+                <p class="text-lg font-bold">${startTime} - ${endTime}</p>
+            `;
+            
+            console.log('Date time display updated successfully');
+        } catch (error) {
+            console.error('Error formatting date:', error);
+        }
+    } else {
+        console.warn('Cannot update booking date and time: element or data missing');
     }
     
     // Update confirmation details
@@ -1004,8 +1056,13 @@ function updateBookingDateTime() {
 }
 
 async function loadClients() {
+    console.log('Loading clients');
+    
     const user = firebase.auth().currentUser;
-    if (!user) return;
+    if (!user) {
+        console.error('No authenticated user found');
+        return;
+    }
     
     const clientsContainer = document.getElementById('existingClients');
     if (!clientsContainer) {
@@ -1013,21 +1070,27 @@ async function loadClients() {
         return;
     }
     
+    console.log('Updating clients container with loading message');
     clientsContainer.innerHTML = '<p class="text-gray-600 mb-2">Loading clients...</p>';
     
     try {
+        console.log('Fetching clients from Firestore');
         const clientsRef = firebase.firestore().collection('users').doc(user.uid).collection('clients');
         const snapshot = await clientsRef.get();
         
         if (snapshot.empty) {
+            console.log('No clients found');
             clientsContainer.innerHTML = '<p class="text-gray-600 mb-2">No existing clients</p>';
             return;
         }
         
+        console.log(`Found ${snapshot.size} clients`);
         clientsContainer.innerHTML = '<p class="text-gray-600 mb-2">Your clients:</p>';
         
         snapshot.forEach(doc => {
             const client = doc.data();
+            console.log(`Creating client element for: ${client.name}`);
+            
             const clientEl = document.createElement('button');
             clientEl.className = 'w-full p-3 bg-gray-100 rounded-lg text-left mb-2 hover:bg-gray-200';
             clientEl.innerHTML = `
@@ -1044,16 +1107,17 @@ async function loadClients() {
             
             // Add click handler
             clientEl.addEventListener('click', () => {
+                console.log(`Client selected: ${client.name}`);
                 selectClient(doc.id, client.name);
             });
             
             clientsContainer.appendChild(clientEl);
         });
+        
+        console.log('Clients loaded successfully');
     } catch (error) {
         console.error('Error loading clients:', error);
-        if (clientsContainer) {
-            clientsContainer.innerHTML = '<p class="text-red-600 mb-2">Error loading clients. Please try again.</p>';
-        }
+        clientsContainer.innerHTML = '<p class="text-red-500 mb-2">Error loading clients. Please try again.</p>';
     }
 }
 
@@ -1456,6 +1520,59 @@ function addTimeSlot(container, startTime, endTime, date, durationMinutes) {
                 </div>
             </div>
         `;
+    
+    // Store the booking data as attributes
+    timeSlot.setAttribute('data-date', formattedDate);
+    timeSlot.setAttribute('data-start-time', startTime);
+    timeSlot.setAttribute('data-end-time', endTime);
+    timeSlot.setAttribute('data-duration', durationMinutes);
+    
+    // Add click event listener to open booking modal
+    timeSlot.addEventListener('click', function() {
+        console.log('Time slot clicked:', {
+            date: formattedDate,
+            startTime: startTime,
+            endTime: endTime,
+            duration: durationMinutes
+        });
+        
+        try {
+            // Set the current booking data
+            currentBookingData.dateTime = {
+                date: formattedDate,
+                startTime: startTime,
+                endTime: endTime,
+                duration: durationMinutes
+            };
+            
+            console.log('Current booking data set:', currentBookingData);
+            
+            // Update the booking date and time display
+            updateBookingDateTime();
+            console.log('Booking date and time display updated');
+            
+            // Show the booking modal
+            const bookingModal = document.getElementById('bookingModal');
+            console.log('Booking modal element:', bookingModal);
+            
+            if (bookingModal) {
+                bookingModal.classList.remove('hidden');
+                console.log('Booking modal shown');
+                
+                // Show the client selection step first
+                console.log('Attempting to show client selection step');
+                showBookingStep('clientSelection');
+                
+                // Load clients for the client selection step
+                console.log('Loading clients');
+                loadClients();
+            } else {
+                console.error('Booking modal not found');
+            }
+        } catch (error) {
+            console.error('Error in time slot click handler:', error);
+        }
+    });
     
     container.appendChild(timeSlot);
     console.log('Time slot added successfully');
