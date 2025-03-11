@@ -1,7 +1,6 @@
 // Initialize the current week start date
 let currentWeekStart = new Date();
-// Set to the start of the current week (Sunday)
-currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekStart.getDay());
+// Set to today's date at midnight
 currentWeekStart.setHours(0, 0, 0, 0);
 
 // Global booking data
@@ -126,7 +125,10 @@ function debugWorkingDays(settings) {
     console.log('Debugging working days:');
     console.log('Settings object:', settings);
     
-    if (!settings.workingDays) {
+    // Use compatibility layer if available, otherwise use original workingDays
+    const workingDaysForDebug = settings.workingDaysCompat || settings.workingDays;
+    
+    if (!workingDaysForDebug) {
         console.error('No workingDays found in settings');
         return;
     }
@@ -134,7 +136,7 @@ function debugWorkingDays(settings) {
     // Check each day
     for (let i = 0; i < 7; i++) {
         const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        const value = settings.workingDays[i];
+        const value = workingDaysForDebug[i];
         const valueType = typeof value;
         const isWorkingDay = value == true || (typeof value === 'string' && value.toLowerCase() === 'true');
         
@@ -213,8 +215,39 @@ async function loadUserSchedule(showLoadingIndicator = true) {
         debugWorkingDays(settings);
 
         // Calculate available time slots based on settings
-        settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
-        console.log('Calculated time slots:', settings.calculatedTimeSlots);
+        console.log('Checking calculatedTimeSlots:', settings.calculatedTimeSlots);
+        
+        if (!settings.calculatedTimeSlots || settings.calculatedTimeSlots.length === 0) {
+            console.log('No calculated time slots found in settings, calculating now...');
+            settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
+        } else {
+            console.log('Using calculated time slots from database:', settings.calculatedTimeSlots);
+            
+            // Validate the structure of calculatedTimeSlots
+            if (Array.isArray(settings.calculatedTimeSlots)) {
+                console.log('calculatedTimeSlots is an array with length:', settings.calculatedTimeSlots.length);
+                
+                // Check if it has the expected structure
+                const hasExpectedStructure = settings.calculatedTimeSlots.every(item => 
+                    typeof item === 'object' && 
+                    'day' in item && 
+                    'slots' in item && 
+                    Array.isArray(item.slots)
+                );
+                
+                console.log('calculatedTimeSlots has expected structure:', hasExpectedStructure);
+                
+                if (!hasExpectedStructure) {
+                    console.warn('calculatedTimeSlots does not have the expected structure, recalculating...');
+                    settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
+                }
+            } else {
+                console.warn('calculatedTimeSlots is not an array, recalculating...');
+                settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
+            }
+        }
+        
+        console.log('Final calculated time slots:', settings.calculatedTimeSlots);
 
         // Generate the schedule with the settings
         console.log('Calling generateSchedule with settings:', settings);
@@ -251,14 +284,50 @@ function calculateAvailableTimeSlots(settings) {
     const slots = [];
     
     // Ensure settings exists
-    if (!settings || !settings.workingHours) {
+    if (!settings) {
         console.error('Invalid settings provided to calculateAvailableTimeSlots:', settings);
         return slots;
     }
     
+    // Check if we have day-specific settings
+    if (settings.workingDays && typeof settings.workingDays === 'object' && 
+        settings.workingDays.monday && typeof settings.workingDays.monday === 'object') {
+        console.log('Using day-specific settings for time slots');
+        
+        // For each day of the week, calculate slots based on day-specific settings
+        const dayMapping = {
+            0: 'sunday',
+            1: 'monday',
+            2: 'tuesday',
+            3: 'wednesday',
+            4: 'thursday',
+            5: 'friday',
+            6: 'saturday'
+        };
+        
+        // For each day, calculate slots if it's a working day
+        for (let i = 0; i < 7; i++) {
+            const dayName = dayMapping[i];
+            const daySettings = settings.workingDays[dayName];
+            
+            if (daySettings && daySettings.isWorking) {
+                const daySlots = calculateDayTimeSlots(daySettings);
+                slots.push({
+                    day: i,
+                    slots: daySlots
+                });
+            }
+        }
+        
+        return slots;
+    }
+    
+    // Fall back to old method if no day-specific settings
+    console.log('Using global settings for time slots');
+    
     // Convert time format if needed (handle both "09:00" and "09:00 AM" formats)
-    let startTimeStr = settings.workingHours.start || "8:00 AM";
-    let endTimeStr = settings.workingHours.end || "5:00 PM";
+    let startTimeStr = settings.workingHours?.start || "8:00 AM";
+    let endTimeStr = settings.workingHours?.end || "5:00 PM";
     
     console.log('Original time settings:', startTimeStr, endTimeStr);
     
@@ -395,6 +464,107 @@ function calculateAvailableTimeSlots(settings) {
     return slots;
 }
 
+// Helper function to calculate time slots for a specific day
+function calculateDayTimeSlots(daySettings) {
+    const daySlots = [];
+    
+    // Create date objects for start and end times
+    const startTime = new Date('2000-01-01 ' + daySettings.startTime);
+    const endTime = new Date('2000-01-01 ' + daySettings.endTime);
+    
+    // Get settings with defaults
+    const cleaningsPerDay = daySettings.jobsPerDay || 2;
+    const cleaningDuration = daySettings.cleaningDuration || 180; // Default 3 hours (180 minutes)
+    const breakTime = daySettings.breakTime || 90; // Default 1.5 hours (90 minutes)
+    const maxHours = daySettings.maxHours || 7 * 60; // Default 7 hours (in minutes)
+    
+    // Calculate total working minutes
+    const totalWorkingMinutes = Math.min((endTime - startTime) / 60000, maxHours); // Convert milliseconds to minutes, cap at max hours
+    
+    // Calculate time needed for each cleaning + break
+    const timePerCleaning = cleaningDuration + breakTime;
+    
+    // Check if we can fit all cleanings within the working hours
+    const totalTimeNeeded = (cleaningDuration * cleaningsPerDay) + (breakTime * (cleaningsPerDay - 1));
+    
+    if (totalTimeNeeded > totalWorkingMinutes) {
+        // Calculate how many cleanings we can actually fit
+        const maxCleanings = Math.floor((totalWorkingMinutes + breakTime) / timePerCleaning);
+        
+        // Generate time slots based on adjusted cleanings count
+        for (let i = 0; i < maxCleanings; i++) {
+            const slotStart = new Date(startTime.getTime() + (i * timePerCleaning * 60000));
+            const slotEnd = new Date(slotStart.getTime() + (cleaningDuration * 60000));
+            
+            // Only add the slot if it ends before or at the end time
+            if (slotEnd <= endTime) {
+                daySlots.push({
+                    start: slotStart.toLocaleTimeString('en-US', { 
+                        hour: 'numeric', 
+                        minute: '2-digit', 
+                        hour12: true 
+                    }),
+                    end: slotEnd.toLocaleTimeString('en-US', { 
+                        hour: 'numeric', 
+                        minute: '2-digit', 
+                        hour12: true 
+                    }),
+                    durationMinutes: cleaningDuration
+                });
+            }
+        }
+    } else {
+        // We can fit all cleanings, so distribute them evenly
+        
+        // Generate time slots based on cleaningsPerDay
+        for (let i = 0; i < cleaningsPerDay; i++) {
+            const slotStart = new Date(startTime.getTime() + (i * timePerCleaning * 60000));
+            const slotEnd = new Date(slotStart.getTime() + (cleaningDuration * 60000));
+            
+            // Only add the slot if it ends before or at the end time
+            if (slotEnd <= endTime) {
+                daySlots.push({
+                    start: slotStart.toLocaleTimeString('en-US', { 
+                        hour: 'numeric', 
+                        minute: '2-digit', 
+                        hour12: true 
+                    }),
+                    end: slotEnd.toLocaleTimeString('en-US', { 
+                        hour: 'numeric', 
+                        minute: '2-digit', 
+                        hour12: true 
+                    }),
+                    durationMinutes: cleaningDuration
+                });
+            }
+        }
+    }
+    
+    // If no slots were generated, create at least one default slot
+    if (daySlots.length === 0) {
+        const defaultSlotEnd = new Date(startTime.getTime() + (cleaningDuration * 60000));
+        
+        // Only add the default slot if it ends before or at the end time
+        if (defaultSlotEnd <= endTime) {
+            daySlots.push({
+                start: startTime.toLocaleTimeString('en-US', { 
+                    hour: 'numeric', 
+                    minute: '2-digit', 
+                    hour12: true 
+                }),
+                end: defaultSlotEnd.toLocaleTimeString('en-US', { 
+                    hour: 'numeric', 
+                    minute: '2-digit', 
+                    hour12: true 
+                }),
+                durationMinutes: cleaningDuration
+            });
+        }
+    }
+    
+    return daySlots;
+}
+
 // Function to detect if we're on a mobile device
 function isMobileDevice() {
     const userAgent = navigator.userAgent || navigator.vendor || window.opera;
@@ -406,10 +576,16 @@ function isMobileDevice() {
 // Function to generate schedule
 function generateSchedule(settings) {
     console.log('generateSchedule called with settings:', settings);
-    console.log('Working days configuration:', settings.workingDays);
+    
+    // Use compatibility layer if available, otherwise use original workingDays
+    const workingDaysForSchedule = settings.workingDaysCompat || settings.workingDays;
+    console.log('Working days configuration for schedule:', workingDaysForSchedule);
     
     // Debug working days again right before generating schedule
     debugWorkingDays(settings);
+    
+    // Day names for better logging
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     
     // Check if we're on a mobile device
     const isMobile = isMobileDevice();
@@ -443,6 +619,9 @@ function generateSchedule(settings) {
     if (weekDisplay) {
         weekDisplay.textContent = `${weekStartFormatted} - ${weekEndFormatted}`;
     }
+    
+    // Debug the calculatedTimeSlots
+    console.log('Time slots configuration before generating schedule:', settings.calculatedTimeSlots);
     
     // Load user bookings for the current week
     loadUserBookings(weekStart, weekEnd).then(bookings => {
@@ -533,27 +712,79 @@ function generateSchedule(settings) {
             
             if (isMobile) {
                 // On mobile, consider a day working if it's not explicitly set to false
-                isWorkingDay = settings && settings.workingDays && 
-                    settings.workingDays[dayOfWeek] !== false;
+                isWorkingDay = workingDaysForSchedule && 
+                    workingDaysForSchedule[dayOfWeek] !== false;
             } else {
                 // On desktop, use the standard check
-                isWorkingDay = settings && settings.workingDays && 
-                    (settings.workingDays[dayOfWeek] == true || 
-                     (typeof settings.workingDays[dayOfWeek] === 'string' && 
-                      settings.workingDays[dayOfWeek].toLowerCase() === 'true'));
+                isWorkingDay = workingDaysForSchedule && 
+                    (workingDaysForSchedule[dayOfWeek] == true || 
+                     (typeof workingDaysForSchedule[dayOfWeek] === 'string' && 
+                      workingDaysForSchedule[dayOfWeek].toLowerCase() === 'true'));
             }
             
-            console.log(`Day ${dayOfWeek} (${date.toDateString()}) working status:`, {
-                rawValue: settings?.workingDays?.[dayOfWeek],
+            console.log(`Day ${dayOfWeek} (${dayNames[dayOfWeek]}, ${date.toDateString()}) working status:`, {
+                rawValue: workingDaysForSchedule?.[dayOfWeek],
                 isWorkingDay,
                 isMobile,
-                workingDays: settings.workingDays,
+                workingDays: workingDaysForSchedule,
                 dateString: date.toDateString()
             });
             
             if (isWorkingDay) {
-                const timeSlots = settings.calculatedTimeSlots || [];
+                // Check if we have day-specific time slots
+                let daySpecificSlots = null;
                 
+                if (Array.isArray(settings.calculatedTimeSlots)) {
+                    // Check if we have the new format with day-specific slots
+                    const daySlotData = settings.calculatedTimeSlots.find(item => 
+                        item.day === dayOfWeek || 
+                        item.day === dayOfWeek.toString()
+                    );
+                    
+                    if (daySlotData && Array.isArray(daySlotData.slots)) {
+                        daySpecificSlots = daySlotData.slots;
+                        console.log(`Using day-specific slots for day ${dayOfWeek} (${dayNames[dayOfWeek]}):`, daySpecificSlots);
+                    } else {
+                        console.warn(`No day-specific slots found for day ${dayOfWeek} (${dayNames[dayOfWeek]})`);
+                    }
+                }
+                
+                // Use day-specific slots if available, otherwise fall back to global slots
+                let timeSlots = [];
+                
+                if (daySpecificSlots && daySpecificSlots.length > 0) {
+                    // Use day-specific slots
+                    timeSlots = daySpecificSlots;
+                    console.log(`Using ${timeSlots.length} day-specific slots for ${dayNames[dayOfWeek]}`);
+                } else if (Array.isArray(settings.calculatedTimeSlots) && !settings.calculatedTimeSlots.some(item => item.day !== undefined)) {
+                    // Old format - flat array of slots
+                    timeSlots = settings.calculatedTimeSlots;
+                    console.log(`Using ${timeSlots.length} global slots for ${dayNames[dayOfWeek]}`);
+                } else if (Array.isArray(settings.calculatedTimeSlots) && settings.calculatedTimeSlots.length > 0) {
+                    // Try to use any available slots as a fallback
+                    const anySlots = settings.calculatedTimeSlots.find(item => 
+                        item.slots && Array.isArray(item.slots) && item.slots.length > 0
+                    );
+                    
+                    if (anySlots) {
+                        timeSlots = anySlots.slots;
+                        console.log(`Using ${timeSlots.length} fallback slots for ${dayNames[dayOfWeek]} from day ${anySlots.day}`);
+                    }
+                }
+                
+                console.log(`Time slots for day ${dayOfWeek} (${dayNames[dayOfWeek]}, ${date.toDateString()}):`, {
+                    daySpecificSlots,
+                    timeSlots,
+                    calculatedTimeSlots: settings.calculatedTimeSlots
+                });
+                
+                if (!timeSlots || timeSlots.length === 0) {
+                    console.warn(`No time slots available for day ${dayOfWeek} (${date.toDateString()})`);
+                    addUnavailableMessage(dayContainer, 'no_slots');
+                    continue;
+                }
+                
+                // Add all time slots to the container
                 timeSlots.forEach(slot => {
                     const slotKey = `${slot.start}-${slot.end}`;
                     
@@ -633,7 +864,7 @@ function generateSchedule(settings) {
                             startTime: slot.start,
                             endTime: slot.end,
                             date: date,
-                            durationMinutes: settings.cleaningDuration
+                            durationMinutes: slot.durationMinutes || settings.cleaningDuration || 180 // Default to 3 hours if not specified
                         });
                     }
                 });
@@ -719,51 +950,39 @@ function addDateHeader(container, dateText, isToday) {
 
 // Function to add unavailable message
 function addUnavailableMessage(container, reason = 'default') {
-    const unavailableMessage = document.createElement('div');
-    unavailableMessage.className = 'text-center py-8 bg-gray-100 rounded-lg mb-4';
+    let message = 'No available time slots';
+    let icon = 'fa-calendar-xmark';
+    let title = 'Unavailable';
     
-    let messageContent = '';
-    
-    switch (reason) {
-        case 'past':
-            messageContent = `
-                <i class="fas fa-clock text-gray-400 text-3xl mb-2"></i>
-                <h3 class="text-xl font-semibold text-gray-800">Past Time</h3>
-                <p class="text-gray-600">This time has already passed.</p>
-            `;
-            break;
-        case 'rest_day':
-            messageContent = `
-                <i class="fas fa-moon text-primary text-3xl mb-2"></i>
-                <h3 class="text-xl font-semibold text-gray-800">Rest Day</h3>
-                <p class="text-gray-600">This is your designated rest day.</p>
-            `;
-            break;
-        case 'non_working_day':
-            messageContent = `
-                <i class="fas fa-calendar-times text-gray-400 text-3xl mb-2"></i>
-                <h3 class="text-xl font-semibold text-gray-800">Non-Working Day</h3>
-                <p class="text-gray-600">You're not scheduled to work on this day.</p>
-                <p class="text-gray-600 mt-2">You can change your working days in Settings.</p>
-            `;
-            break;
-        case 'fully_booked':
-            messageContent = `
-                <i class="fas fa-calendar-check text-primary text-3xl mb-2"></i>
-                <h3 class="text-xl font-semibold text-gray-800">Fully Booked</h3>
-                <p class="text-gray-600">All available slots for this day are booked.</p>
-            `;
-            break;
-        default:
-            messageContent = `
-                <i class="fas fa-calendar-times text-gray-400 text-3xl mb-2"></i>
-                <h3 class="text-xl font-semibold text-gray-800">Not Available</h3>
-                <p class="text-gray-600">No available time slots for this day.</p>
-            `;
+    if (reason === 'rest_day') {
+        message = 'This is your rest day';
+        icon = 'fa-bed';
+        title = 'Rest Day';
+    } else if (reason === 'non_working_day') {
+        message = 'Not a working day';
+        icon = 'fa-calendar-xmark';
+        title = 'Not Working';
+    } else if (reason === 'fully_booked') {
+        message = 'All available slots for this day are booked.';
+        icon = 'fa-calendar-check';
+        title = 'Fully Booked';
+    } else if (reason === 'no_slots') {
+        message = 'No time slots configured for this day.';
+        icon = 'fa-calendar-xmark';
+        title = 'No Slots Configured';
     }
     
-    unavailableMessage.innerHTML = messageContent;
-    container.appendChild(unavailableMessage);
+    const messageElement = document.createElement('div');
+    messageElement.className = 'text-center py-8 bg-gray-100 rounded-lg mb-4';
+    messageElement.innerHTML = `
+        <div class="bg-gray-200 text-gray-600 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+            <i class="fas ${icon} text-2xl"></i>
+        </div>
+        <h3 class="text-xl font-bold mb-2">${title}</h3>
+        <p class="text-gray-600">${message}</p>
+    `;
+    
+    container.appendChild(messageElement);
 }
 
 // Function to help with debugging on mobile devices
@@ -2577,10 +2796,10 @@ function navigateToCurrentWeek() {
     showLoading('Loading current week...');
     
     try {
-        // Set current week start date to the beginning of the current week
+        // Set current week start date to today
         const today = new Date();
         currentWeekStart = new Date(today);
-        currentWeekStart.setDate(today.getDate() - today.getDay());
+        // Set to today's date at midnight
         currentWeekStart.setHours(0, 0, 0, 0);
         console.log('New week start date:', currentWeekStart.toDateString());
         
