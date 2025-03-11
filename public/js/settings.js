@@ -215,6 +215,16 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Show time settings
             settingsPanel.innerHTML = `
+                <div class="flex justify-end mb-3">
+                    <label class="inline-flex items-center cursor-pointer">
+                        <span class="mr-3 text-sm font-medium text-gray-700">Rest Day</span>
+                        <div class="relative">
+                            <input type="checkbox" value="" class="sr-only peer day-toggle" data-day-toggle="${day}" checked>
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-light rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                        </div>
+                        <span class="ml-3 text-sm font-medium text-gray-700">Working Day</span>
+                    </label>
+                </div>
                 <div class="grid grid-cols-2 gap-3 mb-3">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
@@ -295,35 +305,40 @@ document.addEventListener('DOMContentLoaded', function() {
             circle.classList.add('bg-gray-200', 'text-gray-600');
             statusText.textContent = 'Rest Day';
             
-            // Show "Make Working Day" button
+            // Show "Make Working Day" button and toggle
             settingsPanel.innerHTML = `
+                <div class="flex justify-end mb-3">
+                    <label class="inline-flex items-center cursor-pointer">
+                        <span class="mr-3 text-sm font-medium text-gray-700">Rest Day</span>
+                        <div class="relative">
+                            <input type="checkbox" value="" class="sr-only peer day-toggle" data-day-toggle="${day}">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-light rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                        </div>
+                        <span class="ml-3 text-sm font-medium text-gray-700">Working Day</span>
+                    </label>
+                </div>
                 <div class="text-center py-2">
-                    <button class="px-4 py-2 text-sm font-medium text-primary hover:bg-primary-light rounded-full">
-                        Make Working Day
-                    </button>
+                    <p class="text-sm text-gray-500">This day is set as a rest day. Toggle the switch above to make it a working day.</p>
                 </div>
             `;
             
-            // Add event listener to the Make Working Day button
-            const makeWorkingDayButton = settingsPanel.querySelector('button');
-            makeWorkingDayButton.addEventListener('click', function() {
-                workingDays[day].isWorking = true;
-                updateDayButtonStyle(day, true);
-                showSavingIndicator();
-                validateAndSaveSettings();
-            });
+            // Add event listener to the toggle
+            const dayToggle = settingsPanel.querySelector(`[data-day-toggle="${day}"]`);
+            if (dayToggle) {
+                dayToggle.addEventListener('change', function() {
+                    workingDays[day].isWorking = this.checked;
+                    updateDayButtonStyle(day, this.checked);
+                    showSavingIndicator();
+                    validateAndSaveSettings();
+                });
+            }
         }
     }
     
     // Add event listeners for day-specific settings
     function addDaySpecificListeners(day) {
+        // Start time
         const startTimeSelect = document.querySelector(`[data-start-time="${day}"]`);
-        const endTimeSelect = document.querySelector(`[data-end-time="${day}"]`);
-        const jobsPerDaySelect = document.querySelector(`[data-jobs-per-day="${day}"]`);
-        const cleaningDurationSelect = document.querySelector(`[data-cleaning-duration="${day}"]`);
-        const breakTimeSelect = document.querySelector(`[data-break-time="${day}"]`);
-        const maxHoursSelect = document.querySelector(`[data-max-hours="${day}"]`);
-        
         if (startTimeSelect) {
             startTimeSelect.addEventListener('change', function() {
                 workingDays[day].startTime = this.value;
@@ -332,6 +347,8 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
         
+        // End time
+        const endTimeSelect = document.querySelector(`[data-end-time="${day}"]`);
         if (endTimeSelect) {
             endTimeSelect.addEventListener('change', function() {
                 workingDays[day].endTime = this.value;
@@ -340,6 +357,8 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
         
+        // Jobs per day
+        const jobsPerDaySelect = document.querySelector(`[data-jobs-per-day="${day}"]`);
         if (jobsPerDaySelect) {
             jobsPerDaySelect.addEventListener('change', function() {
                 workingDays[day].jobsPerDay = parseInt(this.value);
@@ -348,6 +367,8 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
         
+        // Cleaning duration
+        const cleaningDurationSelect = document.querySelector(`[data-cleaning-duration="${day}"]`);
         if (cleaningDurationSelect) {
             cleaningDurationSelect.addEventListener('change', function() {
                 workingDays[day].cleaningDuration = parseInt(this.value);
@@ -356,6 +377,8 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
         
+        // Break time
+        const breakTimeSelect = document.querySelector(`[data-break-time="${day}"]`);
         if (breakTimeSelect) {
             breakTimeSelect.addEventListener('change', function() {
                 workingDays[day].breakTime = parseInt(this.value);
@@ -364,9 +387,22 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
         
+        // Max hours
+        const maxHoursSelect = document.querySelector(`[data-max-hours="${day}"]`);
         if (maxHoursSelect) {
             maxHoursSelect.addEventListener('change', function() {
                 workingDays[day].maxHours = parseInt(this.value);
+                showSavingIndicator();
+                validateAndSaveSettings();
+            });
+        }
+        
+        // Day toggle
+        const dayToggle = document.querySelector(`[data-day-toggle="${day}"]`);
+        if (dayToggle) {
+            dayToggle.addEventListener('change', function() {
+                workingDays[day].isWorking = this.checked;
+                updateDayButtonStyle(day, this.checked);
                 showSavingIndicator();
                 validateAndSaveSettings();
             });

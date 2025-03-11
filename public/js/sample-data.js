@@ -33,57 +33,59 @@ const sampleClients = [
     }
 ];
 
-// Sample booking data
-const sampleBookings = [
-    {
-        clientName: "Jennifer Wilson",
-        clientAddress: "567 Pine Road, Anytown, CA 90214",
-        clientPhone: "555-987-6543",
-        accessInfo: "Lockbox code: 1234",
-        date: getTodayString(),
-        startTime: "10:00 AM",
-        endTime: "12:00 PM",
-        frequency: "weekly",
-        status: "scheduled",
-        notes: "Please focus on kitchen and bathrooms"
-    },
-    {
-        clientName: "Michael Brown",
-        clientAddress: "789 Pine Rd, Nowhere, CA 90212",
-        clientPhone: "555-456-7890",
-        accessInfo: "Client will be home",
-        date: getTomorrowString(),
-        startTime: "2:00 PM",
-        endTime: "4:00 PM",
-        frequency: "biweekly",
-        status: "scheduled",
-        notes: "Has a cat. Prefers morning appointments."
-    },
-    {
-        clientName: "David Wilson",
-        clientAddress: "456 Oak Avenue, Somewhere, CA 90211",
-        clientPhone: "555-789-0123",
-        accessInfo: "Key under doormat",
-        date: getTodayString(),
-        startTime: "10:15 AM",
-        endTime: "12:15 PM",
-        frequency: "weekly",
-        status: "completed",
-        notes: "Allergic to strong fragrances"
-    },
-    {
-        clientName: "Bob Smith",
-        clientAddress: "123 Elm Street, Anytown, CA 90210",
-        clientPhone: "555-321-7654",
-        accessInfo: "Garage code: 5678",
-        date: getTodayString(),
-        startTime: "10:15 AM",
-        endTime: "12:15 PM",
-        frequency: "weekly",
-        status: "completed",
-        notes: "Has a dog. Use pet-friendly products."
-    }
-];
+// Sample booking data - updated to use dynamic dates and time slots
+function generateSampleBookings() {
+    return [
+        {
+            clientName: "Jennifer Wilson",
+            clientAddress: "567 Pine Road, Anytown, CA 90214",
+            clientPhone: "555-987-6543",
+            accessInfo: "Lockbox code: 1234",
+            date: getTodayString(),
+            startTime: "8:00 AM",
+            endTime: "11:00 AM",
+            frequency: "weekly",
+            status: "scheduled",
+            notes: "Please focus on kitchen and bathrooms"
+        },
+        {
+            clientName: "Michael Brown",
+            clientAddress: "789 Pine Rd, Nowhere, CA 90212",
+            clientPhone: "555-456-7890",
+            accessInfo: "Client will be home",
+            date: getTomorrowString(),
+            startTime: "12:30 PM",
+            endTime: "3:30 PM",
+            frequency: "biweekly",
+            status: "scheduled",
+            notes: "Has a cat. Prefers morning appointments."
+        },
+        {
+            clientName: "David Wilson",
+            clientAddress: "456 Oak Avenue, Somewhere, CA 90211",
+            clientPhone: "555-789-0123",
+            accessInfo: "Key under doormat",
+            date: getDateString(2), // Day after tomorrow
+            startTime: "8:00 AM",
+            endTime: "11:00 AM",
+            frequency: "weekly",
+            status: "scheduled",
+            notes: "Allergic to strong fragrances"
+        },
+        {
+            clientName: "Bob Smith",
+            clientAddress: "123 Elm Street, Anytown, CA 90210",
+            clientPhone: "555-321-7654",
+            accessInfo: "Garage code: 5678",
+            date: getDateString(3), // 3 days from today
+            startTime: "12:30 PM",
+            endTime: "3:30 PM",
+            frequency: "weekly",
+            status: "scheduled",
+            notes: "Has a dog. Use pet-friendly products."
+        }
+    ];
+}
 
 // Function to get today's date as YYYY-MM-DD
 function getTodayString() {
@@ -96,6 +98,13 @@ function getTomorrowString() {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     return tomorrow.toISOString().split('T')[0];
+}
+
+// Function to get a date N days from today as YYYY-MM-DD
+function getDateString(daysFromToday) {
+    const date = new Date();
+    date.setDate(date.getDate() + daysFromToday);
+    return date.toISOString().split('T')[0];
 }
 
 // Function to add sample clients to Firestore
@@ -159,6 +168,9 @@ async function addSampleBookings() {
             return;
         }
         
+        // Generate sample bookings with current dates
+        const sampleBookings = generateSampleBookings();
+        
         // Add each sample booking
         const batch = firebase.firestore().batch();
         
@@ -175,6 +187,159 @@ async function addSampleBookings() {
         
     } catch (error) {
         console.error('Error adding sample bookings:', error);
+    }
+}
+
+// Function to add sample settings to Firestore
+async function addSampleSettings() {
+    const user = firebase.auth().currentUser;
+    
+    if (!user) {
+        console.error('No user logged in. Please log in to add sample data.');
+        return;
+    }
+    
+    console.log('Adding sample settings for user:', user.uid);
+    
+    try {
+        const userRef = firebase.firestore().collection('users').doc(user.uid);
+        
+        // Create day-specific settings
+        const workingDays = {
+            sunday: { isWorking: false },
+            monday: { 
+                isWorking: true,
+                startTime: "8:00 AM",
+                endTime: "5:00 PM",
+                jobsPerDay: 2,
+                cleaningDuration: 180,
+                breakTime: 90,
+                maxHours: 420
+            },
+            tuesday: { 
+                isWorking: true,
+                startTime: "8:00 AM",
+                endTime: "5:00 PM",
+                jobsPerDay: 2,
+                cleaningDuration: 180,
+                breakTime: 90,
+                maxHours: 420
+            },
+            wednesday: { 
+                isWorking: true,
+                startTime: "8:00 AM",
+                endTime: "5:00 PM",
+                jobsPerDay: 2,
+                cleaningDuration: 180,
+                breakTime: 90,
+                maxHours: 420
+            },
+            thursday: { 
+                isWorking: true,
+                startTime: "8:00 AM",
+                endTime: "5:00 PM",
+                jobsPerDay: 2,
+                cleaningDuration: 180,
+                breakTime: 90,
+                maxHours: 420
+            },
+            friday: { 
+                isWorking: true,
+                startTime: "8:00 AM",
+                endTime: "5:00 PM",
+                jobsPerDay: 2,
+                cleaningDuration: 180,
+                breakTime: 90,
+                maxHours: 420
+            },
+            saturday: { isWorking: false }
+        };
+        
+        // Create compatibility layer for schedule.js
+        const compatWorkingDays = {
+            0: workingDays.sunday.isWorking,    // Sunday
+            1: workingDays.monday.isWorking,    // Monday
+            2: workingDays.tuesday.isWorking,   // Tuesday
+            3: workingDays.wednesday.isWorking, // Wednesday
+            4: workingDays.thursday.isWorking,  // Thursday
+            5: workingDays.friday.isWorking,    // Friday
+            6: workingDays.saturday.isWorking   // Saturday
+        };
+        
+        // Convert time slots from object format to array format for schedule.js
+        const dayMapping = {
+            'sunday': 0,
+            'monday': 1,
+            'tuesday': 2,
+            'wednesday': 3,
+            'thursday': 4,
+            'friday': 5,
+            'saturday': 6
+        };
+        
+        // Calculate time slots for each day
+        const formattedTimeSlots = [];
+        
+        Object.entries(workingDays).forEach(([dayName, settings]) => {
+            if (!settings.isWorking) return;
+            
+            const daySlots = [];
+            const startTime = new Date('2000-01-01 ' + settings.startTime);
+            const cleaningsPerDay = settings.jobsPerDay || 2;
+            const cleaningDuration = settings.cleaningDuration || 180;
+            const breakTime = settings.breakTime || 90;
+            
+            let currentTime = new Date(startTime);
+            
+            for (let i = 0; i < cleaningsPerDay; i++) {
+                // Add the cleaning slot
+                const slotEnd = new Date(currentTime.getTime() + cleaningDuration * 60000);
+                const slotObj = {
+                    start: currentTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }),
+                    end: slotEnd.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }),
+                    durationMinutes: cleaningDuration
+                };
+                
+                daySlots.push(slotObj);
+                
+                // Add break time if not the last cleaning
+                if (i < cleaningsPerDay - 1) {
+                    currentTime = new Date(slotEnd.getTime() + breakTime * 60000);
+                }
+            }
+            
+            if (daySlots.length > 0) {
+                formattedTimeSlots.push({
+                    day: dayMapping[dayName],
+                    slots: daySlots
+                });
+            }
+        });
+        
+        // Create settings object
+        const settings = {
+            workingDays: workingDays,
+            workingDaysCompat: compatWorkingDays,
+            workingHours: {
+                start: workingDays.monday.startTime,
+                end: workingDays.monday.endTime
+            },
+            cleaningsPerDay: 2,
+            breakTime: 90,
+            cleaningDuration: 180,
+            maxHours: 420,
+            hourlyRate: 30,
+            autoSendReceipts: true,
+            calculatedTimeSlots: formattedTimeSlots,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        
+        // Save to Firestore
+        await userRef.set({ settings }, { merge: true });
+        console.log('Successfully added sample settings!');
+        
+    } catch (error) {
+        console.error('Error adding sample settings:', error);
     }
 }
 
@@ -225,6 +390,9 @@ async function resetAndPopulateDatabase() {
         
         await bookingDeleteBatch.commit();
         console.log('All bookings deleted');
+        
+        // Add sample settings
+        await addSampleSettings();
         
         // Add sample clients
         await addSampleClients();

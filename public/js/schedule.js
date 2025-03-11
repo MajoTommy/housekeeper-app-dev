@@ -181,7 +181,7 @@ async function loadUserSchedule(showLoadingIndicator = true) {
                 // Settings are in a nested 'settings' field
                 settings = { ...DEFAULT_SETTINGS, ...userData.settings };
                 console.log('Using nested settings from Firestore');
-            } else {
+        } else {
                 // Settings might be directly in the document (old format)
                 settings = { ...DEFAULT_SETTINGS, ...userData };
                 console.log('Using direct settings from Firestore');
@@ -640,7 +640,7 @@ function generateSchedule(settings) {
         console.log('Bookings grouped by date:', bookingsByDate);
         
         // Generate schedule for each day of the week
-        for (let i = 0; i < 7; i++) {
+                for (let i = 0; i < 7; i++) {
             const date = new Date(weekStart);
             date.setDate(date.getDate() + i);
             
@@ -664,7 +664,7 @@ function generateSchedule(settings) {
             addDateHeader(container, dateText, isToday);
             
             // Create a container for this day's cards
-            const dayContainer = document.createElement('div');
+                    const dayContainer = document.createElement('div');
             dayContainer.className = isToday ? 'bg-primary-light/70 rounded-lg p-4 mb-6' : 'space-y-4 mb-6';
             dayContainer.setAttribute('data-date', dateKey);
             dayContainer.setAttribute('data-day-of-week', dayOfWeek);
@@ -785,7 +785,7 @@ function generateSchedule(settings) {
                 }
                 
                 // Add all time slots to the container
-                timeSlots.forEach(slot => {
+        timeSlots.forEach(slot => {
                     const slotKey = `${slot.start}-${slot.end}`;
                     
                     // Check if this slot overlaps with any booked slot
@@ -1658,9 +1658,10 @@ function resetBookingModal() {
 
 function addTimeSlot(container, startTime, endTime, date, durationMinutes) {
     // Ensure date is a proper Date object
-    if (!(date instanceof Date)) {
+    if (!(date instanceof Date) || isNaN(date.getTime())) {
         console.error('Invalid date passed to addTimeSlot:', date);
-        date = new Date(date);
+        // Use today's date as a fallback
+        date = new Date();
     }
     
     console.log('Adding time slot:', {

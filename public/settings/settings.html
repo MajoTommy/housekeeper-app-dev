@@ -92,6 +92,16 @@
                             </div>
                         </button>
                         <div class="hidden px-4 py-3 border-t" data-day-settings="monday">
+                            <div class="flex justify-end mb-3">
+                                <label class="inline-flex items-center cursor-pointer">
+                                    <span class="mr-3 text-sm font-medium text-gray-700">Rest Day</span>
+                                    <div class="relative">
+                                        <input type="checkbox" value="" class="sr-only peer day-toggle" data-day-toggle="monday" checked>
+                                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-light rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                                    </div>
+                                    <span class="ml-3 text-sm font-medium text-gray-700">Working Day</span>
+                                </label>
+                            </div>
                             <div class="grid grid-cols-2 gap-3 mb-3">
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
@@ -164,7 +174,7 @@
                                 </div>
                             </div>
                         </div>
-            </div>
+                    </div>
 
                     <!-- Tuesday -->
                     <div class="border rounded-lg overflow-hidden">
@@ -238,7 +248,7 @@
                                             <option value="60">1 hour</option>
                                             <option value="90" selected>1.5 hours</option>
                                             <option value="120">2 hours</option>
-                </select>
+                                    </select>
                                     </div>
                                 </div>
                                 <div>
