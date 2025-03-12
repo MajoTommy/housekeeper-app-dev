@@ -1361,6 +1361,71 @@ function selectClient(clientId, clientName) {
     showBookingStep('frequencySelection');
 }
 
+// Function to validate booking data before saving
+function validateBookingData(bookingData) {
+    const errors = [];
+    
+    // Required fields
+    if (!bookingData.date) {
+        errors.push('Booking date is required');
+    }
+    
+    if (!bookingData.startTime) {
+        errors.push('Start time is required');
+    }
+    
+    if (!bookingData.endTime) {
+        errors.push('End time is required');
+    }
+    
+    // Validate date format (YYYY-MM-DD)
+    if (bookingData.date) {
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (!dateRegex.test(bookingData.date)) {
+            errors.push('Invalid date format. Expected YYYY-MM-DD');
+        } else {
+            // Check if it's a valid date
+            const dateObj = new Date(bookingData.date);
+            if (isNaN(dateObj.getTime())) {
+                errors.push('Invalid date');
+            }
+        }
+    }
+    
+    // Validate time format (HH:MM AM/PM)
+    const timeRegex = /^(1[0-2]|0?[1-9]):[0-5][0-9] (AM|PM)$/i;
+    
+    if (bookingData.startTime && !timeRegex.test(bookingData.startTime)) {
+        errors.push('Invalid start time format. Expected HH:MM AM/PM');
+    }
+    
+    if (bookingData.endTime && !timeRegex.test(bookingData.endTime)) {
+        errors.push('Invalid end time format. Expected HH:MM AM/PM');
+    }
+    
+    // Validate that end time is after start time
+    if (bookingData.startTime && bookingData.endTime) {
+        const startDate = new Date(`2000-01-01 ${bookingData.startTime}`);
+        const endDate = new Date(`2000-01-01 ${bookingData.endTime}`);
+        
+        if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime()) && startDate >= endDate) {
+            errors.push('End time must be after start time');
+        }
+    }
+    
+    // Validate frequency
+    const validFrequencies = ['one-time', 'weekly', 'bi-weekly', 'monthly'];
+    if (bookingData.frequency && !validFrequencies.includes(bookingData.frequency)) {
+        errors.push('Invalid frequency');
+    }
+    
+    // Return validation result
+    return {
+        isValid: errors.length === 0,
+        errors: errors
+    };
+}
+
 async function saveBooking() {
     const user = firebase.auth().currentUser;
     if (!user) return;
@@ -1372,6 +1437,23 @@ async function saveBooking() {
     try {
         console.log('Saving booking with data:', currentBookingData);
         
+        // Validate booking data
+        const bookingToValidate = {
+            date: currentBookingData.dateTime.date,
+            startTime: currentBookingData.dateTime.startTime,
+            endTime: currentBookingData.dateTime.endTime,
+            frequency: currentBookingData.frequency
+        };
+        
+        const validation = validateBookingData(bookingToValidate);
+        if (!validation.isValid) {
+            console.error('Booking validation failed:', validation.errors);
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = 'Confirm Booking';
+            showAlertModal('Cannot save booking: ' + validation.errors.join(', '));
+            return;
+        }
+        
         // Get client details if a client was selected
         let clientDetails = {};
         if (currentBookingData.client?.id) {
@@ -1381,11 +1463,19 @@ async function saveBooking() {
             
             if (clientDoc.exists) {
                 const clientData = clientDoc.data();
+                // Enhanced client details with consistent field structure
                 clientDetails = {
-                    clientAddress: clientData.address || '',
+                    clientId: currentBookingData.client.id,
+                    clientFirstName: clientData.firstName || '',
+                    clientLastName: clientData.lastName || '',
+                    clientAddress: clientData.address || 
+                        `${clientData.street || ''}, ${clientData.city || ''}, ${clientData.state || ''} ${clientData.zip || ''}`.trim().replace(/^,\s*/, '').replace(/,\s*$/, ''),
                     clientPhone: clientData.phone || '',
+                    clientEmail: clientData.email || '',
                     accessInfo: clientData.accessInfo || clientData.notes || '',
-                    notes: clientData.notes || '',
+                    propertyDetails: clientData.propertyDetails || '',
+                    specialInstructions: clientData.specialInstructions || clientData.notes || '',
+                    frequency: clientData.frequency || currentBookingData.frequency || 'one-time',
                     price: clientData.price || null
                 };
                 console.log('Retrieved client details:', clientDetails);
@@ -1409,7 +1499,7 @@ async function saveBooking() {
             let duplicateFound = false;
             existingBookingsQuery.forEach(doc => {
                 const existingBooking = doc.data();
-                if (existingBooking.clientName === (currentBookingData.client?.name || 'New Client')) {
+                if (existingBooking.clientId === currentBookingData.client?.id) {
                     duplicateFound = true;
                 }
             });
@@ -1490,18 +1580,22 @@ async function saveBooking() {
                 }
             }
             
-            // Create the booking data for this occurrence
+            // Create the booking data for this occurrence with consistent client references
             const bookingData = {
                 date: formattedDate,
                 startTime: currentBookingData.dateTime.startTime,
                 endTime: currentBookingData.dateTime.endTime,
-                clientId: currentBookingData.client?.id || null,
-                clientName: currentBookingData.client?.name || 'New Client',
                 frequency: currentBookingData.frequency,
                 occurrenceNumber: i + 1,
                 totalOccurrences: occurrences,
                 status: initialStatus,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                // Include all client details or set defaults for new clients
+                clientId: currentBookingData.client?.id || null,
+                clientName: clientDetails.clientFirstName && clientDetails.clientLastName ? 
+                    `${clientDetails.clientFirstName} ${clientDetails.clientLastName}` : 
+                    currentBookingData.client?.name || 'New Client',
                 ...clientDetails
             };
             

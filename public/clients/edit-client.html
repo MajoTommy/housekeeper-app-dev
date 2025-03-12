@@ -36,12 +36,24 @@
         margin-right: 1rem;
       }
     </style>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+    
+    <!-- Your Firebase configuration -->
+    <script src="../js/firebase-config.js"></script>
+    
+    <!-- Clients JS -->
+    <script src="../js/clients.js"></script>
 </head>
 <body class="h-full pb-16 bg-gray-50">
     <!-- Header -->
     <div class="sticky top-0 z-40 bg-white border-b border-gray-200">
         <div class="flex items-center justify-between px-4 py-4">
-            <a href="client-details.html" class="text-primary">
+            <a href="client-details.html" class="text-primary" id="back-button">
                 <i class="fas fa-arrow-left"></i>
             </a>
             <h1 class="text-xl font-semibold text-gray-900">Edit Client</h1>
@@ -60,25 +72,25 @@
                     <div class="space-y-4">
                         <div>
                             <label for="firstName" class="block text-sm font-medium text-gray-700 mb-1">First Name</label>
-                            <input type="text" id="firstName" name="firstName" value="Sarah" 
+                            <input type="text" id="firstName" name="firstName" 
                                 class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border">
                         </div>
                         
                         <div>
                             <label for="lastName" class="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
-                            <input type="text" id="lastName" name="lastName" value="Johnson" 
+                            <input type="text" id="lastName" name="lastName" 
                                 class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border">
                         </div>
                         
                         <div>
                             <label for="phone" class="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-                            <input type="tel" id="phone" name="phone" value="(312) 555-1234" 
+                            <input type="tel" id="phone" name="phone" 
                                 class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border">
                         </div>
                         
                         <div>
                             <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                            <input type="email" id="email" name="email" value="sarah@example.com" 
+                            <input type="email" id="email" name="email" 
                                 class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border">
                         </div>
                     </div>
@@ -93,13 +105,13 @@
                     <div class="space-y-4">
                         <div>
                             <label for="street" class="block text-sm font-medium text-gray-700 mb-1">Street Address</label>
-                            <input type="text" id="street" name="street" value="123 Main St, Apt 4B" 
+                            <input type="text" id="street" name="street" 
                                 class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border">
                         </div>
                         
                         <div>
                             <label for="city" class="block text-sm font-medium text-gray-700 mb-1">City</label>
-                            <input type="text" id="city" name="city" value="Chicago" 
+                            <input type="text" id="city" name="city" 
                                 class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border">
                         </div>
                         
@@ -108,17 +120,62 @@
                                 <label for="state" class="block text-sm font-medium text-gray-700 mb-1">State</label>
                                 <select id="state" name="state" 
                                     class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border">
-                                    <option>IL</option>
-                                    <option>CA</option>
-                                    <option>NY</option>
-                                    <option>TX</option>
-                                    <!-- Add more states as needed -->
+                                    <option value="AL">AL</option>
+                                    <option value="AK">AK</option>
+                                    <option value="AZ">AZ</option>
+                                    <option value="AR">AR</option>
+                                    <option value="CA">CA</option>
+                                    <option value="CO">CO</option>
+                                    <option value="CT">CT</option>
+                                    <option value="DE">DE</option>
+                                    <option value="FL">FL</option>
+                                    <option value="GA">GA</option>
+                                    <option value="HI">HI</option>
+                                    <option value="ID">ID</option>
+                                    <option value="IL">IL</option>
+                                    <option value="IN">IN</option>
+                                    <option value="IA">IA</option>
+                                    <option value="KS">KS</option>
+                                    <option value="KY">KY</option>
+                                    <option value="LA">LA</option>
+                                    <option value="ME">ME</option>
+                                    <option value="MD">MD</option>
+                                    <option value="MA">MA</option>
+                                    <option value="MI">MI</option>
+                                    <option value="MN">MN</option>
+                                    <option value="MS">MS</option>
+                                    <option value="MO">MO</option>
+                                    <option value="MT">MT</option>
+                                    <option value="NE">NE</option>
+                                    <option value="NV">NV</option>
+                                    <option value="NH">NH</option>
+                                    <option value="NJ">NJ</option>
+                                    <option value="NM">NM</option>
+                                    <option value="NY">NY</option>
+                                    <option value="NC">NC</option>
+                                    <option value="ND">ND</option>
+                                    <option value="OH">OH</option>
+                                    <option value="OK">OK</option>
+                                    <option value="OR">OR</option>
+                                    <option value="PA">PA</option>
+                                    <option value="RI">RI</option>
+                                    <option value="SC">SC</option>
+                                    <option value="SD">SD</option>
+                                    <option value="TN">TN</option>
+                                    <option value="TX">TX</option>
+                                    <option value="UT">UT</option>
+                                    <option value="VT">VT</option>
+                                    <option value="VA">VA</option>
+                                    <option value="WA">WA</option>
+                                    <option value="WV">WV</option>
+                                    <option value="WI">WI</option>
+                                    <option value="WY">WY</option>
                                 </select>
                             </div>
                             
                             <div>
                                 <label for="zip" class="block text-sm font-medium text-gray-700 mb-1">ZIP Code</label>
-                                <input type="text" id="zip" name="zip" value="60601" 
+                                <input type="text" id="zip" name="zip" 
                                     class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border">
                             </div>
                         </div>
@@ -131,24 +188,11 @@
                 <div class="p-4">
                     <h2 class="text-lg font-semibold text-gray-900 mb-4">Access Information</h2>
                     
-                    <div class="space-y-4">
-                        <div>
-                            <label for="entry" class="block text-sm font-medium text-gray-700 mb-1">Entry Instructions</label>
-                            <input type="text" id="entry" name="entry" value="Key in lockbox #1234 (code: 5678)" 
-                                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border">
-                        </div>
-                        
-                        <div>
-                            <label for="alarm" class="block text-sm font-medium text-gray-700 mb-1">Alarm Code (if any)</label>
-                            <input type="text" id="alarm" name="alarm" placeholder="Enter alarm code" 
-                                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border">
-                        </div>
-                        
-                        <div>
-                            <label for="pets" class="block text-sm font-medium text-gray-700 mb-1">Pets</label>
-                            <input type="text" id="pets" name="pets" value="Cat named Whiskers. Please be careful when entering." 
-                                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border">
-                        </div>
+                    <div>
+                        <label for="accessInfo" class="block text-sm font-medium text-gray-700 mb-1">Entry Instructions, Alarm Codes, Pets, etc.</label>
+                        <textarea id="accessInfo" name="accessInfo" rows="4" 
+                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border" placeholder="Key in lockbox #1234 (code: 5678)
+Cat named Whiskers. Please be careful when entering."></textarea>
                     </div>
                 </div>
             </div>
@@ -159,11 +203,11 @@
                     <h2 class="text-lg font-semibold text-gray-900 mb-4">Special Instructions</h2>
                     
                     <div>
-                        <label for="instructions" class="block text-sm font-medium text-gray-700 mb-1">Cleaning Instructions</label>
-                        <textarea id="instructions" name="instructions" rows="4" 
-                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border">Prefers eco-friendly cleaning products.
+                        <label for="specialInstructions" class="block text-sm font-medium text-gray-700 mb-1">Cleaning Instructions, Preferences, etc.</label>
+                        <textarea id="specialInstructions" name="specialInstructions" rows="4" 
+                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border" placeholder="Prefers eco-friendly cleaning products.
 Leave shoes at the door.
-Do not move items on the desk in the office.</textarea>
+Do not move items on the desk in the office."></textarea>
                     </div>
                 </div>
             </div>

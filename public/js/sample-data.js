@@ -4,32 +4,72 @@
 // Sample client data
 const sampleClients = [
     {
-        name: "John Smith",
-        address: "123 Main St, Anytown, CA 90210",
+        firstName: "John",
+        lastName: "Smith",
+        street: "123 Main St",
+        city: "Anytown",
+        state: "CA",
+        zip: "90210",
         phone: "555-123-4567",
         email: "john.smith@example.com",
-        notes: "Has two dogs. Prefers eco-friendly products."
+        accessInfo: "Has two dogs. Key under the flowerpot.",
+        specialInstructions: "Prefers eco-friendly products.",
+        frequency: "weekly",
+        scheduleDay: "Monday",
+        scheduleTime: "9:00 AM",
+        propertyDetails: "3 bedroom, 2 bath house",
+        price: "120"
     },
     {
-        name: "Sarah Johnson",
-        address: "456 Oak Ave, Somewhere, CA 90211",
+        firstName: "Sarah",
+        lastName: "Johnson",
+        street: "456 Oak Ave",
+        city: "Somewhere",
+        state: "CA",
+        zip: "90211",
         phone: "555-987-6543",
         email: "sarah.j@example.com",
-        notes: "Allergic to strong fragrances. Leave key under mat."
+        accessInfo: "Leave key under mat. Alarm code: 1234",
+        specialInstructions: "Allergic to strong fragrances. Please use unscented products.",
+        frequency: "biweekly",
+        scheduleDay: "Wednesday",
+        scheduleTime: "10:00 AM",
+        propertyDetails: "2 bedroom apartment",
+        price: "100"
     },
     {
-        name: "Michael Brown",
-        address: "789 Pine Rd, Nowhere, CA 90212",
+        firstName: "Michael",
+        lastName: "Brown",
+        street: "789 Pine Rd",
+        city: "Nowhere",
+        state: "CA",
+        zip: "90212",
         phone: "555-456-7890",
         email: "mbrown@example.com",
-        notes: "Has a cat. Prefers morning appointments."
+        accessInfo: "Has a cat. Door code: 5678",
+        specialInstructions: "Prefers morning appointments. Please dust ceiling fans.",
+        frequency: "monthly",
+        scheduleDay: "Friday",
+        scheduleTime: "8:00 AM",
+        propertyDetails: "4 bedroom, 3 bath house",
+        price: "180"
     },
     {
-        name: "Emily Davis",
-        address: "321 Elm St, Anytown, CA 90213",
+        firstName: "Emily",
+        lastName: "Davis",
+        street: "321 Elm St",
+        city: "Anytown",
+        state: "CA",
+        zip: "90213",
         phone: "555-789-0123",
         email: "emily.davis@example.com",
-        notes: "Security system code: 1234. Call before arriving."
+        accessInfo: "Security system code: 1234. Call before arriving.",
+        specialInstructions: "Please focus on kitchen and bathrooms.",
+        frequency: "weekly",
+        scheduleDay: "Thursday",
+        scheduleTime: "1:00 PM",
+        propertyDetails: "2 bedroom, 1 bath condo",
+        price: "90"
     }
 ];
 
@@ -37,7 +77,9 @@ const sampleClients = [
 function generateSampleBookings() {
     return [
         {
-            clientName: "Jennifer Wilson",
+            clientId: null, // Will be populated dynamically
+            clientFirstName: "Jennifer",
+            clientLastName: "Wilson",
             clientAddress: "567 Pine Road, Anytown, CA 90214",
             clientPhone: "555-987-6543",
             accessInfo: "Lockbox code: 1234",
@@ -49,40 +91,32 @@ function generateSampleBookings() {
             notes: "Please focus on kitchen and bathrooms"
         },
         {
-            clientName: "Michael Brown",
-            clientAddress: "789 Pine Rd, Nowhere, CA 90212",
-            clientPhone: "555-456-7890",
-            accessInfo: "Client will be home",
+            clientId: null, // Will be populated dynamically
+            clientFirstName: "Robert",
+            clientLastName: "Taylor",
+            clientAddress: "789 Maple Street, Somewhere, CA 90215",
+            clientPhone: "555-234-5678",
+            accessInfo: "Key under doormat",
             date: getTomorrowString(),
-            startTime: "12:30 PM",
-            endTime: "3:30 PM",
+            startTime: "1:00 PM",
+            endTime: "4:00 PM",
             frequency: "biweekly",
             status: "scheduled",
-            notes: "Has a cat. Prefers morning appointments."
+            notes: "Has a dog, please make sure gate is closed"
         },
         {
-            clientName: "David Wilson",
-            clientAddress: "456 Oak Avenue, Somewhere, CA 90211",
-            clientPhone: "555-789-0123",
-            accessInfo: "Key under doormat",
-            date: getDateString(2), // Day after tomorrow
-            startTime: "8:00 AM",
-            endTime: "11:00 AM",
-            frequency: "weekly",
+            clientId: null, // Will be populated dynamically
+            clientFirstName: "Amanda",
+            clientLastName: "Garcia",
+            clientAddress: "123 Oak Lane, Nowhere, CA 90216",
+            clientPhone: "555-345-6789",
+            accessInfo: "Door code: 4321",
+            date: getDateString(3),
+            startTime: "9:00 AM",
+            endTime: "12:00 PM",
+            frequency: "monthly",
             status: "scheduled",
-            notes: "Allergic to strong fragrances"
-        },
-        {
-            clientName: "Bob Smith",
-            clientAddress: "123 Elm Street, Anytown, CA 90210",
-            clientPhone: "555-321-7654",
-            accessInfo: "Garage code: 5678",
-            date: getDateString(3), // 3 days from today
-            startTime: "12:30 PM",
-            endTime: "3:30 PM",
-            frequency: "weekly",
-            status: "scheduled",
-            notes: "Has a dog. Use pet-friendly products."
+            notes: "Allergic to certain cleaning products, please use provided supplies"
         }
     ];
 }
@@ -135,7 +169,8 @@ async function addSampleClients() {
             const newClientRef = clientsRef.doc();
             batch.set(newClientRef, {
                 ...client,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             });
         });
         
@@ -168,8 +203,52 @@ async function addSampleBookings() {
             return;
         }
         
+        // Get client IDs to associate with bookings
+        const clientsRef = firebase.firestore().collection('users').doc(user.uid).collection('clients');
+        const clientsSnapshot = await clientsRef.get();
+        
+        if (clientsSnapshot.empty) {
+            console.log('No clients found. Adding sample clients first...');
+            await addSampleClients();
+            
+            // Fetch clients again
+            const newClientsSnapshot = await clientsRef.get();
+            if (newClientsSnapshot.empty) {
+                console.error('Failed to add sample clients. Cannot add bookings without clients.');
+                return;
+            }
+        }
+        
+        // Get all client IDs and data
+        const clients = [];
+        clientsSnapshot.forEach(doc => {
+            clients.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+        
+        if (clients.length === 0) {
+            console.error('No clients found after attempting to add them. Cannot add bookings.');
+            return;
+        }
+        
         // Generate sample bookings with current dates
         const sampleBookings = generateSampleBookings();
+        
+        // Assign client IDs to bookings
+        sampleBookings.forEach((booking, index) => {
+            // Use existing clients if available, otherwise use the first client for all bookings
+            const clientIndex = index < clients.length ? index : 0;
+            const client = clients[clientIndex];
+            
+            booking.clientId = client.id;
+            booking.clientFirstName = client.firstName;
+            booking.clientLastName = client.lastName;
+            booking.clientAddress = `${client.street}, ${client.city}, ${client.state} ${client.zip}`;
+            booking.clientPhone = client.phone;
+            booking.accessInfo = client.accessInfo || booking.accessInfo;
+        });
         
         // Add each sample booking
         const batch = firebase.firestore().batch();
@@ -178,7 +257,8 @@ async function addSampleBookings() {
             const newBookingRef = bookingsRef.doc();
             batch.set(newBookingRef, {
                 ...booking,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             });
         });
         

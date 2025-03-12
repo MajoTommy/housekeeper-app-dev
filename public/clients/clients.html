@@ -21,6 +21,21 @@
             }
         }
     </script>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+    
+    <!-- Your Firebase configuration -->
+    <script src="../js/firebase-config.js"></script>
+    
+    <!-- Firebase initialization for clients -->
+    <script src="../js/firebase-init-clients.js"></script>
+    
+    <!-- Clients JS -->
+    <script src="../js/clients.js"></script>
 </head>
 <body class="h-full pb-16">
     <!-- Header -->
@@ -40,92 +55,63 @@
         </div>
     </div>
 
+    <!-- Search Bar -->
+    <div class="p-4 bg-white border-b border-gray-200">
+        <div class="relative">
+            <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <i class="fas fa-search text-gray-400"></i>
+            </div>
+            <input type="text" id="client-search" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm" placeholder="Search clients...">
+        </div>
+    </div>
+
     <!-- Client List -->
-    <div class="divide-y divide-gray-200 bg-white">
-        <!-- Client: Brown, Michael -->
-        <a href="client-details.html" class="block p-4 hover:bg-gray-50">
-            <div class="flex justify-between items-center">
-                <div>
-                    <h3 class="text-lg font-medium text-gray-900">Brown, Michael</h3>
-                    <p class="text-sm text-gray-500">456 Oak Ave, Suite 7</p>
-                    <div class="mt-1 flex items-center">
-                        <span class="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
-                            Bi-weekly
-                        </span>
-                        <span class="ml-2 text-sm text-gray-500">Fri, 1:00 PM</span>
-                    </div>
-                </div>
-                <i class="fas fa-chevron-right text-gray-400"></i>
-            </div>
-        </a>
+    <div id="client-list" class="divide-y divide-gray-200 bg-white">
+        <!-- Client list will be populated by JavaScript -->
+        <div class="p-4 text-center">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p class="mt-2 text-gray-500">Loading clients...</p>
+        </div>
+    </div>
 
-        <!-- Client: Davis, Emily -->
-        <a href="client-details.html" class="block p-4 hover:bg-gray-50">
-            <div class="flex justify-between items-center">
-                <div>
-                    <h3 class="text-lg font-medium text-gray-900">Davis, Emily</h3>
-                    <p class="text-sm text-gray-500">789 Pine St</p>
-                    <div class="mt-1 flex items-center">
-                        <span class="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-800">
-                            Monthly
-                        </span>
-                        <span class="ml-2 text-sm text-gray-500">Mon, 10:00 AM</span>
-                    </div>
-                </div>
-                <i class="fas fa-chevron-right text-gray-400"></i>
-            </div>
-        </a>
+    <!-- Debug Button -->
+    <div class="fixed top-20 right-4 z-40 group">
+        <button id="debug-create-client" class="bg-red-500 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg hover:bg-red-600">
+            <i class="fas fa-bug"></i>
+        </button>
+        <div class="absolute top-0 right-12 bg-gray-800 text-white text-xs rounded py-1 px-2 hidden group-hover:block whitespace-nowrap">
+            Debug: Create Sample Client
+        </div>
+    </div>
 
-        <!-- Client: Johnson, Sarah -->
-        <a href="client-details.html" class="block p-4 hover:bg-gray-50">
-            <div class="flex justify-between items-center">
-                <div>
-                    <h3 class="text-lg font-medium text-gray-900">Johnson, Sarah</h3>
-                    <p class="text-sm text-gray-500">123 Main St, Apt 4B</p>
-                    <div class="mt-1 flex items-center">
-                        <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
-                            Weekly
-                        </span>
-                        <span class="ml-2 text-sm text-gray-500">Wed, 9:00 AM</span>
-                    </div>
-                </div>
-                <i class="fas fa-chevron-right text-gray-400"></i>
-            </div>
-        </a>
+    <!-- Emergency Button -->
+    <div class="fixed top-36 right-4 z-40 group">
+        <button id="emergency-bypass" class="bg-yellow-500 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg hover:bg-yellow-600">
+            <i class="fas fa-exclamation-triangle"></i>
+        </button>
+        <div class="absolute top-0 right-12 bg-gray-800 text-white text-xs rounded py-1 px-2 hidden group-hover:block whitespace-nowrap">
+            Emergency: Bypass Loading
+        </div>
+    </div>
 
-        <!-- Client: Taylor, Jennifer -->
-        <a href="client-details.html" class="block p-4 hover:bg-gray-50">
-            <div class="flex justify-between items-center">
-                <div>
-                    <h3 class="text-lg font-medium text-gray-900">Taylor, Jennifer</h3>
-                    <p class="text-sm text-gray-500">654 Maple Ave, Unit 7D</p>
-                    <div class="mt-1 flex items-center">
-                        <span class="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
-                            Bi-weekly
-                        </span>
-                        <span class="ml-2 text-sm text-gray-500">Tue, 11:00 AM</span>
-                    </div>
-                </div>
-                <i class="fas fa-chevron-right text-gray-400"></i>
-            </div>
-        </a>
+    <!-- Error Container for Messages -->
+    <div id="error-container" class="hidden p-4 m-4 bg-red-100 border border-red-400 text-red-700 rounded">
+        <!-- Error messages will be displayed here -->
+    </div>
 
-        <!-- Client: Wilson, Robert -->
-        <a href="client-details.html" class="block p-4 hover:bg-gray-50">
-            <div class="flex justify-between items-center">
-                <div>
-                    <h3 class="text-lg font-medium text-gray-900">Wilson, Robert</h3>
-                    <p class="text-sm text-gray-500">321 Elm St, Apt 12</p>
-                    <div class="mt-1 flex items-center">
-                        <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
-                            Weekly
-                        </span>
-                        <span class="ml-2 text-sm text-gray-500">Thu, 2:00 PM</span>
-                    </div>
-                </div>
-                <i class="fas fa-chevron-right text-gray-400"></i>
-            </div>
-        </a>
+    <!-- Success Container for Messages -->
+    <div id="success-container" class="hidden p-4 m-4 bg-green-100 border border-green-400 text-green-700 rounded">
+        <!-- Success messages will be displayed here -->
+    </div>
+
+    <!-- Sample Data Button -->
+    <div class="fixed bottom-20 right-4 z-40 group">
+        <button id="reset-sample-data" class="bg-green-500 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg hover:bg-green-600">
+            <i class="fas fa-database"></i>
+        </button>
+        <div class="absolute bottom-0 right-12 bg-gray-800 text-white text-xs rounded py-1 px-2 hidden group-hover:block whitespace-nowrap">
+            Reset & Add Sample Clients
+        </div>
     </div>
 
     <!-- Mobile Footer Navigation with Payment Badge -->

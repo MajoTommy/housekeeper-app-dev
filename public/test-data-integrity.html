@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Integrity Tests</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    
+    <!-- Firebase Config -->
+    <script src="js/firebase-config.js"></script>
+    
+    <!-- App Scripts -->
+    <script src="js/clients.js"></script>
+    <script src="js/schedule.js"></script>
+    <script src="js/test-data-integrity.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto p-4">
+        <header class="bg-white p-4 rounded-lg shadow mb-6">
+            <h1 class="text-2xl font-bold text-gray-900">Data Integrity Tests</h1>
+            <p class="text-gray-600">This page runs tests to verify data integrity in the application.</p>
+        </header>
+        
+        <div class="bg-white p-4 rounded-lg shadow mb-6">
+            <h2 class="text-xl font-bold mb-4">Instructions</h2>
+            <ol class="list-decimal pl-6 space-y-2">
+                <li>Make sure you are logged in to the application.</li>
+                <li>Click the "Run Tests" button below to start the tests.</li>
+                <li>Review the test results to ensure data integrity.</li>
+            </ol>
+            
+            <div class="mt-4">
+                <a href="index.html" class="text-primary hover:underline">
+                    <i class="fas fa-arrow-left mr-1"></i> Back to Home
+                </a>
+            </div>
+        </div>
+        
+        <div id="test-container" class="bg-white p-4 rounded-lg shadow">
+            <h2 class="text-xl font-bold mb-4">Test Runner</h2>
+            <p class="mb-4">Click the button below to run the data integrity tests.</p>
+            
+            <div class="mb-4">
+                <button id="run-tests-btn" class="bg-primary text-white px-4 py-2 rounded hover:bg-primary-dark">
+                    <i class="fas fa-play mr-1"></i> Run Tests
+                </button>
+            </div>
+            
+            <div id="test-results" class="space-y-2">
+                <!-- Test results will be displayed here -->
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if user is logged in
+            firebase.auth().onAuthStateChanged(function(user) {
+                if (!user) {
+                    // Redirect to login if not logged in
+                    window.location.href = 'login.html?redirect=test-data-integrity.html?test=data-integrity';
+                } else {
+                    // Add test parameter to URL if not already present
+                    const urlParams = new URLSearchParams(window.location.search);
+                    if (!urlParams.has('test')) {
+                        window.history.replaceState({}, '', 'test-data-integrity.html?test=data-integrity');
+                    }
+                    
+                    // Set up run tests button
+                    document.getElementById('run-tests-btn').addEventListener('click', function() {
+                        if (typeof runTests === 'function') {
+                            runTests();
+                        } else {
+                            document.getElementById('test-results').innerHTML = `
+                                <div class="p-3 bg-red-100 border border-red-300 rounded">
+                                    <div class="flex items-center">
+                                        <div class="mr-2">
+                                            <i class="fas fa-times-circle text-red-500"></i>
+                                        </div>
+                                        <div>
+                                            <h3 class="font-medium">Test Runner Error</h3>
+                                            <p class="text-sm">The runTests function was not found. Make sure test-data-integrity.js is loaded correctly.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html> 

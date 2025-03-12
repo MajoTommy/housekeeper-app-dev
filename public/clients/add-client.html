@@ -14,18 +14,46 @@
                         primary: {
                             DEFAULT: '#2196F3',
                             light: '#E3F2FD',
+                            dark: '#1976D2'
                         },
+                        success: {
+                            DEFAULT: '#4CAF50',
+                            light: '#E8F5E9'
+                        },
+                        warning: {
+                            DEFAULT: '#FF9800',
+                            light: '#FFF3E0'
+                        }
                     }
                 }
             }
         }
     </script>
+    <style>
+      .client-card {
+        width: calc(100% - 2rem);
+        margin-left: 1rem;
+        margin-right: 1rem;
+      }
+    </style>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+    
+    <!-- Your Firebase configuration -->
+    <script src="../js/firebase-config.js"></script>
+    
+    <!-- Clients JS -->
+    <script src="../js/clients.js"></script>
 </head>
-<body class="h-full pb-16">
+<body class="h-full pb-16 bg-gray-50">
     <!-- Header -->
     <div class="sticky top-0 z-40 bg-white border-b border-gray-200">
         <div class="flex items-center justify-between px-4 py-4">
-            <a href="../schedule/new-cleaning.html" class="text-primary">
+            <a href="clients.html" class="text-primary">
                 <i class="fas fa-arrow-left"></i>
             </a>
             <h1 class="text-xl font-semibold text-gray-900">Add New Client</h1>
@@ -33,136 +61,188 @@
         </div>
     </div>
 
-    <div class="p-4 space-y-6">
-        <!-- Client Information -->
-        <div class="bg-white rounded-lg shadow-sm p-4">
-            <h2 class="text-lg font-medium text-gray-900 mb-4">Client Information</h2>
-            <div class="space-y-4">
-                <div>
-                    <input type="text" placeholder="Client Name" 
-                        class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary-light">
-                </div>
-                <div>
-                    <input type="tel" placeholder="Phone Number" 
-                        class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary-light">
-                </div>
-                <div>
-                    <input type="text" placeholder="Address" 
-                        class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary-light">
-                </div>
-            </div>
-        </div>
-
-        <!-- Cleaning Type -->
-        <div class="bg-white rounded-lg shadow-sm p-4">
-            <h2 class="text-lg font-medium text-gray-900 mb-4">Cleaning Type</h2>
-            <div class="flex gap-4 mb-4">
-                <label class="flex items-center">
-                    <input type="radio" name="cleaningType" value="recurring" class="w-5 h-5 text-primary" checked>
-                    <span class="ml-2 text-gray-700">Recurring Schedule</span>
-                </label>
-                <label class="flex items-center">
-                    <input type="radio" name="cleaningType" value="oneTime" class="w-5 h-5 text-primary">
-                    <span class="ml-2 text-gray-700">One Time Only</span>
-                </label>
-            </div>
-
-            <h3 class="font-medium text-gray-900 mb-2">Cleaning Schedule</h3>
-            <div class="flex gap-4 mb-4">
-                <select class="w-1/2 px-4 py-3 rounded-lg border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary-light">
-                    <option>Weekly</option>
-                    <option>Bi-Weekly</option>
-                    <option>Monthly</option>
-                </select>
-                <select class="w-1/2 px-4 py-3 rounded-lg border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary-light">
-                    <option>Monday</option>
-                    <option>Tuesday</option>
-                    <option>Wednesday</option>
-                    <option>Thursday</option>
-                    <option>Friday</option>
-                </select>
-            </div>
-
-            <h3 class="font-medium text-gray-900 mb-2">Preferred Time</h3>
-            <div class="mb-4">
-                <select class="w-1/2 px-4 py-3 rounded-lg border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary-light">
-                    <option>9:00 AM</option>
-                    <option>10:00 AM</option>
-                    <option>11:00 AM</option>
-                    <option>12:00 PM</option>
-                    <option>1:00 PM</option>
-                    <option>2:00 PM</option>
-                </select>
-            </div>
-
-            <h3 class="font-medium text-gray-900 mb-2">Price per Cleaning</h3>
-            <div class="relative mb-4">
-                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span class="text-gray-500">$</span>
-                </div>
-                <input type="number" placeholder="50" 
-                    class="w-full pl-8 pr-4 py-3 rounded-lg border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary-light">
-            </div>
-        </div>
-
-        <!-- Special Instructions -->
-        <div class="mt-6">
-            <div class="bg-white rounded-lg shadow-sm p-4">
-                <h2 class="text-lg font-medium text-gray-900 mb-3">Special Instructions</h2>
-                <div class="space-y-4">
-                    <div>
-                        <textarea id="special-instructions" name="special-instructions" rows="3" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" placeholder="Enter any special instructions or notes (products to use, pets, entry instructions, etc.)"></textarea>
+    <!-- Main Content -->
+    <div class="py-4">
+        <form>
+            <!-- Contact Information -->
+            <div class="bg-white rounded-lg shadow-sm mb-6 client-card">
+                <div class="p-4">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Contact Information</h2>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label for="firstName" class="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                            <input type="text" id="firstName" name="firstName" 
+                                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border">
+                        </div>
+                        
+                        <div>
+                            <label for="lastName" class="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                            <input type="text" id="lastName" name="lastName" 
+                                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border">
+                        </div>
+                        
+                        <div>
+                            <label for="phone" class="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                            <input type="tel" id="phone" name="phone" 
+                                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border">
+                        </div>
+                        
+                        <div>
+                            <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                            <input type="email" id="email" name="email" 
+                                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border">
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-
-        <!-- Access Information -->
-        <div class="mt-6">
-            <div class="bg-white rounded-lg shadow-sm p-4">
-                <h2 class="text-lg font-medium text-gray-900 mb-3">Access Information</h2>
-                <div class="space-y-4">
-                    <div>
-                        <textarea id="access-information" name="access-information" rows="3" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" placeholder="Key location, door codes, alarm information, etc."></textarea>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Save Button -->
-        <div class="mt-8">
-            <a href="clients.html" class="block w-full bg-green-500 hover:bg-green-600 text-white font-medium py-4 px-4 rounded-lg flex items-center justify-center gap-2">
-                <i class="fas fa-check"></i>
-                Save Client
-            </a>
             
-            <a href="clients.html" class="block text-center text-gray-600 py-4">
-                Cancel and Return to Clients
-            </a>
-        </div>
-
-        <!-- Extra spacing to ensure footer is visible when scrolling -->
-        <div class="h-32"></div>
-
-        <!-- Mobile Footer Navigation with Payment Badge -->
-        <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30">
-            <div class="flex justify-around">
-                <a href="../index.html" class="flex flex-col items-center py-3 px-6 text-gray-500">
-                    <i class="fas fa-calendar-alt text-xl"></i>
-                    <span class="text-xs mt-1">Schedule</span>
-                </a>
-                <a href="clients.html" class="flex flex-col items-center py-3 px-6 text-primary">
-                    <i class="fas fa-users text-xl"></i>
-                    <span class="text-xs mt-1">Clients</span>
-                </a>
-                <a href="../payments/payments.html" class="flex flex-col items-center py-3 px-6 text-gray-500 relative">
-                    <div class="relative">
-                        <i class="fas fa-dollar-sign text-xl"></i>
-                        <span class="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">3</span>
+            <!-- Address -->
+            <div class="bg-white rounded-lg shadow-sm mb-6 client-card">
+                <div class="p-4">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Address</h2>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label for="street" class="block text-sm font-medium text-gray-700 mb-1">Street Address</label>
+                            <input type="text" id="street" name="street" 
+                                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border">
+                        </div>
+                        
+                        <div>
+                            <label for="city" class="block text-sm font-medium text-gray-700 mb-1">City</label>
+                            <input type="text" id="city" name="city" 
+                                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border">
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label for="state" class="block text-sm font-medium text-gray-700 mb-1">State</label>
+                                <select id="state" name="state" 
+                                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border">
+                                    <option value="AL">AL</option>
+                                    <option value="AK">AK</option>
+                                    <option value="AZ">AZ</option>
+                                    <option value="AR">AR</option>
+                                    <option value="CA">CA</option>
+                                    <option value="CO">CO</option>
+                                    <option value="CT">CT</option>
+                                    <option value="DE">DE</option>
+                                    <option value="FL">FL</option>
+                                    <option value="GA">GA</option>
+                                    <option value="HI">HI</option>
+                                    <option value="ID">ID</option>
+                                    <option value="IL">IL</option>
+                                    <option value="IN">IN</option>
+                                    <option value="IA">IA</option>
+                                    <option value="KS">KS</option>
+                                    <option value="KY">KY</option>
+                                    <option value="LA">LA</option>
+                                    <option value="ME">ME</option>
+                                    <option value="MD">MD</option>
+                                    <option value="MA">MA</option>
+                                    <option value="MI">MI</option>
+                                    <option value="MN">MN</option>
+                                    <option value="MS">MS</option>
+                                    <option value="MO">MO</option>
+                                    <option value="MT">MT</option>
+                                    <option value="NE">NE</option>
+                                    <option value="NV">NV</option>
+                                    <option value="NH">NH</option>
+                                    <option value="NJ">NJ</option>
+                                    <option value="NM">NM</option>
+                                    <option value="NY">NY</option>
+                                    <option value="NC">NC</option>
+                                    <option value="ND">ND</option>
+                                    <option value="OH">OH</option>
+                                    <option value="OK">OK</option>
+                                    <option value="OR">OR</option>
+                                    <option value="PA">PA</option>
+                                    <option value="RI">RI</option>
+                                    <option value="SC">SC</option>
+                                    <option value="SD">SD</option>
+                                    <option value="TN">TN</option>
+                                    <option value="TX">TX</option>
+                                    <option value="UT">UT</option>
+                                    <option value="VT">VT</option>
+                                    <option value="VA">VA</option>
+                                    <option value="WA">WA</option>
+                                    <option value="WV">WV</option>
+                                    <option value="WI">WI</option>
+                                    <option value="WY">WY</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label for="zip" class="block text-sm font-medium text-gray-700 mb-1">ZIP Code</label>
+                                <input type="text" id="zip" name="zip" 
+                                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border">
+                            </div>
+                        </div>
                     </div>
-                    <span class="text-xs mt-1">Payments</span>
+                </div>
+            </div>
+            
+            <!-- Access Information -->
+            <div class="bg-white rounded-lg shadow-sm mb-6 client-card">
+                <div class="p-4">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Access Information</h2>
+                    
+                    <div>
+                        <label for="accessInfo" class="block text-sm font-medium text-gray-700 mb-1">Entry Instructions, Alarm Codes, Pets, etc.</label>
+                        <textarea id="accessInfo" name="accessInfo" rows="4" 
+                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border" placeholder="Key in lockbox #1234 (code: 5678)
+Cat named Whiskers. Please be careful when entering."></textarea>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Special Instructions -->
+            <div class="bg-white rounded-lg shadow-sm mb-6 client-card">
+                <div class="p-4">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Special Instructions</h2>
+                    
+                    <div>
+                        <label for="specialInstructions" class="block text-sm font-medium text-gray-700 mb-1">Cleaning Instructions, Preferences, etc.</label>
+                        <textarea id="specialInstructions" name="specialInstructions" rows="4" 
+                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border" placeholder="Prefers eco-friendly cleaning products.
+Leave shoes at the door.
+Do not move items on the desk in the office."></textarea>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Save Button -->
+            <div class="client-card">
+                <button type="submit" class="w-full bg-primary text-white rounded-lg py-3 px-4 text-center font-medium hover:bg-primary-dark">
+                    Add Client
+                </button>
+                
+                <a href="clients.html" class="block text-center text-gray-600 py-4">
+                    Cancel and Return to Clients
                 </a>
             </div>
+        </form>
+    </div>
+
+    <!-- Mobile Footer Navigation with Payment Badge -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30">
+        <div class="flex justify-around">
+            <a href="../index.html" class="flex flex-col items-center py-3 px-6 text-gray-500">
+                <i class="fas fa-calendar-alt text-xl"></i>
+                <span class="text-xs mt-1">Schedule</span>
+            </a>
+            <a href="clients.html" class="flex flex-col items-center py-3 px-6 text-primary">
+                <i class="fas fa-users text-xl"></i>
+                <span class="text-xs mt-1">Clients</span>
+            </a>
+            <a href="../payments/payments.html" class="flex flex-col items-center py-3 px-6 text-gray-500 relative">
+                <div class="relative">
+                    <i class="fas fa-dollar-sign text-xl"></i>
+                    <span class="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">3</span>
+                </div>
+                <span class="text-xs mt-1">Payments</span>
+            </a>
         </div>
     </div>
 </body>

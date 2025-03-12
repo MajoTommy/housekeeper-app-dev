@@ -28,6 +28,18 @@
         margin-right: 1rem;
       }
     </style>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+    
+    <!-- Your Firebase configuration -->
+    <script src="../js/firebase-config.js"></script>
+    
+    <!-- Clients JS -->
+    <script src="../js/clients.js"></script>
 </head>
 <body class="h-full pb-16">
     <!-- Header -->
@@ -37,9 +49,7 @@
                 <i class="fas fa-arrow-left"></i>
             </a>
             <h1 class="text-xl font-semibold text-gray-900">Client Details</h1>
-            <a href="#" class="text-gray-500">
-                <i class="fas fa-cog"></i>
-            </a>
+            <div class="w-6"><!-- Spacer --></div>
         </div>
     </div>
 
@@ -47,20 +57,20 @@
     <div class="bg-white rounded-lg shadow-sm mb-4 client-card">
         <div class="p-4">
             <div class="flex justify-between items-start mb-2">
-                <h2 class="text-2xl font-bold text-gray-900">Johnson, Sarah</h2>
+                <h2 class="text-2xl font-bold text-gray-900">Loading...</h2>
                 <a href="edit-client.html" class="inline-flex items-center rounded-md bg-white px-2.5 py-1.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
                     <i class="fas fa-edit mr-1.5"></i>
                     Edit
                 </a>
             </div>
-            <p class="text-gray-600">123 Main St, Apt 4B</p>
-            <p class="text-gray-600">Chicago, IL 60601</p>
+            <p class="text-gray-600">Loading address...</p>
+            <p class="text-gray-600"></p>
             <div class="mt-2">
-                <a href="tel:+13125551234" class="text-primary flex items-center gap-2">
-                    <i class="fas fa-phone"></i> (312) 555-1234
+                <a href="tel:" class="text-primary flex items-center gap-2">
+                    <i class="fas fa-phone"></i> Loading phone...
                 </a>
-                <a href="mailto:sarah@example.com" class="text-primary flex items-center gap-2 mt-1">
-                    <i class="fas fa-envelope"></i> sarah@example.com
+                <a href="mailto:" class="text-primary flex items-center gap-2 mt-1">
+                    <i class="fas fa-envelope"></i> Loading email...
                 </a>
             </div>
         </div>
@@ -71,13 +81,13 @@
         <div class="p-4">
             <h3 class="text-lg font-semibold text-gray-900 mb-2">Cleaning Schedule</h3>
             <div class="flex items-center gap-2 mb-1">
-                <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
-                    Weekly
+                <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800">
+                    Loading...
                 </span>
-                <span class="text-gray-700">Every Wednesday at 9:00 AM</span>
+                <span class="text-gray-700">Loading schedule...</span>
             </div>
-            <p class="text-gray-600 text-sm">3 bedroom, 2 bathroom apartment</p>
-            <p class="text-gray-600 text-sm">$120 per cleaning</p>
+            <p class="text-gray-600 text-sm">Loading property details...</p>
+            <p class="text-gray-600 text-sm">Loading price...</p>
             <div class="mt-3">
                 <a href="../schedule/reschedule-choice.html" class="block w-full bg-white border border-gray-300 rounded-lg py-3 px-4 text-center text-gray-700 font-medium hover:bg-gray-50">
                     Reschedule
@@ -91,40 +101,9 @@
         <div class="p-4">
             <h3 class="text-lg font-semibold text-gray-900 mb-2">Upcoming Cleanings</h3>
             
-            <div class="border-l-4 border-green-500 pl-3 py-2 mb-3">
-                <div class="flex justify-between">
-                    <div>
-                        <p class="font-medium">Wednesday, March 15</p>
-                        <p class="text-sm text-gray-600">9:00 AM - 11:00 AM</p>
-                    </div>
-                    <a href="../schedule/cleaning-details.html" class="text-primary">
-                        <i class="fas fa-chevron-right"></i>
-                    </a>
-                </div>
-            </div>
-            
-            <div class="border-l-4 border-green-500 pl-3 py-2 mb-3">
-                <div class="flex justify-between">
-                    <div>
-                        <p class="font-medium">Wednesday, March 22</p>
-                        <p class="text-sm text-gray-600">9:00 AM - 11:00 AM</p>
-                    </div>
-                    <a href="../schedule/cleaning-details.html" class="text-primary">
-                        <i class="fas fa-chevron-right"></i>
-                    </a>
-                </div>
-            </div>
-            
-            <div class="border-l-4 border-green-500 pl-3 py-2">
-                <div class="flex justify-between">
-                    <div>
-                        <p class="font-medium">Wednesday, March 29</p>
-                        <p class="text-sm text-gray-600">9:00 AM - 11:00 AM</p>
-                    </div>
-                    <a href="../schedule/cleaning-details.html" class="text-primary">
-                        <i class="fas fa-chevron-right"></i>
-                    </a>
-                </div>
+            <div class="text-center py-2">
+                <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto"></div>
+                <p class="mt-2 text-gray-500">Loading upcoming cleanings...</p>
             </div>
         </div>
     </div>
@@ -134,9 +113,7 @@
         <div class="p-4">
             <h3 class="text-lg font-semibold text-gray-900 mb-2">Access Information</h3>
             <div class="space-y-2">
-                <p class="text-gray-700"><span class="font-medium">Entry:</span> Key in lockbox #1234 (code: 5678)</p>
-                <p class="text-gray-700"><span class="font-medium">Alarm:</span> None</p>
-                <p class="text-gray-700"><span class="font-medium">Pets:</span> Cat named Whiskers. Please be careful when entering.</p>
+                <p class="text-gray-700">Loading access information...</p>
             </div>
         </div>
     </div>
@@ -146,9 +123,7 @@
         <div class="p-4">
             <h3 class="text-lg font-semibold text-gray-900 mb-2">Special Instructions</h3>
             <div class="space-y-2">
-                <p class="text-gray-700">Prefers eco-friendly cleaning products.</p>
-                <p class="text-gray-700">Leave shoes at the door.</p>
-                <p class="text-gray-700">Do not move items on the desk in the office.</p>
+                <p class="text-gray-700">Loading special instructions...</p>
             </div>
         </div>
     </div>
