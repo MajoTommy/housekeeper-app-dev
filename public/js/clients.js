@@ -354,135 +354,103 @@ async function createSampleClient() {
     }
 }
 
-// Reset and populate clients with sample data
-async function resetAndPopulateClients() {
+// Function to create sample bookings for a client
+async function createSampleBookingsForClient(userId, clientId, clientData) {
     try {
-        showLoading('Resetting client data...');
+        const db = firebase.firestore();
+        const bookingsRef = db.collection('users').doc(userId).collection('bookings');
         
-        const user = firebase.auth().currentUser;
-        if (!user) {
-            console.error('No user logged in');
-            hideLoading();
-            showErrorMessage('You must be logged in to reset client data');
-            return;
+        // Create 3 future bookings for this client
+        const today = new Date();
+        const bookings = [];
+        
+        // Based on client's schedule preferences
+        const scheduleDay = clientData.scheduleDay || 'Monday';
+        const scheduleTime = clientData.scheduleTime || '10:00 AM';
+        
+        // Create next 3 occurrences of their preferred day
+        for(let i = 0; i < 3; i++) {
+            const nextDate = getNextDayOccurrence(scheduleDay, i);
+            const [hours, minutes, period] = scheduleTime.match(/(\d+):(\d+)\s*(AM|PM)/).slice(1);
+            nextDate.setHours(
+                (period === 'PM' ? (parseInt(hours) % 12) + 12 : parseInt(hours) % 12),
+                parseInt(minutes),
+                0,
+                0
+            );
+            
+            const booking = {
+                clientId: clientId,
+                date: firebase.firestore.Timestamp.fromDate(nextDate),
+                status: 'scheduled',
+                startTime: scheduleTime,
+                endTime: addHours(scheduleTime, 2), // 2-hour cleaning by default
+                frequency: clientData.frequency || 'weekly',
+                price: clientData.price || '150',
+                address: `${clientData.street}, ${clientData.city}, ${clientData.state} ${clientData.zip}`,
+                clientName: `${clientData.firstName} ${clientData.lastName}`,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            
+            bookings.push(booking);
         }
         
-        const db = firebase.firestore();
-        const clientsRef = db.collection('users').doc(user.uid).collection('clients');
-        
-        // Delete all existing clients
-        const snapshot = await clientsRef.get();
-        
+        // Add all bookings in a batch
         const batch = db.batch();
-        snapshot.forEach(doc => {
-            batch.delete(clientsRef.doc(doc.id));
+        bookings.forEach(booking => {
+            const newBookingRef = bookingsRef.doc();
+            batch.set(newBookingRef, booking);
         });
         
         await batch.commit();
-        console.log('All clients deleted');
-        
-        // Create sample clients
-        const sampleClients = [
-            {
-                firstName: 'John',
-                lastName: 'Doe',
-                phone: '555-123-4567',
-                email: 'john.doe@example.com',
-                street: '123 Main St',
-                city: 'Anytown',
-                state: 'CA',
-                zip: '12345',
-                accessInfo: 'Key under the mat',
-                specialInstructions: 'Please clean the windows thoroughly',
-                frequency: 'weekly',
-                scheduleDay: 'Monday',
-                scheduleTime: '10:00 AM',
-                propertyDetails: '3 bedroom, 2 bath house',
-                price: '150',
-                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            },
-            {
-                firstName: 'Jane',
-                lastName: 'Smith',
-                phone: '555-987-6543',
-                email: 'jane.smith@example.com',
-                street: '456 Oak Ave',
-                city: 'Somewhere',
-                state: 'CA',
-                zip: '54321',
-                accessInfo: 'Door code: 1234',
-                specialInstructions: 'Please use unscented products',
-                frequency: 'biweekly',
-                scheduleDay: 'Wednesday',
-                scheduleTime: '1:00 PM',
-                propertyDetails: '2 bedroom apartment',
-                price: '100',
-                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            },
-            {
-                firstName: 'Robert',
-                lastName: 'Johnson',
-                phone: '555-456-7890',
-                email: 'robert.j@example.com',
-                street: '789 Pine Rd',
-                city: 'Nowhere',
-                state: 'CA',
-                zip: '67890',
-                accessInfo: 'Key in lockbox: code 5678',
-                specialInstructions: 'Focus on kitchen and bathrooms',
-                frequency: 'monthly',
-                scheduleDay: 'Friday',
-                scheduleTime: '9:00 AM',
-                propertyDetails: '4 bedroom, 3 bath house',
-                price: '200',
-                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            }
-        ];
-        
-        // Add sample clients
-        const newBatch = db.batch();
-        sampleClients.forEach(client => {
-            const newClientRef = clientsRef.doc();
-            newBatch.set(newClientRef, client);
-        });
-        
-        await newBatch.commit();
-        console.log('Sample clients created successfully');
-        
-        hideLoading();
-        showSuccessMessage('Client data has been reset and sample clients have been created');
-        
-        // Reload the page after a short delay
-        setTimeout(() => {
-            window.location.reload();
-        }, 2000);
-        
+        console.log(`Created ${bookings.length} sample bookings for client ${clientId}`);
+        return true;
     } catch (error) {
-        console.error('Error resetting client data:', error);
-        hideLoading();
-        showErrorMessage('Failed to reset client data: ' + error.message);
+        console.error('Error creating sample bookings:', error);
+        return false;
     }
 }
 
-// Get client ID from URL query parameter
-function getClientIdFromUrl() {
-    const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get('id');
+// Helper function to get next occurrence of a day
+function getNextDayOccurrence(dayName, skipWeeks = 0) {
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const today = new Date();
+    const targetDay = days.indexOf(dayName.toLowerCase());
+    const todayDay = today.getDay();
+    
+    let daysUntilTarget = targetDay - todayDay;
+    if (daysUntilTarget <= 0) {
+        daysUntilTarget += 7;
+    }
+    
+    const result = new Date(today);
+    result.setDate(today.getDate() + daysUntilTarget + (skipWeeks * 7));
+    return result;
 }
 
-// Load client details for the client details page
+// Helper function to add hours to a time string
+function addHours(timeStr, hoursToAdd) {
+    const [hours, minutes, period] = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/).slice(1);
+    let totalHours = parseInt(hours);
+    if (period === 'PM' && totalHours !== 12) totalHours += 12;
+    if (period === 'AM' && totalHours === 12) totalHours = 0;
+    
+    totalHours += hoursToAdd;
+    const newPeriod = totalHours >= 12 ? 'PM' : 'AM';
+    const newHours = totalHours % 12 || 12;
+    
+    return `${newHours}:${minutes} ${newPeriod}`;
+}
+
+// Add function to load client details
 async function loadClientDetails(clientId) {
-    console.log('Loading client details for ID:', clientId);
-    showLoading('Loading client details...');
+    console.log('Loading client details for:', clientId);
     
     try {
         const user = firebase.auth().currentUser;
         if (!user) {
-            console.error('User not logged in');
-            hideLoading();
+            console.error('No user logged in');
             showErrorMessage('You must be logged in to view client details');
             return;
         }
@@ -493,285 +461,130 @@ async function loadClientDetails(clientId) {
         
         if (!clientDoc.exists) {
             console.error('Client not found');
-            hideLoading();
-            showErrorMessage('Client not found. The client may have been deleted.');
+            showErrorMessage('Client not found');
             return;
         }
         
         const client = clientDoc.data();
-        client.id = clientId; // Add the ID to the client object for reference
         
-        console.log('Client data loaded:', client);
+        // Update basic client info
+        document.querySelector('h2').textContent = `${client.lastName}, ${client.firstName}`;
+        document.querySelector('p.text-gray-600').textContent = 
+            `${client.street}, ${client.city}, ${client.state} ${client.zip}`;
         
-        // Update client info section
-        updateClientInfoSection(client);
+        const phoneLink = document.querySelector('a[href^="tel:"]');
+        if (phoneLink) {
+            phoneLink.href = `tel:${client.phone}`;
+            phoneLink.innerHTML = `<i class="fas fa-phone"></i> ${client.phone}`;
+        }
+        
+        const emailLink = document.querySelector('a[href^="mailto:"]');
+        if (emailLink) {
+            emailLink.href = `mailto:${client.email}`;
+            emailLink.innerHTML = `<i class="fas fa-envelope"></i> ${client.email}`;
+        }
         
         // Update cleaning schedule section
-        updateCleaningScheduleSection(client);
+        const scheduleSection = document.querySelector('.client-card:nth-child(2) .p-4');
+        if (scheduleSection) {
+            const frequencyBadge = scheduleSection.querySelector('.rounded-full');
+            const scheduleText = scheduleSection.querySelector('.text-gray-700');
+            const propertyDetails = scheduleSection.querySelector('p.text-gray-600');
+            const priceText = scheduleSection.querySelectorAll('p.text-gray-600')[1];
+            
+            frequencyBadge.textContent = client.frequency || 'Not set';
+            scheduleText.textContent = client.scheduleDay && client.scheduleTime ? 
+                `Every ${client.scheduleDay} at ${client.scheduleTime}` : 'Schedule not set';
+            propertyDetails.textContent = client.propertyDetails || 'No property details';
+            priceText.textContent = client.price ? `$${client.price} per cleaning` : 'Price not set';
+        }
         
         // Load upcoming cleanings
-        loadUpcomingCleanings(user.uid, clientId);
-        
-        // Update access information section
-        updateAccessInfoSection(client);
-        
-        // Update special instructions section
-        updateSpecialInstructionsSection(client);
-        
-        // Update edit link
-        const editLink = document.querySelector('a[href="edit-client.html"]');
-        if (editLink) {
-            editLink.href = `edit-client.html?id=${clientId}`;
-        }
-        
-        // Update reschedule link
-        const rescheduleLink = document.querySelector('a[href="../schedule/reschedule-choice.html"]');
-        if (rescheduleLink) {
-            rescheduleLink.href = `../schedule/reschedule-choice.html?clientId=${clientId}`;
-        }
-        
-        hideLoading();
-    } catch (error) {
-        console.error('Error loading client details:', error);
-        hideLoading();
-        showErrorMessage('Failed to load client details: ' + error.message);
-    }
-}
-
-// Update the client info section on the details page
-function updateClientInfoSection(client) {
-    const nameElement = document.querySelector('.client-card h2');
-    if (nameElement) {
-        const firstName = client.firstName || '';
-        const lastName = client.lastName || '';
-        const fullName = firstName && lastName ? `${lastName}, ${firstName}` : (firstName || lastName || 'Unnamed Client');
-        nameElement.textContent = fullName;
-    }
-    
-    const addressElements = document.querySelectorAll('.client-card p.text-gray-600');
-    if (addressElements.length >= 2) {
-        // Format the address
-        if (client.street) {
-            addressElements[0].textContent = client.street;
-            
-            const cityStateZip = [];
-            if (client.city) cityStateZip.push(client.city);
-            if (client.state) cityStateZip.push(client.state);
-            if (client.zip) cityStateZip.push(client.zip);
-            
-            addressElements[1].textContent = cityStateZip.join(', ');
-        } else {
-            addressElements[0].textContent = 'No address provided';
-            addressElements[1].textContent = '';
-        }
-    }
-    
-    const phoneLink = document.querySelector('a[href^="tel:"]');
-    if (phoneLink && client.phone) {
-        phoneLink.href = `tel:${client.phone.replace(/\D/g, '')}`;
-        phoneLink.innerHTML = `<i class="fas fa-phone"></i> ${client.phone}`;
-    } else if (phoneLink) {
-        phoneLink.href = '#';
-        phoneLink.innerHTML = `<i class="fas fa-phone"></i> No phone number`;
-    }
-    
-    const emailLink = document.querySelector('a[href^="mailto:"]');
-    if (emailLink && client.email) {
-        emailLink.href = `mailto:${client.email}`;
-        emailLink.innerHTML = `<i class="fas fa-envelope"></i> ${client.email}`;
-    } else if (emailLink) {
-        emailLink.href = '#';
-        emailLink.innerHTML = `<i class="fas fa-envelope"></i> No email address`;
-    }
-}
-
-// Update the cleaning schedule section on the details page
-function updateCleaningScheduleSection(client) {
-    const scheduleSection = document.querySelector('.client-card:nth-child(2) .p-4');
-    if (!scheduleSection) return;
-    
-    // Format the frequency
-    const frequencyLabels = {
-        'weekly': { bg: 'bg-green-100', text: 'text-green-800', label: 'Weekly' },
-        'biweekly': { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Bi-weekly' },
-        'monthly': { bg: 'bg-purple-100', text: 'text-purple-800', label: 'Monthly' },
-        'one-time': { bg: 'bg-gray-100', text: 'text-gray-800', label: 'One-time' }
-    };
-    
-    const frequency = client.frequency || 'one-time';
-    const frequencyStyle = frequencyLabels[frequency] || frequencyLabels['one-time'];
-    
-    // Format the schedule time
-    const scheduleDay = client.scheduleDay || '';
-    const scheduleTime = client.scheduleTime || '';
-    const scheduleText = scheduleDay && scheduleTime ? `Every ${scheduleDay} at ${scheduleTime}` : 'Not scheduled';
-    
-    // Format the property details
-    const propertyDetails = client.propertyDetails || 'No property details provided';
-    
-    // Format the price
-    const price = client.price ? `$${client.price} per cleaning` : 'Price not set';
-    
-    scheduleSection.innerHTML = `
-        <h3 class="text-lg font-semibold text-gray-900 mb-2">Cleaning Schedule</h3>
-        <div class="flex items-center gap-2 mb-1">
-            <span class="inline-flex items-center rounded-full ${frequencyStyle.bg} px-2.5 py-0.5 text-xs font-medium ${frequencyStyle.text}">
-                ${frequencyStyle.label}
-            </span>
-            <span class="text-gray-700">${scheduleText}</span>
-        </div>
-        <p class="text-gray-600 text-sm">${propertyDetails}</p>
-        <p class="text-gray-600 text-sm">${price}</p>
-        <div class="mt-3">
-            <a href="../schedule/reschedule-choice.html?clientId=${client.id}" class="block w-full bg-white border border-gray-300 rounded-lg py-3 px-4 text-center text-gray-700 font-medium hover:bg-gray-50">
-                Reschedule
-            </a>
-        </div>
-    `;
-}
-
-// Load upcoming cleanings for a client
-async function loadUpcomingCleanings(userId, clientId) {
-    try {
-        const upcomingSection = document.querySelector('.client-card:nth-child(3) .p-4');
-        if (!upcomingSection) return;
-        
-        // Get today's date at midnight
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        // Query for upcoming bookings for this client
-        const db = firebase.firestore();
-        const bookingsRef = db.collection('users').doc(userId)
-            .collection('bookings');
-        
-        const snapshot = await bookingsRef
-            .where('clientId', '==', clientId)
-            .where('date', '>=', today)
-            .where('status', '!=', 'cancelled')
-            .orderBy('date')
-            .limit(3)
-            .get();
-        
-        if (snapshot.empty) {
-            upcomingSection.innerHTML = `
-                <h3 class="text-lg font-semibold text-gray-900 mb-2">Upcoming Cleanings</h3>
-                <p class="text-gray-600">No upcoming cleanings scheduled</p>
-                <div class="mt-3">
-                    <a href="../schedule/new-cleaning.html?clientId=${clientId}" class="block w-full bg-white border border-gray-300 rounded-lg py-3 px-4 text-center text-gray-700 font-medium hover:bg-gray-50">
-                        Schedule Cleaning
-                    </a>
-                </div>
-            `;
-            return;
-        }
-        
-        let upcomingHTML = `<h3 class="text-lg font-semibold text-gray-900 mb-2">Upcoming Cleanings</h3>`;
-        
-        snapshot.forEach(doc => {
-            const booking = doc.data();
-            const date = booking.date.toDate();
-            
-            // Format the date
-            const formattedDate = date.toLocaleDateString('en-US', { 
-                weekday: 'long', 
-                month: 'long', 
-                day: 'numeric' 
-            });
-            
-            // Format the time
-            const startTime = booking.startTime || '9:00 AM';
-            const endTime = booking.endTime || '11:00 AM';
-            
-            upcomingHTML += `
-                <div class="border-l-4 border-green-500 pl-3 py-2 mb-3">
-                    <div class="flex justify-between">
-                        <div>
-                            <p class="font-medium">${formattedDate}</p>
-                            <p class="text-sm text-gray-600">${startTime} - ${endTime}</p>
-                        </div>
-                        <a href="../schedule/cleaning-details.html?id=${doc.id}" class="text-primary">
-                            <i class="fas fa-chevron-right"></i>
-                        </a>
-                    </div>
-                </div>
-            `;
-        });
-        
-        upcomingHTML += `
-            <div class="mt-3">
-                <a href="../schedule/new-cleaning.html?clientId=${clientId}" class="block w-full bg-white border border-gray-300 rounded-lg py-3 px-4 text-center text-gray-700 font-medium hover:bg-gray-50">
-                    Schedule Another Cleaning
-                </a>
-            </div>
-        `;
-        
-        upcomingSection.innerHTML = upcomingHTML;
-    } catch (error) {
-        console.error('Error loading upcoming cleanings:', error);
         const upcomingSection = document.querySelector('.client-card:nth-child(3) .p-4');
         if (upcomingSection) {
-            upcomingSection.innerHTML = `
-                <h3 class="text-lg font-semibold text-gray-900 mb-2">Upcoming Cleanings</h3>
-                <p class="text-gray-600">Error loading cleanings: ${error.message}</p>
-                <div class="mt-3">
-                    <a href="../schedule/new-cleaning.html?clientId=${clientId}" class="block w-full bg-white border border-gray-300 rounded-lg py-3 px-4 text-center text-gray-700 font-medium hover:bg-gray-50">
-                        Schedule Cleaning
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const bookingsSnapshot = await db.collection('users').doc(user.uid)
+                .collection('bookings')
+                .where('clientId', '==', clientId)
+                .where('date', '>=', today)
+                .where('status', '==', 'scheduled')
+                .orderBy('date')
+                .limit(3)
+                .get();
+            
+            if (bookingsSnapshot.empty) {
+                upcomingSection.innerHTML = `
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Upcoming Cleanings</h3>
+                    <p class="text-gray-500">No upcoming cleanings scheduled</p>
+                    <a href="../schedule/new-cleaning.html?clientId=${clientId}" 
+                       class="mt-4 block text-center text-primary hover:text-primary-dark">
+                        <i class="fas fa-plus-circle mr-1"></i> Schedule New Cleaning
                     </a>
+                `;
+            } else {
+                let bookingsHTML = `
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Upcoming Cleanings</h3>
+                `;
+                
+                bookingsSnapshot.forEach(doc => {
+                    const booking = doc.data();
+                    const date = booking.date.toDate();
+                    const formattedDate = date.toLocaleDateString('en-US', {
+                        weekday: 'long',
+                        month: 'long',
+                        day: 'numeric'
+                    });
+                    
+                    bookingsHTML += `
+                        <div class="border-l-4 border-primary pl-3 py-2 mb-3">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <p class="font-medium">${formattedDate}</p>
+                                    <p class="text-sm text-gray-600">${booking.startTime} - ${booking.endTime}</p>
+                                </div>
+                                <a href="../schedule/cleaning-details.html?id=${doc.id}" 
+                                   class="text-primary hover:text-primary-dark">
+                                    <i class="fas fa-chevron-right"></i>
+                                </a>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                upcomingSection.innerHTML = bookingsHTML;
+            }
+        }
+        
+        // Update access information
+        const accessSection = document.querySelector('.client-card:nth-child(4) .p-4');
+        if (accessSection) {
+            const accessInfo = client.accessInfo || 'No access information provided';
+            accessSection.innerHTML = `
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">Access Information</h3>
+                <div class="space-y-2">
+                    <p class="text-gray-700">${accessInfo}</p>
                 </div>
             `;
         }
+        
+        // Update special instructions
+        const instructionsSection = document.querySelector('.client-card:nth-child(5) .p-4');
+        if (instructionsSection) {
+            const instructions = client.specialInstructions || 'No special instructions provided';
+            instructionsSection.innerHTML = `
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">Special Instructions</h3>
+                <div class="space-y-2">
+                    <p class="text-gray-700">${instructions}</p>
+                </div>
+            `;
+        }
+        
+    } catch (error) {
+        console.error('Error loading client details:', error);
+        showErrorMessage('Error loading client details: ' + error.message);
     }
-}
-
-// Update the access information section on the details page
-function updateAccessInfoSection(client) {
-    const accessSection = document.querySelector('.client-card:nth-child(4) .p-4');
-    if (!accessSection) return;
-    
-    const accessInfo = client.accessInfo || 'No access information provided';
-    
-    // Split by line breaks if it's a multi-line string
-    const accessLines = accessInfo.split('\n').filter(line => line.trim() !== '');
-    
-    let accessHTML = `<h3 class="text-lg font-semibold text-gray-900 mb-2">Access Information</h3>`;
-    
-    if (accessLines.length > 0) {
-        accessHTML += `<div class="space-y-2">`;
-        accessLines.forEach(line => {
-            accessHTML += `<p class="text-gray-700">${line}</p>`;
-        });
-        accessHTML += `</div>`;
-    } else {
-        accessHTML += `<p class="text-gray-700">${accessInfo}</p>`;
-    }
-    
-    accessSection.innerHTML = accessHTML;
-}
-
-// Update the special instructions section on the details page
-function updateSpecialInstructionsSection(client) {
-    const instructionsSection = document.querySelector('.client-card:nth-child(5) .p-4');
-    if (!instructionsSection) return;
-    
-    const instructions = client.specialInstructions || 'No special instructions provided';
-    
-    // Split by line breaks if it's a multi-line string
-    const instructionLines = instructions.split('\n').filter(line => line.trim() !== '');
-    
-    let instructionsHTML = `<h3 class="text-lg font-semibold text-gray-900 mb-2">Special Instructions</h3>`;
-    
-    if (instructionLines.length > 0) {
-        instructionsHTML += `<div class="space-y-2">`;
-        instructionLines.forEach(line => {
-            instructionsHTML += `<p class="text-gray-700">${line}</p>`;
-        });
-        instructionsHTML += `</div>`;
-    } else {
-        instructionsHTML += `<p class="text-gray-700">${instructions}</p>`;
-    }
-    
-    instructionsSection.innerHTML = instructionsHTML;
 }
 
 // Initialize the page when DOM is loaded
@@ -783,48 +596,20 @@ document.addEventListener('DOMContentLoaded', function() {
         if (user) {
             console.log('User is logged in:', user.uid);
             
-            // Check which page we're on
-            const currentPath = window.location.pathname;
-            
-            if (currentPath.includes('client-details.html')) {
-                // We're on the client details page
-                const clientId = getClientIdFromUrl();
+            // Check if we're on the client details page
+            if (window.location.pathname.includes('client-details.html')) {
+                const urlParams = new URLSearchParams(window.location.search);
+                const clientId = urlParams.get('id');
                 if (clientId) {
                     loadClientDetails(clientId);
                 } else {
-                    console.error('No client ID found in URL');
-                    showErrorMessage('Client not found. Please go back to the clients list.');
+                    showErrorMessage('No client ID provided');
                 }
-            } else if (currentPath.includes('clients.html')) {
-                // We're on the main clients list page
+            } else {
+                // We're on the main clients page
                 loadAllClients();
                 initSearchFunctionality();
-                
-                // Set up the debug button
-                const debugButton = document.getElementById('debug-create-client');
-                if (debugButton) {
-                    debugButton.addEventListener('click', async function() {
-                        showLoading('Creating sample client...');
-                        await createSampleClient();
-                        hideLoading();
-                        setTimeout(() => {
-                            window.location.reload();
-                        }, 2000);
-                    });
-                }
-                
-                // Set up the reset sample data button
-                const resetButton = document.getElementById('reset-sample-data');
-                if (resetButton) {
-                    resetButton.addEventListener('click', function() {
-                        if (confirm('Are you sure you want to reset all client data? This will delete all existing clients and create sample ones.')) {
-                            resetAndPopulateClients();
-                        }
-                    });
-                }
             }
-            // Add more page checks as needed (edit-client.html, add-client.html, etc.)
-            
         } else {
             console.log('User is not logged in, redirecting to login');
             window.location.href = '../login.html';

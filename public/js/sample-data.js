@@ -141,6 +141,124 @@ function getDateString(daysFromToday) {
     return date.toISOString().split('T')[0];
 }
 
+// Helper function to get next occurrence of a day
+function getNextDayOccurrence(dayName, skipWeeks = 0) {
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const today = new Date();
+    const targetDay = days.indexOf(dayName.toLowerCase());
+    const todayDay = today.getDay();
+    
+    let daysUntilTarget = targetDay - todayDay;
+    if (daysUntilTarget <= 0) {
+        daysUntilTarget += 7;
+    }
+    
+    const result = new Date(today);
+    result.setDate(today.getDate() + daysUntilTarget + (skipWeeks * 7));
+    return result;
+}
+
+// Helper function to add hours to a time string
+function addHours(timeStr, hoursToAdd) {
+    const [hours, minutes, period] = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/).slice(1);
+    let totalHours = parseInt(hours);
+    if (period === 'PM' && totalHours !== 12) totalHours += 12;
+    if (period === 'AM' && totalHours === 12) totalHours = 0;
+    
+    totalHours += hoursToAdd;
+    const newPeriod = totalHours >= 12 ? 'PM' : 'AM';
+    const newHours = totalHours % 12 || 12;
+    
+    return `${newHours}:${minutes} ${newPeriod}`;
+}
+
+// Function to create bookings for a client based on their preferred schedule
+async function createBookingsForClient(db, userId, clientId, clientData) {
+    try {
+        // Skip if no schedule day or time is set
+        if (!clientData.scheduleDay || !clientData.scheduleTime) {
+            console.log('No schedule set for client, skipping booking creation');
+            return;
+        }
+        
+        const bookingsRef = db.collection('users').doc(userId).collection('bookings');
+        const frequency = clientData.frequency || 'weekly';
+        
+        // Determine number of bookings to create based on frequency
+        let occurrences = 1;
+        if (frequency === 'weekly') {
+            occurrences = 4; // 4 weeks
+        } else if (frequency === 'biweekly' || frequency === 'bi-weekly') {
+            occurrences = 3; // 6 weeks (3 bi-weekly occurrences)
+        } else if (frequency === 'monthly') {
+            occurrences = 2; // 2 months
+        }
+        
+        // Generate a series ID for recurring bookings
+        const seriesId = `series-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+        
+        // Create bookings for each occurrence
+        for (let i = 0; i < occurrences; i++) {
+            // Calculate the date for this occurrence
+            const nextDate = getNextDayOccurrence(clientData.scheduleDay, i);
+            const formattedDate = nextDate.toISOString().split('T')[0];
+            
+            // Format the time properly
+            const startTime = clientData.scheduleTime;
+            // Ensure startTime is properly formatted
+            const startTimeMatch = startTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
+            if (!startTimeMatch) {
+                console.error('Invalid time format:', startTime);
+                continue;
+            }
+            
+            let hours = parseInt(startTimeMatch[1]);
+            const minutes = startTimeMatch[2];
+            const period = startTimeMatch[3].toUpperCase();
+            
+            // Ensure hours is in 12-hour format
+            const formattedHours = hours === 0 ? '12' : 
+                                  hours > 12 ? (hours - 12).toString() : 
+                                  hours.toString();
+            
+            // Format the start time properly
+            const formattedStartTime = `${formattedHours.padStart(2, '0')}:${minutes} ${period}`;
+            
+            // Calculate end time (2 hours after start)
+            const endTime = addHours(formattedStartTime, 2);
+            
+            // Create the booking
+            const bookingData = {
+                clientId: clientId,
+                clientFirstName: clientData.firstName,
+                clientLastName: clientData.lastName,
+                clientAddress: `${clientData.street}, ${clientData.city}, ${clientData.state} ${clientData.zip}`,
+                clientPhone: clientData.phone,
+                clientEmail: clientData.email,
+                date: formattedDate,
+                startTime: formattedStartTime,
+                endTime: endTime,
+                frequency: frequency,
+                status: 'scheduled',
+                seriesId: seriesId,
+                occurrenceNumber: i + 1,
+                totalOccurrences: occurrences,
+                accessInfo: clientData.accessInfo || '',
+                specialInstructions: clientData.specialInstructions || '',
+                propertyDetails: clientData.propertyDetails || '',
+                price: clientData.price || null,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            
+            await bookingsRef.add(bookingData);
+            console.log(`Created booking for ${clientData.firstName} ${clientData.lastName} on ${formattedDate} at ${formattedStartTime}`);
+        }
+    } catch (error) {
+        console.error('Error creating bookings for client:', error);
+    }
+}
+
 // Function to add sample clients to Firestore
 async function addSampleClients() {
     const user = firebase.auth().currentUser;
@@ -284,13 +402,13 @@ async function addSampleSettings() {
     try {
         const userRef = firebase.firestore().collection('users').doc(user.uid);
         
-        // Create day-specific settings
+        // Create day-specific settings with properly formatted times
         const workingDays = {
             sunday: { isWorking: false },
             monday: { 
                 isWorking: true,
-                startTime: "8:00 AM",
-                endTime: "5:00 PM",
+                startTime: "08:00 AM",
+                endTime: "05:00 PM",
                 jobsPerDay: 2,
                 cleaningDuration: 180,
                 breakTime: 90,
@@ -298,8 +416,8 @@ async function addSampleSettings() {
             },
             tuesday: { 
                 isWorking: true,
-                startTime: "8:00 AM",
-                endTime: "5:00 PM",
+                startTime: "08:00 AM",
+                endTime: "05:00 PM",
                 jobsPerDay: 2,
                 cleaningDuration: 180,
                 breakTime: 90,
@@ -307,8 +425,8 @@ async function addSampleSettings() {
             },
             wednesday: { 
                 isWorking: true,
-                startTime: "8:00 AM",
-                endTime: "5:00 PM",
+                startTime: "08:00 AM",
+                endTime: "05:00 PM",
                 jobsPerDay: 2,
                 cleaningDuration: 180,
                 breakTime: 90,
@@ -316,8 +434,8 @@ async function addSampleSettings() {
             },
             thursday: { 
                 isWorking: true,
-                startTime: "8:00 AM",
-                endTime: "5:00 PM",
+                startTime: "08:00 AM",
+                endTime: "05:00 PM",
                 jobsPerDay: 2,
                 cleaningDuration: 180,
                 breakTime: 90,
@@ -325,8 +443,8 @@ async function addSampleSettings() {
             },
             friday: { 
                 isWorking: true,
-                startTime: "8:00 AM",
-                endTime: "5:00 PM",
+                startTime: "08:00 AM",
+                endTime: "05:00 PM",
                 jobsPerDay: 2,
                 cleaningDuration: 180,
                 breakTime: 90,
@@ -425,102 +543,73 @@ async function addSampleSettings() {
 
 // Function to reset the database and repopulate with sample data
 async function resetAndPopulateDatabase() {
-    const user = firebase.auth().currentUser;
-    
-    if (!user) {
-        console.error('No user logged in. Please log in to reset data.');
-        return;
-    }
-    
-    // Show loading indicator
-    const loadingOverlay = document.createElement('div');
-    loadingOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
-    loadingOverlay.innerHTML = `
-        <div class="bg-white p-4 rounded-lg shadow-lg flex flex-col items-center">
-            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-3"></div>
-            <p class="text-gray-700 mb-2">Resetting database...</p>
-            <p class="text-gray-500 text-sm">This may take a moment</p>
-        </div>
-    `;
-    document.body.appendChild(loadingOverlay);
-    
     try {
-        console.log('Resetting database for user:', user.uid);
+        const user = firebase.auth().currentUser;
+        if (!user) {
+            throw new Error('You must be logged in to reset the database');
+        }
         
-        // Delete all clients
-        const clientsRef = firebase.firestore().collection('users').doc(user.uid).collection('clients');
-        const clientsSnapshot = await clientsRef.get();
+        const db = firebase.firestore();
         
-        const clientDeleteBatch = firebase.firestore().batch();
-        clientsSnapshot.forEach(doc => {
-            clientDeleteBatch.delete(clientsRef.doc(doc.id));
+        // Get references to all collections we need to reset
+        const collectionsToReset = [
+            'clients',
+            'bookings',
+            'payments',
+            'settings'
+        ];
+        
+        // Delete all documents in each collection
+        const deletePromises = collectionsToReset.map(async collectionName => {
+            const collectionRef = db.collection('users').doc(user.uid).collection(collectionName);
+            const snapshot = await collectionRef.get();
+            
+            const batch = db.batch();
+            snapshot.docs.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+            
+            await batch.commit();
+            console.log(`Deleted all documents in ${collectionName}`);
         });
         
-        await clientDeleteBatch.commit();
-        console.log('All clients deleted');
+        await Promise.all(deletePromises);
         
-        // Delete all bookings
-        const bookingsRef = firebase.firestore().collection('users').doc(user.uid).collection('bookings');
-        const bookingsSnapshot = await bookingsRef.get();
-        
-        const bookingDeleteBatch = firebase.firestore().batch();
-        bookingsSnapshot.forEach(doc => {
-            bookingDeleteBatch.delete(bookingsRef.doc(doc.id));
+        // Create new clients with timestamps
+        const clientPromises = sampleClients.map(async clientData => {
+            const clientRef = db.collection('users').doc(user.uid).collection('clients').doc();
+            
+            const clientWithTimestamps = {
+                ...clientData,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            
+            await clientRef.set(clientWithTimestamps);
+            await createBookingsForClient(db, user.uid, clientRef.id, clientData);
+            
+            return clientRef.id;
         });
         
-        await bookingDeleteBatch.commit();
-        console.log('All bookings deleted');
+        await Promise.all(clientPromises);
         
-        // Add sample settings
-        await addSampleSettings();
-        
-        // Add sample clients
-        await addSampleClients();
-        
-        // Add sample bookings
-        await addSampleBookings();
-        
-        console.log('Database reset and repopulated successfully');
-        
-        // Show success message
-        loadingOverlay.innerHTML = `
-            <div class="bg-white p-4 rounded-lg shadow-lg flex flex-col items-center">
-                <div class="bg-green-100 text-green-700 rounded-full w-16 h-16 flex items-center justify-center mb-3">
-                    <i class="fas fa-check text-2xl"></i>
-                </div>
-                <p class="text-gray-700 font-medium mb-2">Database Reset Complete</p>
-                <p class="text-gray-500 text-sm mb-4">Sample data has been added</p>
-                <button id="closeResetBtn" class="bg-primary text-white py-2 px-4 rounded-lg font-medium hover:bg-primary-dark">
-                    Reload Schedule
-                </button>
-            </div>
-        `;
-        
-        document.getElementById('closeResetBtn').addEventListener('click', function() {
-            loadingOverlay.remove();
-            window.location.reload();
+        // Create default user settings if needed
+        const settingsRef = db.collection('users').doc(user.uid).collection('settings').doc('preferences');
+        await settingsRef.set({
+            workingDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+            workingHours: {
+                start: '9:00 AM',
+                end: '5:00 PM'
+            },
+            defaultCleaningDuration: 120, // 2 hours in minutes
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         
+        console.log('Database reset and populated successfully');
+        return true;
     } catch (error) {
         console.error('Error resetting database:', error);
-        
-        // Show error message
-        loadingOverlay.innerHTML = `
-            <div class="bg-white p-4 rounded-lg shadow-lg flex flex-col items-center">
-                <div class="bg-red-100 text-red-700 rounded-full w-16 h-16 flex items-center justify-center mb-3">
-                    <i class="fas fa-exclamation-triangle text-2xl"></i>
-                </div>
-                <p class="text-gray-700 font-medium mb-2">Error Resetting Database</p>
-                <p class="text-red-500 text-sm mb-4">${error.message || 'Unknown error'}</p>
-                <button id="closeErrorBtn" class="bg-primary text-white py-2 px-4 rounded-lg font-medium hover:bg-primary-dark">
-                    Close
-                </button>
-            </div>
-        `;
-        
-        document.getElementById('closeErrorBtn').addEventListener('click', function() {
-            loadingOverlay.remove();
-        });
+        throw error;
     }
 }
 

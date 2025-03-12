@@ -394,17 +394,22 @@ function calculateAvailableTimeSlots(settings) {
             
             // Only add the slot if it ends before or at the end time
             if (slotEnd <= endTime) {
+                // Format times in the standardized format
+                const startFormatted = normalizeTimeFormat(slotStart.toLocaleTimeString('en-US', { 
+                    hour: 'numeric', 
+                    minute: '2-digit', 
+                    hour12: true 
+                }));
+                
+                const endFormatted = normalizeTimeFormat(slotEnd.toLocaleTimeString('en-US', { 
+                    hour: 'numeric', 
+                    minute: '2-digit', 
+                    hour12: true 
+                }));
+                
                 slots.push({
-                    start: slotStart.toLocaleTimeString('en-US', { 
-                        hour: 'numeric', 
-                        minute: '2-digit', 
-                        hour12: true 
-                    }),
-                    end: slotEnd.toLocaleTimeString('en-US', { 
-                        hour: 'numeric', 
-                        minute: '2-digit', 
-                        hour12: true 
-                    }),
+                    start: startFormatted,
+                    end: endFormatted,
                     durationMinutes: cleaningDuration
                 });
             }
@@ -420,17 +425,22 @@ function calculateAvailableTimeSlots(settings) {
             
             // Only add the slot if it ends before or at the end time
             if (slotEnd <= endTime) {
+                // Format times in the standardized format
+                const startFormatted = normalizeTimeFormat(slotStart.toLocaleTimeString('en-US', { 
+                    hour: 'numeric', 
+                    minute: '2-digit', 
+                    hour12: true 
+                }));
+                
+                const endFormatted = normalizeTimeFormat(slotEnd.toLocaleTimeString('en-US', { 
+                    hour: 'numeric', 
+                    minute: '2-digit', 
+                    hour12: true 
+                }));
+                
                 slots.push({
-                    start: slotStart.toLocaleTimeString('en-US', { 
-                        hour: 'numeric', 
-                        minute: '2-digit', 
-                        hour12: true 
-                    }),
-                    end: slotEnd.toLocaleTimeString('en-US', { 
-                        hour: 'numeric', 
-                        minute: '2-digit', 
-                        hour12: true 
-                    }),
+                    start: startFormatted,
+                    end: endFormatted,
                     durationMinutes: cleaningDuration
                 });
             }
@@ -444,17 +454,22 @@ function calculateAvailableTimeSlots(settings) {
         
         // Only add the default slot if it ends before or at the end time
         if (defaultSlotEnd <= endTime) {
+            // Format times in the standardized format
+            const startFormatted = normalizeTimeFormat(startTime.toLocaleTimeString('en-US', { 
+                hour: 'numeric', 
+                minute: '2-digit', 
+                hour12: true 
+            }));
+            
+            const endFormatted = normalizeTimeFormat(defaultSlotEnd.toLocaleTimeString('en-US', { 
+                hour: 'numeric', 
+                minute: '2-digit', 
+                hour12: true 
+            }));
+            
             slots.push({
-                start: startTime.toLocaleTimeString('en-US', { 
-                    hour: 'numeric', 
-                    minute: '2-digit', 
-                    hour12: true 
-                }),
-                end: defaultSlotEnd.toLocaleTimeString('en-US', { 
-                    hour: 'numeric', 
-                    minute: '2-digit', 
-                    hour12: true 
-                }),
+                start: startFormatted,
+                end: endFormatted,
                 durationMinutes: cleaningDuration
             });
         }
@@ -498,17 +513,22 @@ function calculateDayTimeSlots(daySettings) {
             
             // Only add the slot if it ends before or at the end time
             if (slotEnd <= endTime) {
+                // Format times in the standardized format
+                const startFormatted = normalizeTimeFormat(slotStart.toLocaleTimeString('en-US', { 
+                    hour: 'numeric', 
+                    minute: '2-digit', 
+                    hour12: true 
+                }));
+                
+                const endFormatted = normalizeTimeFormat(slotEnd.toLocaleTimeString('en-US', { 
+                    hour: 'numeric', 
+                    minute: '2-digit', 
+                    hour12: true 
+                }));
+                
                 daySlots.push({
-                    start: slotStart.toLocaleTimeString('en-US', { 
-                        hour: 'numeric', 
-                        minute: '2-digit', 
-                        hour12: true 
-                    }),
-                    end: slotEnd.toLocaleTimeString('en-US', { 
-                        hour: 'numeric', 
-                        minute: '2-digit', 
-                        hour12: true 
-                    }),
+                    start: startFormatted,
+                    end: endFormatted,
                     durationMinutes: cleaningDuration
                 });
             }
@@ -523,17 +543,22 @@ function calculateDayTimeSlots(daySettings) {
             
             // Only add the slot if it ends before or at the end time
             if (slotEnd <= endTime) {
+                // Format times in the standardized format
+                const startFormatted = normalizeTimeFormat(slotStart.toLocaleTimeString('en-US', { 
+                    hour: 'numeric', 
+                    minute: '2-digit', 
+                    hour12: true 
+                }));
+                
+                const endFormatted = normalizeTimeFormat(slotEnd.toLocaleTimeString('en-US', { 
+                    hour: 'numeric', 
+                    minute: '2-digit', 
+                    hour12: true 
+                }));
+                
                 daySlots.push({
-                    start: slotStart.toLocaleTimeString('en-US', { 
-                        hour: 'numeric', 
-                        minute: '2-digit', 
-                        hour12: true 
-                    }),
-                    end: slotEnd.toLocaleTimeString('en-US', { 
-                        hour: 'numeric', 
-                        minute: '2-digit', 
-                        hour12: true 
-                    }),
+                    start: startFormatted,
+                    end: endFormatted,
                     durationMinutes: cleaningDuration
                 });
             }
@@ -546,17 +571,22 @@ function calculateDayTimeSlots(daySettings) {
         
         // Only add the default slot if it ends before or at the end time
         if (defaultSlotEnd <= endTime) {
+            // Format times in the standardized format
+            const startFormatted = normalizeTimeFormat(startTime.toLocaleTimeString('en-US', { 
+                hour: 'numeric', 
+                minute: '2-digit', 
+                hour12: true 
+            }));
+            
+            const endFormatted = normalizeTimeFormat(defaultSlotEnd.toLocaleTimeString('en-US', { 
+                hour: 'numeric', 
+                minute: '2-digit', 
+                hour12: true 
+            }));
+            
             daySlots.push({
-                start: startTime.toLocaleTimeString('en-US', { 
-                    hour: 'numeric', 
-                    minute: '2-digit', 
-                    hour12: true 
-                }),
-                end: defaultSlotEnd.toLocaleTimeString('en-US', { 
-                    hour: 'numeric', 
-                    minute: '2-digit', 
-                    hour12: true 
-                }),
+                start: startFormatted,
+                end: endFormatted,
                 durationMinutes: cleaningDuration
             });
         }
@@ -668,13 +698,29 @@ function generateSchedule(settings) {
             dayContainer.className = isToday ? 'bg-primary-light/70 rounded-lg p-4 mb-6' : 'space-y-4 mb-6';
             dayContainer.setAttribute('data-date', dateKey);
             dayContainer.setAttribute('data-day-of-week', dayOfWeek);
+            
+            // Clear any existing content in the day container
+            dayContainer.innerHTML = '';
+            
+            // Add the day container to the main container
+            container.appendChild(dayContainer);
+            
+            // Helper function to convert time string to minutes since midnight
             container.appendChild(dayContainer);
             
             // Helper function to convert time string to minutes since midnight
             const timeToMinutes = (timeStr) => {
+                if (!timeStr) return 0;
+                
+                // First normalize the time format
+                const normalizedTime = normalizeTimeFormat(timeStr);
+                
                 // Extract hours, minutes, and period (AM/PM)
-                const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
-                if (!match) return 0;
+                const match = normalizedTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
+                if (!match) {
+                    console.warn(`Could not parse time: ${timeStr} (normalized to ${normalizedTime})`);
+                    return 0;
+                }
                 
                 let hours = parseInt(match[1]);
                 const minutes = parseInt(match[2]);
@@ -684,7 +730,9 @@ function generateSchedule(settings) {
                 if (period === 'PM' && hours < 12) hours += 12;
                 if (period === 'AM' && hours === 12) hours = 0;
                 
-                return hours * 60 + minutes;
+                const totalMinutes = hours * 60 + minutes;
+                console.log(`Converted ${timeStr} to ${totalMinutes} minutes`);
+                return totalMinutes;
             };
             
             // Sort bookings by start time (morning to evening)
@@ -791,28 +839,38 @@ function generateSchedule(settings) {
                     // Check if this slot overlaps with any booked slot
                     let overlapsWithBooking = false;
                     
-                    // Convert this slot's times to minutes for comparison
-                    const slotStartMinutes = timeToMinutes(slot.start);
-                    const slotEndMinutes = timeToMinutes(slot.end);
-                    
-                    // Check against each booking
-                    for (const booking of dateBookings) {
-                        const bookingStartMinutes = timeToMinutes(booking.startTime);
-                        const bookingEndMinutes = timeToMinutes(booking.endTime);
+                    // First, check if this exact slot is already booked
+                    if (bookedSlots.has(`${slot.start}-${slot.end}`)) {
+                        console.log(`Slot ${slot.start}-${slot.end} is already booked exactly`);
+                        overlapsWithBooking = true;
+            } else {
+                        // Convert this slot's times to minutes for comparison
+                        const slotStartMinutes = timeToMinutes(slot.start);
+                        const slotEndMinutes = timeToMinutes(slot.end);
                         
-                        // Check for overlap
-                        if (
-                            // Slot starts during a booking
-                            (slotStartMinutes >= bookingStartMinutes && slotStartMinutes < bookingEndMinutes) ||
-                            // Slot ends during a booking
-                            (slotEndMinutes > bookingStartMinutes && slotEndMinutes <= bookingEndMinutes) ||
-                            // Slot completely contains a booking
-                            (slotStartMinutes <= bookingStartMinutes && slotEndMinutes >= bookingEndMinutes) ||
-                            // Booking completely contains the slot
-                            (bookingStartMinutes <= slotStartMinutes && bookingEndMinutes >= slotEndMinutes)
-                        ) {
-                            overlapsWithBooking = true;
-                            break;
+                        // Check against each booking
+                        for (const booking of dateBookings) {
+                            const bookingStartMinutes = timeToMinutes(booking.startTime);
+                            const bookingEndMinutes = timeToMinutes(booking.endTime);
+                            
+                            // Check for overlap
+                            if (
+                                // Slot starts during a booking
+                                (slotStartMinutes >= bookingStartMinutes && slotStartMinutes < bookingEndMinutes) ||
+                                // Slot ends during a booking
+                                (slotEndMinutes > bookingStartMinutes && slotEndMinutes <= bookingEndMinutes) ||
+                                // Slot completely contains a booking
+                                (slotStartMinutes <= bookingStartMinutes && slotEndMinutes >= bookingEndMinutes) ||
+                                // Booking completely contains the slot
+                                (bookingStartMinutes <= slotStartMinutes && bookingEndMinutes >= slotEndMinutes) ||
+                                // Exact match on start and end times (normalized to handle format differences)
+                                (normalizeTimeFormat(slot.start) === normalizeTimeFormat(booking.startTime) && 
+                                 normalizeTimeFormat(slot.end) === normalizeTimeFormat(booking.endTime))
+                            ) {
+                                console.log(`Slot ${slot.start}-${slot.end} overlaps with booking ${booking.startTime}-${booking.endTime}`);
+                                overlapsWithBooking = true;
+                                break;
+                            }
                         }
                     }
                     
@@ -870,17 +928,29 @@ function generateSchedule(settings) {
                 });
             } else {
                 // Add a message indicating this is not a working day
-                // Check if workingDays has this day explicitly set to false (rest day) or if it's undefined/null (non-working day)
+                // Check if workingDays has this day explicitly set to false (not working) or if it's undefined/null (non-working day)
                 const isRestDay = settings && settings.workingDays && settings.workingDays[dayOfWeek] === false;
-                const messageType = isRestDay ? 'rest_day' : 'non_working_day';
+                const messageType = 'non_working_day'; // Use the same message type for all non-working days
                 addUnavailableMessage(dayContainer, messageType);
             }
             
             // Combine booked and available slots and sort them all together
             const allTimeSlots = [...dateBookings, ...availableTimeSlots];
+
+            // Enhanced sorting function to ensure proper chronological order
             allTimeSlots.sort((a, b) => {
-                const aMinutes = timeToMinutes(a.startTime);
-                const bMinutes = timeToMinutes(b.startTime);
+                // First normalize the time formats to ensure consistent comparison
+                const aStartTime = normalizeTimeFormat(a.startTime);
+                const bStartTime = normalizeTimeFormat(b.startTime);
+                
+                // Convert to minutes for comparison
+                const aMinutes = timeToMinutes(aStartTime);
+                const bMinutes = timeToMinutes(bStartTime);
+                
+                // Log the comparison for debugging
+                console.log(`Comparing slots: ${aStartTime} (${aMinutes} mins) vs ${bStartTime} (${bMinutes} mins)`);
+                
+                // Sort by start time (morning to evening)
                 return aMinutes - bMinutes;
             });
             
@@ -954,11 +1024,7 @@ function addUnavailableMessage(container, reason = 'default') {
     let icon = 'fa-calendar-xmark';
     let title = 'Unavailable';
     
-    if (reason === 'rest_day') {
-        message = 'This is your rest day';
-        icon = 'fa-bed';
-        title = 'Rest Day';
-    } else if (reason === 'non_working_day') {
+    if (reason === 'rest_day' || reason === 'non_working_day') {
         message = 'Not a working day';
         icon = 'fa-calendar-xmark';
         title = 'Not Working';
@@ -1308,26 +1374,34 @@ async function loadClients() {
         
         snapshot.forEach(doc => {
             const client = doc.data();
-            console.log(`Creating client element for: ${client.name}`);
+            // Create full name from firstName and lastName
+            const fullName = `${client.firstName || ''} ${client.lastName || ''}`.trim();
+            const initials = fullName ? fullName.substring(0, 2).toUpperCase() : 'CL';
+            
+            console.log(`Creating client element for: ${fullName}`);
+            
+            // Create address string
+            const address = client.address || 
+                `${client.street || ''}, ${client.city || ''}, ${client.state || ''} ${client.zip || ''}`.trim().replace(/^,\s*/, '').replace(/,\s*$/, '');
             
             const clientEl = document.createElement('button');
             clientEl.className = 'w-full p-3 bg-gray-100 rounded-lg text-left mb-2 hover:bg-gray-200';
             clientEl.innerHTML = `
                 <div class="flex items-center">
                     <div class="h-10 w-10 rounded-full bg-primary-light flex items-center justify-center text-primary font-bold mr-3">
-                        ${client.name.substring(0, 2).toUpperCase()}
+                        ${initials}
                     </div>
                     <div>
-                        <p class="font-medium">${client.name}</p>
-                        <p class="text-sm text-gray-600">${client.address || 'No address'}</p>
+                        <p class="font-medium">${fullName}</p>
+                        <p class="text-sm text-gray-600">${address || 'No address'}</p>
                     </div>
                 </div>
             `;
             
             // Add click handler
             clientEl.addEventListener('click', () => {
-                console.log(`Client selected: ${client.name}`);
-                selectClient(doc.id, client.name);
+                console.log(`Client selected: ${fullName}`);
+                selectClient(doc.id, fullName);
             });
             
             clientsContainer.appendChild(clientEl);
@@ -1625,11 +1699,11 @@ async function saveBooking() {
             ? `Booking confirmed successfully! Created ${occurrences} ${currentBookingData.frequency} bookings.`
             : 'Booking confirmed successfully!';
             
-        showAlertModal(message, () => {
-            // Reload the schedule to show the new booking(s)
-            loadUserSchedule();
-        });
+        // Reload the schedule immediately to show the new booking(s)
+        await loadUserSchedule();
         
+        // Then show the success message
+        showAlertModal(message);
     } catch (error) {
         console.error('Error saving booking:', error);
         confirmBtn.disabled = false;
@@ -1851,11 +1925,11 @@ function addTimeSlot(container, startTime, endTime, date, durationMinutes) {
         });
         
         try {
-            // Set the current booking data
+            // Set the current booking data with normalized time format
             currentBookingData.dateTime = {
                 date: formattedDate,
-                startTime: startTime,
-                endTime: endTime,
+                startTime: normalizeTimeFormat(startTime),
+                endTime: normalizeTimeFormat(endTime),
                 duration: durationMinutes
             };
             
@@ -1912,9 +1986,15 @@ function showNewClientForm() {
                 <div class="bg-white rounded-lg shadow-sm p-4">
                     <h2 class="text-lg font-medium text-gray-900 mb-4">Client Information</h2>
                     <div class="space-y-4">
-                        <div>
-                            <input type="text" id="clientName" placeholder="Client Name" required
-                                class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary-light">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <input type="text" id="clientFirstName" placeholder="First Name" required
+                                    class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary-light">
+                            </div>
+                            <div>
+                                <input type="text" id="clientLastName" placeholder="Last Name" required
+                                    class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary-light">
+                            </div>
                         </div>
                         <div>
                             <input type="tel" id="clientPhone" placeholder="Phone Number" required
@@ -2002,7 +2082,8 @@ async function saveNewClient() {
     const user = firebase.auth().currentUser;
     if (!user) return;
     
-    const nameInput = document.getElementById('clientName');
+    const firstNameInput = document.getElementById('clientFirstName');
+    const lastNameInput = document.getElementById('clientLastName');
     const phoneInput = document.getElementById('clientPhone');
     const emailInput = document.getElementById('clientEmail');
     const addressInput = document.getElementById('clientAddress');
@@ -2011,7 +2092,7 @@ async function saveNewClient() {
     const priceInput = document.getElementById('cleaningPrice');
     
     // Basic validation
-    if (!nameInput.value.trim() || !phoneInput.value.trim() || !addressInput.value.trim()) {
+    if (!firstNameInput.value.trim() || !phoneInput.value.trim() || !addressInput.value.trim()) {
         alert('Please fill in all required fields');
         return;
     }
@@ -2023,21 +2104,28 @@ async function saveNewClient() {
     saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Saving...';
     
     try {
-        // Save the client to Firestore
+        // Get values from the form
+        const firstName = firstNameInput.value.trim();
+        const lastName = lastNameInput.value.trim();
+        const fullName = `${firstName} ${lastName}`.trim();
+        
+        // Save the client to Firestore with firstName and lastName fields
         const clientsRef = firebase.firestore().collection('users').doc(user.uid).collection('clients');
         const newClientRef = await clientsRef.add({
-            name: nameInput.value.trim(),
+            firstName: firstName,
+            lastName: lastName,
             phone: phoneInput.value.trim(),
             email: emailInput.value.trim() || null,
-            address: addressInput.value.trim(),
+            street: addressInput.value.trim(), // Store as street for consistency
             notes: notesInput.value.trim() || null,
             accessInfo: accessInfoInput.value.trim() || null,
             price: priceInput.value ? Number(priceInput.value) : null,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         
         // Select the newly created client
-        selectClient(newClientRef.id, nameInput.value.trim());
+        selectClient(newClientRef.id, fullName);
         
         // Move to frequency selection
         showBookingStep('frequencySelection');
@@ -2158,6 +2246,19 @@ function addBookingCard(container, booking, isToday) {
             break;
     }
     
+    // Create client name from available fields
+    let clientName = booking.clientName || '';
+    
+    // If clientName is not available but we have firstName/lastName, use those
+    if (!clientName && (booking.clientFirstName || booking.clientLastName)) {
+        clientName = `${booking.clientFirstName || ''} ${booking.clientLastName || ''}`.trim();
+    }
+    
+    // If still no name, use a placeholder
+    if (!clientName) {
+        clientName = 'Unnamed Client';
+    }
+    
     // Create the card HTML with consistent format
     let cardHTML = `
             <div class="p-6">
@@ -2173,7 +2274,7 @@ function addBookingCard(container, booking, isToday) {
                 </div>
                 
             <!-- Client Name -->
-            <h3 class="font-medium text-gray-900">${booking.clientName}</h3>
+            <h3 class="font-medium text-gray-900">${clientName}</h3>
     `;
     
     // Add address if available
@@ -2576,173 +2677,19 @@ async function cancelBooking(bookingId) {
         });
         
         console.log('Booking cancelled successfully:', bookingId);
-        hideLoading();
         
-        // Immediately update the booking card in the UI
+        // Remove the booking card from the UI if it exists
         const bookingCard = document.querySelector(`[data-booking-id="${bookingId}"]`);
         if (bookingCard) {
             console.log('Removing booking card from UI');
             bookingCard.remove();
-            
-            // Get the booking details needed to create an available slot
-            const dateString = bookingData.date;
-            const startTime = bookingData.startTime;
-            const endTime = bookingData.endTime;
-            
-            // Try to find the day container directly using the data-date attribute
-            const dayContainer = document.querySelector(`div[data-date="${dateString}"]`);
-            
-            if (dayContainer) {
-                console.log('Found day container directly using data-date attribute');
-                
-                // Get user settings to check if this is a working day
-                const userDoc = await firebase.firestore().collection('users').doc(user.uid).get();
-                let settings = DEFAULT_SETTINGS;
-                
-                if (userDoc.exists) {
-                    const userData = userDoc.data();
-                    if (userData.settings) {
-                        settings = { ...DEFAULT_SETTINGS, ...userData.settings };
-                    } else {
-                        settings = { ...DEFAULT_SETTINGS, ...userData };
-                    }
-                }
-                
-                // Create a proper date object from the booking date string (YYYY-MM-DD)
-                const [year, month, day] = dateString.split('-').map(num => parseInt(num, 10));
-                const bookingDate = new Date(year, month - 1, day); // month is 0-indexed in JS Date
-                
-                const dayOfWeek = bookingDate.getDay();
-                // Use loose equality and handle string values
-                const isWorkingDay = settings && settings.workingDays && 
-                    (settings.workingDays[dayOfWeek] == true || 
-                     (typeof settings.workingDays[dayOfWeek] === 'string' && 
-                      settings.workingDays[dayOfWeek].toLowerCase() === 'true'));
-                
-                console.log('Checking if working day in cancelBooking:', { 
-                    dayOfWeek, 
-                    rawValue: settings?.workingDays?.[dayOfWeek],
-                    isWorkingDay, 
-                    workingDays: settings.workingDays,
-                    dateString: bookingDate.toDateString()
-                });
-                
-                if (isWorkingDay) {
-                    console.log('Adding available time slot for cancelled booking:', {
-                        date: bookingDate.toDateString(),
-                        startTime,
-                        endTime
-                    });
-                    
-                    // Get the cleaning duration from settings
-                    const cleaningDuration = settings.cleaningDuration || 180; // Default to 3 hours (180 minutes)
-                    
-                    // Add an available time slot
-                    addTimeSlot(dayContainer, startTime, endTime, bookingDate, cleaningDuration);
-                    
-                    // Check if we need to remove the "Fully Booked" message
-                    const unavailableMessage = dayContainer.querySelector('.text-center.py-8.bg-gray-100.rounded-lg.mb-4');
-                    if (unavailableMessage && unavailableMessage.textContent.includes('Fully Booked')) {
-                        console.log('Removing "Fully Booked" message');
-                        unavailableMessage.remove();
-                    }
-                } else {
-                    console.log('Not adding time slot - not a working day');
-                }
-            } else {
-                console.warn('Could not find day container using data-date attribute, falling back to header search');
-                
-                // Format the date string exactly as it would appear in the header
-                const formattedDateHeader = new Date(dateString).toLocaleDateString('en-US', { 
-                    weekday: 'long', 
-                    month: 'long', 
-                    day: 'numeric'
-                });
-                
-                console.log('Looking for date header with text containing:', formattedDateHeader);
-                
-                // Find all date headers in the document
-                const dateHeaders = Array.from(document.querySelectorAll('h2'));
-                console.log('All date headers:', dateHeaders.map(h => h.textContent));
-                
-                // Find the exact date header for this booking's date
-                const dateHeader = dateHeaders.find(h => h.textContent.includes(formattedDateHeader));
-                
-                if (dateHeader) {
-                    console.log('Found date header for cancelled booking:', dateHeader.textContent);
-                    
-                    // Find the day container - it's the next sibling div after the header's parent
-                    const headerParent = dateHeader.closest('div');
-                    const dayContainer = headerParent.nextElementSibling;
-                    
-                    if (dayContainer) {
-                        console.log('Found day container for cancelled booking');
-                        
-                        // Get user settings to check if this is a working day
-                        const userDoc = await firebase.firestore().collection('users').doc(user.uid).get();
-                        let settings = DEFAULT_SETTINGS;
-                        
-                        if (userDoc.exists) {
-                            const userData = userDoc.data();
-                            if (userData.settings) {
-                                settings = { ...DEFAULT_SETTINGS, ...userData.settings };
-                            } else {
-                                settings = { ...DEFAULT_SETTINGS, ...userData };
-                            }
-                        }
-                        
-                        // Create a proper date object from the booking date string (YYYY-MM-DD)
-                        const [year, month, day] = dateString.split('-').map(num => parseInt(num, 10));
-                        const bookingDate = new Date(year, month - 1, day); // month is 0-indexed in JS Date
-                        
-                        const dayOfWeek = bookingDate.getDay();
-                        // Use loose equality and handle string values
-                        const isWorkingDay = settings && settings.workingDays && 
-                            (settings.workingDays[dayOfWeek] == true || 
-                             (typeof settings.workingDays[dayOfWeek] === 'string' && 
-                              settings.workingDays[dayOfWeek].toLowerCase() === 'true'));
-                        
-                        console.log('Checking if working day in cancelBooking:', { 
-                            dayOfWeek, 
-                            rawValue: settings?.workingDays?.[dayOfWeek],
-                            isWorkingDay, 
-                            workingDays: settings.workingDays,
-                            dateString: bookingDate.toDateString()
-                        });
-                        
-                        if (isWorkingDay) {
-                            console.log('Adding available time slot for cancelled booking:', {
-                                date: bookingDate.toDateString(),
-                                startTime,
-                                endTime
-                            });
-                            
-                            // Get the cleaning duration from settings
-                            const cleaningDuration = settings.cleaningDuration || 180; // Default to 3 hours (180 minutes)
-                            
-                            // Add an available time slot
-                            addTimeSlot(dayContainer, startTime, endTime, bookingDate, cleaningDuration);
-                            
-                            // Check if we need to remove the "Fully Booked" message
-                            const unavailableMessage = dayContainer.querySelector('.text-center.py-8.bg-gray-100.rounded-lg.mb-4');
-                            if (unavailableMessage && unavailableMessage.textContent.includes('Fully Booked')) {
-                                console.log('Removing "Fully Booked" message');
-                                unavailableMessage.remove();
-                            }
-                        } else {
-                            console.log('Not adding time slot - not a working day');
-                        }
-                    } else {
-                        console.warn('Day container not found for date header');
-                    }
-                } else {
-                    console.warn('Date header not found for booking date:', formattedDateHeader);
-                    console.log('Available headers:', dateHeaders.map(h => h.textContent));
-                }
-            }
-        } else {
-            console.warn('Booking card not found in the UI');
         }
+        
+        // Refresh the entire schedule to properly show all available time slots
+        console.log('Refreshing schedule after booking cancellation');
+        await loadUserSchedule(false); // Pass false to avoid showing the loading indicator again
+        
+        hideLoading();
         
         // Show success message
         showAlertModal('Booking cancelled successfully');
@@ -3312,4 +3259,52 @@ async function cancelAllBookingsInSeries(booking) {
         
         showAlertModal(errorMessage);
     }
+}
+
+// Update the emergency button click handler to use the unified reset function
+document.getElementById('emergencyButton').addEventListener('click', async function() {
+    try {
+        showLoading('Resetting database...');
+        await resetAndPopulateDatabase();
+        hideLoading();
+        showSuccessMessage('Database reset successfully. Reloading page...');
+        setTimeout(() => window.location.reload(), 2000);
+    } catch (error) {
+        hideLoading();
+        showErrorMessage('Failed to reset database: ' + error.message);
+    }
+});
+
+// Helper function to normalize time format to HH:MM AM/PM
+function normalizeTimeFormat(timeStr) {
+    if (!timeStr) return timeStr;
+    
+    // Handle various time formats including "8:00 a.m." format with periods
+    // This regex matches: 
+    // - Hours (one or two digits)
+    // - Minutes (two digits)
+    // - AM/PM indicator in various formats (AM, PM, a.m., p.m.)
+    const match = timeStr.match(/(\d+):(\d+)\s*(a\.m\.|p\.m\.|AM|PM|am|pm)/i);
+    if (!match) return timeStr; // Return as is if no match
+    
+    const hours = parseInt(match[1]);
+    const minutes = match[2];
+    
+    // Normalize the period to uppercase AM/PM without periods
+    let period = match[3].toUpperCase().replace(/\./g, '');
+    if (period === 'AM' || period === 'PM') {
+        // Already in the right format
+    } else if (period === 'AM') {
+        period = 'AM';
+    } else if (period === 'PM') {
+        period = 'PM';
+    }
+    
+    // Ensure hours is in 12-hour format and has leading zero if needed
+    const formattedHours = hours === 0 ? '12' : 
+                          hours > 12 ? (hours - 12).toString() : 
+                          hours.toString();
+    
+    // Return in the exact format expected: "HH:MM AM/PM"
+    return `${formattedHours.padStart(2, '0')}:${minutes} ${period}`;
 }
