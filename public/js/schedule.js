@@ -1571,14 +1571,27 @@ async function saveBooking() {
             .get();
         
         if (!existingBookingsQuery.empty) {
-            console.warn('A booking with the same date and time already exists');
+            console.warn('Found bookings with the same date and time, checking if any are active');
             
-            // Check if any of the existing bookings have the same client
+            // Check if any of the existing bookings have the same client and are not cancelled
             let duplicateFound = false;
             existingBookingsQuery.forEach(doc => {
                 const existingBooking = doc.data();
-                if (existingBooking.clientId === currentBookingData.client?.id) {
+                // Only consider bookings that are not cancelled
+                if (existingBooking.clientId === currentBookingData.client?.id && existingBooking.status !== 'cancelled') {
                     duplicateFound = true;
+                    console.log('Found duplicate active booking with same client:', existingBooking);
+                }
+            });
+            
+            // Also check if there are any active bookings for this time slot (regardless of client)
+            let timeSlotOccupied = false;
+            existingBookingsQuery.forEach(doc => {
+                const existingBooking = doc.data();
+                // Only consider bookings that are not cancelled
+                if (existingBooking.status !== 'cancelled') {
+                    timeSlotOccupied = true;
+                    console.log('Found active booking occupying this time slot:', existingBooking);
                 }
             });
             
@@ -1587,6 +1600,14 @@ async function saveBooking() {
                 confirmBtn.disabled = false;
                 confirmBtn.innerHTML = 'Confirm Booking';
                 showAlertModal('A booking with the same date, time, and client already exists. Please choose a different time slot.');
+                return;
+            }
+            
+            if (timeSlotOccupied) {
+                console.error('This time slot is already occupied by an active booking');
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = 'Confirm Booking';
+                showAlertModal('A booking with the same date and time already exists. Please choose a different time slot.');
                 return;
             }
         }
@@ -2183,6 +2204,7 @@ async function loadUserBookings(startDate, endDate) {
         
         const bookings = [];
         const bookingKeys = new Set(); // Track unique bookings
+        const cancelledBookings = []; // Track cancelled bookings for debugging
         
         snapshot.forEach(doc => {
             const booking = {
@@ -2190,22 +2212,39 @@ async function loadUserBookings(startDate, endDate) {
                 ...doc.data()
             };
             
-            // Only include bookings within the date range and not cancelled
-            if (booking.date >= startDateStr && booking.date <= endDateStr && booking.status !== 'cancelled') {
+            // Check if the booking is within the date range
+            if (booking.date >= startDateStr && booking.date <= endDateStr) {
                 // Create a unique key for this booking based on date, time, and client
                 const bookingKey = `${booking.date}_${booking.startTime}_${booking.endTime}_${booking.clientName}`;
                 
-                // Only add this booking if we haven't seen it before
-                if (!bookingKeys.has(bookingKey)) {
-                    bookingKeys.add(bookingKey);
-                    bookings.push(booking);
+                // Check if the booking is cancelled
+                if (booking.status === 'cancelled') {
+                    cancelledBookings.push({
+                        id: booking.id,
+                        date: booking.date,
+                        time: `${booking.startTime} - ${booking.endTime}`,
+                        client: booking.clientName,
+                        status: booking.status
+                    });
+                    console.log(`Skipping cancelled booking: ${bookingKey}`);
                 } else {
-                    console.warn('Duplicate booking found and skipped:', bookingKey);
+                    // Only add this booking if we haven't seen it before and it's not cancelled
+                    if (!bookingKeys.has(bookingKey)) {
+                        bookingKeys.add(bookingKey);
+                        bookings.push(booking);
+                    } else {
+                        console.warn('Duplicate booking found and skipped:', bookingKey);
+                    }
                 }
             }
         });
         
-        console.log('Found', bookings.length, 'unique bookings in date range');
+        console.log('Found', bookings.length, 'active bookings in date range');
+        console.log('Excluded', cancelledBookings.length, 'cancelled bookings');
+        if (cancelledBookings.length > 0) {
+            console.log('Cancelled bookings:', cancelledBookings);
+        }
+        
         return bookings;
     } catch (error) {
         console.error('Error loading bookings:', error);
@@ -2376,7 +2415,7 @@ function showBookingDetails(booking) {
     // Create a modal to show booking details
     const modal = document.createElement('div');
     modal.id = 'bookingDetailsModal';
-    modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
+    modal.className = 'fixed inset-x-0 bottom-0 z-50 transform transition-transform duration-300 ease-in-out translate-y-full';
     
     // Format the date for display
     const formattedDate = new Date(booking.date).toLocaleDateString('en-US', { 
@@ -2402,126 +2441,152 @@ function showBookingDetails(booking) {
     const isPartOfSeries = !!booking.seriesId;
     
     modal.innerHTML = `
-        <div class="bg-white rounded-lg w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
-            <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+        <div class="bg-white w-full rounded-t-xl overflow-hidden shadow-xl transform transition-all max-h-[90vh] flex flex-col">
+            <div class="flex justify-center pt-2 pb-1">
+                <div class="w-10 h-1 bg-gray-300 rounded-full"></div>
+            </div>
+            <div class="flex justify-between items-center p-4 border-b border-gray-200">
                 <h2 class="text-xl font-bold text-gray-900">Booking Details</h2>
                 <button class="text-gray-500 hover:text-gray-700 close-modal">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <div class="p-4">
-                <!-- Time and Date -->
-                <div class="mb-4 p-4 bg-primary-light/30 rounded-lg">
-                    <div class="text-2xl font-bold text-primary">${booking.startTime} - ${booking.endTime}</div>
-                    <div class="text-gray-700">${formattedDate}</div>
-                    ${isPartOfSeries ? `
-                    <div class="mt-1 text-sm text-gray-600">
-                        <i class="fas fa-sync-alt mr-1"></i> 
-                        ${booking.frequency === 'weekly' ? 'Weekly' : 
-                          booking.frequency === 'bi-weekly' ? 'Bi-weekly' : 
-                          booking.frequency === 'monthly' ? 'Monthly' : ''} 
-                        (${booking.occurrenceNumber}/${booking.totalOccurrences})
+            <div class="overflow-y-auto p-4 flex-grow">
+                <div class="mb-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-lg font-semibold text-gray-900">Date & Time</h3>
+                        <span class="px-2 py-1 rounded text-sm ${isCancelled ? 'bg-red-100 text-red-800' : isPastBooking ? 'bg-gray-100 text-gray-800' : 'bg-green-100 text-green-800'}">
+                            ${isCancelled ? 'Cancelled' : isPastBooking ? 'Past' : 'Upcoming'}
+                        </span>
                     </div>
-                    ` : ''}
+                    <p class="text-gray-700">${formattedDate}</p>
+                    <p class="text-gray-700">${booking.startTime} - ${booking.endTime}</p>
                 </div>
                 
-                <!-- Status -->
+                ${!isPastBooking && !isCancelled ? `
                 <div class="mb-4">
-                    <div class="text-sm text-gray-500 mb-1">Status</div>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Status</h3>
                     <div class="flex space-x-2">
-                        <button class="status-btn px-3 py-2 rounded-lg text-sm font-medium ${currentStatus === 'scheduled' ? 'bg-primary text-white' : 'text-gray-900'}" data-status="scheduled">
-                            Scheduled
+                        <button class="status-btn px-3 py-2 rounded-lg border ${currentStatus === 'scheduled' ? 'bg-primary text-white' : 'text-gray-900'}" data-status="scheduled">
+                            Upcoming
                         </button>
-                        <button class="status-btn px-3 py-2 rounded-lg text-sm font-medium ${currentStatus === 'in-progress' ? 'bg-primary text-white' : 'text-gray-900'}" data-status="in-progress">
+                        <button class="status-btn px-3 py-2 rounded-lg border ${currentStatus === 'in-progress' ? 'bg-primary text-white' : 'text-gray-900'}" data-status="in-progress">
                             In Progress
                         </button>
-                        <button class="status-btn px-3 py-2 rounded-lg text-sm font-medium ${currentStatus === 'completed' ? 'bg-primary text-white' : 'text-gray-900'}" data-status="completed">
-                            Completed
-                        </button>
-                        <button class="status-btn px-3 py-2 rounded-lg text-sm font-medium ${currentStatus === 'paid' ? 'bg-primary text-white' : 'text-gray-900'}" data-status="paid">
-                            Paid
+                        <button class="status-btn px-3 py-2 rounded-lg border ${currentStatus === 'completed' ? 'bg-primary text-white' : 'text-gray-900'}" data-status="completed">
+                            Done
                         </button>
                     </div>
                 </div>
+                ` : ''}
                 
-                <!-- Client Details -->
                 <div class="mb-4">
-                    <div class="text-sm text-gray-500">Client</div>
-                    <div class="text-lg font-medium text-gray-900">${booking.clientName}</div>
-                    
-                    <div class="mt-4 space-y-3">
-                        ${booking.clientAddress ? `
-                <div>
-                            <div class="text-sm text-gray-500">Address</div>
-                            <div class="text-base text-gray-900 bg-gray-50 rounded-md p-3 mt-1">
-                                <i class="fas fa-map-marker-alt text-primary mr-1"></i>
-                                ${booking.clientAddress}
-                </div>
-                        </div>
-                        ` : ''}
-                        ${booking.clientPhone ? `
-                        <div>
-                            <div class="text-sm text-gray-500">Phone</div>
-                            <div class="text-base text-gray-900 bg-gray-50 rounded-md p-3 mt-1">
-                                <i class="fas fa-phone text-primary mr-1"></i>
-                                ${booking.clientPhone}
-                            </div>
-                        </div>
-                        ` : ''}
-                        ${booking.notes ? `
-                        <div>
-                            <div class="text-sm text-gray-500">Special Instructions</div>
-                            <div class="text-base text-gray-900 bg-gray-50 rounded-md p-3 mt-1">
-                                <i class="fas fa-info-circle text-primary mr-1"></i>
-                                ${booking.notes}
-                            </div>
-                        </div>
-                        ` : ''}
-                        ${booking.accessInfo ? `
-                        <div>
-                            <div class="text-sm text-gray-500">Access Information</div>
-                            <div class="text-base text-gray-900 bg-gray-50 rounded-md p-3 mt-1">
-                                <i class="fas fa-key text-primary mr-1"></i>
-                                ${booking.accessInfo}
-                            </div>
-                        </div>
-                        ` : ''}
-                        ${booking.price ? `
-                        <div>
-                            <div class="text-sm text-gray-500">Price</div>
-                            <div class="text-base font-medium text-gray-900">
-                                <i class="fas fa-dollar-sign text-primary mr-1"></i>
-                                $${booking.price}
-                            </div>
-                        </div>
-                        ` : ''}
-                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Client</h3>
+                    <p class="text-gray-700">${booking.clientName || 'No client name provided'}</p>
+                    ${booking.clientPhone ? `<p class="text-gray-700"><i class="fas fa-phone mr-1"></i> ${booking.clientPhone}</p>` : ''}
+                    ${booking.address ? `<p class="text-gray-700"><i class="fas fa-map-marker-alt mr-1"></i> ${booking.address}</p>` : ''}
                 </div>
                 
-                <!-- Action Buttons -->
-                <div class="flex gap-2 mt-6">
-                    ${!isCancelled && !isPastBooking ? `
-                    <button class="flex-1 py-3 px-4 bg-red-100 rounded-lg text-center text-red-700 text-sm font-medium cancel-booking" data-booking-id="${booking.id}">
-                        <i class="fas fa-ban mr-1"></i> Cancel Booking
+                ${booking.accessInfo ? `
+                <div class="mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Access Information</h3>
+                    <p class="text-gray-700">${booking.accessInfo}</p>
+                </div>
+                ` : ''}
+                
+                ${booking.specialInstructions ? `
+                <div class="mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Special Instructions</h3>
+                    <p class="text-gray-700">${booking.specialInstructions}</p>
+                </div>
+                ` : ''}
+                
+                ${booking.notes ? `
+                <div class="mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Notes</h3>
+                    <p class="text-gray-700">${booking.notes}</p>
+                </div>
+                ` : ''}
+                
+                ${isRecurring ? `
+                <div class="mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Recurring</h3>
+                    <p class="text-gray-700">This is a ${booking.frequency} booking</p>
+                    <p class="text-gray-700">Occurrence ${booking.occurrenceNumber} of ${booking.totalOccurrences}</p>
+                </div>
+                ` : ''}
+            </div>
+            <div class="p-4 border-t border-gray-200">
+                <div class="flex space-x-3">
+                    ${!isPastBooking && !isCancelled ? `
+                    <button class="flex-1 py-3 px-4 bg-red-500 rounded-lg text-center text-white text-sm font-medium cancel-booking">
+                        <i class="fas fa-times-circle mr-1"></i> Cancel Booking
                     </button>
                     ` : ''}
                     <button class="flex-1 py-3 px-4 bg-primary rounded-lg text-center text-white text-sm font-medium close-modal">
                         <i class="fas fa-check mr-1"></i> Close
                     </button>
                 </div>
-                </div>
             </div>
-        `;
+        </div>
+    `;
     
+    // Use the existing bookingModalBackdrop instead of creating a new one
+    const bookingModalBackdrop = document.getElementById('bookingModalBackdrop');
+    
+    // Add the modal to the document
     document.body.appendChild(modal);
+    
+    // Prevent body scrolling
+    document.body.style.overflow = 'hidden';
+    
+    // Show and animate the backdrop
+    if (bookingModalBackdrop) {
+        bookingModalBackdrop.classList.remove('hidden');
+        bookingModalBackdrop.style.opacity = '1';
+    }
+    
+    // Animate in the modal
+    setTimeout(() => {
+        modal.classList.remove('translate-y-full');
+    }, 10);
+    
+    // Set up drag functionality
+    setupBottomSheetDrag(modal);
+    
+    // Function to close the modal
+    const closeModal = () => {
+        // Animate out
+        modal.classList.add('translate-y-full');
+        
+        // Fade out the backdrop
+        if (bookingModalBackdrop) {
+            bookingModalBackdrop.style.opacity = '0';
+        }
+        
+        // Wait for animation to complete before removing
+        setTimeout(() => {
+            modal.remove();
+            
+            // Hide backdrop
+            if (bookingModalBackdrop) {
+                bookingModalBackdrop.classList.add('hidden');
+            }
+            
+            document.body.style.overflow = '';
+        }, 300);
+    };
     
     // Add event listeners for the close buttons
     const closeButtons = modal.querySelectorAll('.close-modal');
     closeButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            modal.remove();
-        });
+        button.addEventListener('click', closeModal);
     });
+    
+    // Add event listener for backdrop click
+    if (bookingModalBackdrop) {
+        bookingModalBackdrop.addEventListener('click', closeModal);
+    }
     
     // Add event listener for the cancel booking button
     const cancelButton = modal.querySelector('.cancel-booking');
@@ -2531,11 +2596,11 @@ function showBookingDetails(booking) {
             if (isPartOfSeries && booking.occurrenceNumber < booking.totalOccurrences) {
                 // Show enhanced cancellation options for recurring bookings
                 showCancellationOptions(booking);
-                modal.remove();
+                closeModal();
             } else {
                 // Show a standard confirmation modal for one-time bookings
                 showConfirmationModal('Are you sure you want to cancel this booking? This action cannot be undone.', () => {
-                    modal.remove();
+                    closeModal();
                     cancelBooking(booking.id);
                 }, () => {
                     // Do nothing if the user cancels
@@ -2562,100 +2627,8 @@ function showBookingDetails(booking) {
                 }
             });
             
-            // Create and show a loading overlay
-            const loadingOverlay = document.createElement('div');
-            loadingOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
-            loadingOverlay.innerHTML = `
-                <div class="bg-white p-4 rounded-lg shadow-lg flex items-center">
-                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-3"></div>
-                    <p class="text-gray-700">Updating status...</p>
-                </div>
-            `;
-            document.body.appendChild(loadingOverlay);
-            
-            // Get a reference to the booking document
-            const user = firebase.auth().currentUser;
-            if (!user) {
-                loadingOverlay.remove();
-                alert('You must be logged in to update a booking status');
-                return;
-            }
-            
-            try {
-                // Update the booking status in Firestore
-                const bookingRef = firebase.firestore().collection('users').doc(user.uid).collection('bookings').doc(booking.id);
-                
-                bookingRef.update({
-                    status: newStatus,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                })
-                    .then(() => {
-                        console.log('Booking status updated successfully');
-                        loadingOverlay.remove();
-                        
-                        // Update the booking card in the UI
-                        const bookingCard = document.querySelector(`[data-booking-id="${booking.id}"]`);
-                        if (bookingCard) {
-                            // Determine status display and class
-                            let statusDisplay = 'Upcoming';
-                            let statusClass = 'bg-gray-100 text-gray-800';
-                            
-                            switch(newStatus) {
-                                case 'in-progress':
-                                    statusDisplay = 'In Progress';
-                                    statusClass = 'bg-blue-100 text-blue-800';
-                                    break;
-                                case 'completed':
-                                    statusDisplay = 'Done';
-                                    statusClass = 'bg-green-100 text-green-800';
-                                    break;
-                                case 'paid':
-                                    statusDisplay = 'Done & Paid';
-                                    statusClass = 'bg-green-100 text-green-800';
-                                    break;
-                                case 'cancelled':
-                                    statusDisplay = 'Cancelled';
-                                    statusClass = 'bg-red-100 text-red-800';
-                                    break;
-                            }
-                            
-                            // Update the button text and class
-                            const statusBtn = bookingCard.querySelector('.status-badge');
-                            if (statusBtn) {
-                                statusBtn.textContent = statusDisplay;
-                                statusBtn.className = `px-3 py-2 text-sm font-medium rounded-lg ${statusClass}`;
-                            }
-                        }
-                    })
-                    .catch((error) => {
-                        console.error('Error updating booking status:', error);
-                        loadingOverlay.remove();
-                        alert('Error updating booking status: ' + error.message);
-                        
-                        // Revert UI changes if there was an error
-                        bookingRef.get().then(doc => {
-                            if (doc.exists) {
-                                const currentStatus = doc.data().status || 'scheduled';
-                                statusButtons.forEach(btn => {
-                                    const status = btn.getAttribute('data-status');
-                                    if (status === currentStatus) {
-                                        btn.classList.remove('text-gray-900');
-                                        btn.classList.add('text-white', 'bg-primary');
-                                    } else {
-                                        btn.classList.remove('text-white', 'bg-primary');
-                                        btn.classList.add('text-gray-900');
-                                    }
-                                });
-                            }
-                        }).catch(err => {
-                            console.error('Error getting current booking status:', err);
-                        });
-                    });
-            } catch (error) {
-                console.error('Exception in update process:', error);
-                loadingOverlay.remove();
-                alert(`Error in update process: ${error.message || 'Unknown error'}`);
-            }
+            // Update the booking status in Firestore
+            updateBookingStatus(booking.id, newStatus);
         });
     });
 }
@@ -2696,18 +2669,9 @@ async function cancelBooking(bookingId) {
         
         console.log('Booking cancelled successfully:', bookingId);
         
-        // Remove the booking card from the UI if it exists
-        const bookingCard = document.querySelector(`[data-booking-id="${bookingId}"]`);
-        if (bookingCard) {
-            console.log('Removing booking card from UI');
-            bookingCard.remove();
-        }
-        
-        // Refresh the entire schedule to properly show all available time slots
+        // Refresh the entire schedule with loading indicator
         console.log('Refreshing schedule after booking cancellation');
-        await loadUserSchedule(false); // Pass false to avoid showing the loading indicator again
-        
-        hideLoading();
+        await loadUserSchedule(true); // Show loading indicator for better user experience
         
         // Show success message
         showAlertModal('Booking cancelled successfully');
@@ -3119,7 +3083,7 @@ async function cancelFutureBookings(booking) {
         return;
     }
     
-    showLoading('Cancelling bookings...');
+    showLoading('Cancelling future bookings...');
     
     try {
         console.log('Cancelling future bookings for series:', booking.seriesId);
@@ -3145,9 +3109,6 @@ async function cancelFutureBookings(booking) {
         // Create an array to hold all cancellation promises
         const cancellationPromises = [];
         
-        // Create an array to hold all booking IDs that were cancelled
-        const cancelledBookingIds = [];
-        
         // Cancel each booking
         snapshot.forEach(doc => {
             const bookingId = doc.id;
@@ -3160,31 +3121,18 @@ async function cancelFutureBookings(booking) {
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 })
             );
-            
-            // Add the booking ID to the list of cancelled bookings
-            cancelledBookingIds.push(bookingId);
         });
         
         // Wait for all cancellations to complete
         await Promise.all(cancellationPromises);
         console.log(`Successfully cancelled ${cancellationPromises.length} bookings`);
         
-        hideLoading();
+        // Refresh the entire schedule with loading indicator
+        console.log('Refreshing schedule after cancelling future bookings');
+        await loadUserSchedule(true);
         
         // Show success message
-        showAlertModal(`Successfully cancelled ${bookingsToCancel} bookings.`, () => {
-            // Reload the schedule to reflect the changes
-            loadUserSchedule();
-        });
-        
-        // Remove the cancelled booking cards from the UI
-        cancelledBookingIds.forEach(bookingId => {
-            const bookingCard = document.querySelector(`[data-booking-id="${bookingId}"]`);
-            if (bookingCard) {
-                console.log('Removing booking card from UI:', bookingId);
-                bookingCard.remove();
-            }
-        });
+        showAlertModal(`Successfully cancelled ${bookingsToCancel} bookings.`);
         
     } catch (error) {
         console.error('Error cancelling future bookings:', error);
@@ -3233,9 +3181,6 @@ async function cancelAllBookingsInSeries(booking) {
         // Create an array to hold all cancellation promises
         const cancellationPromises = [];
         
-        // Create an array to hold all booking IDs that were cancelled
-        const cancelledBookingIds = [];
-        
         // Cancel each booking
         snapshot.forEach(doc => {
             const bookingId = doc.id;
@@ -3248,31 +3193,18 @@ async function cancelAllBookingsInSeries(booking) {
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 })
             );
-            
-            // Add the booking ID to the list of cancelled bookings
-            cancelledBookingIds.push(bookingId);
         });
         
         // Wait for all cancellations to complete
         await Promise.all(cancellationPromises);
         console.log(`Successfully cancelled ${cancellationPromises.length} bookings`);
         
-        hideLoading();
+        // Refresh the entire schedule with loading indicator
+        console.log('Refreshing schedule after cancelling all bookings in series');
+        await loadUserSchedule(true);
         
         // Show success message
-        showAlertModal(`Successfully cancelled ${bookingsToCancel} bookings.`, () => {
-            // Reload the schedule to reflect the changes
-            loadUserSchedule();
-        });
-        
-        // Remove the cancelled booking cards from the UI
-        cancelledBookingIds.forEach(bookingId => {
-            const bookingCard = document.querySelector(`[data-booking-id="${bookingId}"]`);
-            if (bookingCard) {
-                console.log('Removing booking card from UI:', bookingId);
-                bookingCard.remove();
-            }
-        });
+        showAlertModal(`Successfully cancelled ${bookingsToCancel} bookings.`);
         
     } catch (error) {
         console.error('Error cancelling all bookings in series:', error);
@@ -3462,4 +3394,97 @@ function setupBottomSheetDrag(bottomSheet) {
     
     dragHandle.addEventListener('mousedown', onStart);
     dragHandle.addEventListener('touchstart', onStart);
+}
+
+// Function to update booking status
+async function updateBookingStatus(bookingId, newStatus) {
+    // Create and show a loading overlay
+    const loadingOverlay = document.createElement('div');
+    loadingOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 z-60 flex items-center justify-center';
+    loadingOverlay.innerHTML = `
+        <div class="bg-white p-4 rounded-lg shadow-lg flex items-center">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-3"></div>
+            <p class="text-gray-700">Updating status...</p>
+        </div>
+    `;
+    document.body.appendChild(loadingOverlay);
+    
+    // Get a reference to the booking document
+    const user = firebase.auth().currentUser;
+    if (!user) {
+        loadingOverlay.remove();
+        showAlertModal('You must be logged in to update a booking status');
+        return;
+    }
+    
+    try {
+        const bookingRef = firebase.firestore().collection('users').doc(user.uid).collection('bookings').doc(bookingId);
+        
+        await bookingRef.update({
+            status: newStatus,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        
+        console.log('Booking status updated successfully');
+        loadingOverlay.remove();
+        
+        // Update the booking card in the UI
+        const bookingCard = document.querySelector(`[data-booking-id="${bookingId}"]`);
+        if (bookingCard) {
+            // Determine status display and class
+            let statusDisplay = 'Upcoming';
+            let statusClass = 'bg-gray-100 text-gray-800';
+            
+            switch(newStatus) {
+                case 'in-progress':
+                    statusDisplay = 'In Progress';
+                    statusClass = 'bg-blue-100 text-blue-800';
+                    break;
+                case 'completed':
+                    statusDisplay = 'Done';
+                    statusClass = 'bg-green-100 text-green-800';
+                    break;
+                case 'paid':
+                    statusDisplay = 'Done & Paid';
+                    statusClass = 'bg-green-100 text-green-800';
+                    break;
+                case 'cancelled':
+                    statusDisplay = 'Cancelled';
+                    statusClass = 'bg-red-100 text-red-800';
+                    break;
+            }
+            
+            // Update the button text and class
+            const statusBtn = bookingCard.querySelector('button:first-of-type');
+            if (statusBtn) {
+                statusBtn.textContent = statusDisplay;
+                statusBtn.className = `px-3 py-2 text-sm font-medium rounded-lg ${statusClass}`;
+            }
+        }
+    } catch (error) {
+        console.error('Error updating booking status:', error);
+        loadingOverlay.remove();
+        showAlertModal('Error updating booking status: ' + error.message);
+        
+        // Revert UI changes if there was an error
+        try {
+            const doc = await bookingRef.get();
+            if (doc.exists) {
+                const currentStatus = doc.data().status || 'scheduled';
+                const statusButtons = document.querySelectorAll('.status-btn');
+                statusButtons.forEach(btn => {
+                    const status = btn.getAttribute('data-status');
+                    if (status === currentStatus) {
+                        btn.classList.remove('text-gray-900');
+                        btn.classList.add('text-white', 'bg-primary');
+                    } else {
+                        btn.classList.remove('text-white', 'bg-primary');
+                        btn.classList.add('text-gray-900');
+                    }
+                });
+            }
+        } catch (err) {
+            console.error('Error getting current booking status:', err);
+        }
+    }
 }
