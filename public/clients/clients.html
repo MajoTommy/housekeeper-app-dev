@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-gray-50">
+<html lang="en" class="h-full bg-gray-100">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -31,107 +31,265 @@
     <!-- Your Firebase configuration -->
     <script src="../js/firebase-config.js"></script>
     
-    <!-- Firebase initialization for clients -->
-    <script src="../js/firebase-init-clients.js"></script>
-    
     <!-- Clients JS -->
     <script src="../js/clients.js"></script>
 </head>
-<body class="h-full pb-16">
+<body class="h-full">
     <!-- Header -->
-    <div class="sticky top-0 z-40 bg-white border-b border-gray-200">
-        <div class="flex items-center justify-between px-4 py-4">
-            <div class="flex items-center">
-                <h1 class="text-xl font-semibold leading-7 text-gray-900">Clients</h1>
-                <a href="add-client.html" class="ml-4 bg-primary text-white rounded-full w-8 h-8 flex items-center justify-center">
-                    <i class="fas fa-plus"></i>
-                </a>
-            </div>
+    <div class="bg-white px-4 py-6 border-b border-gray-200">
+        <div class="flex justify-between items-center">
             <div>
-                <a href="../settings/settings.html" class="text-gray-500">
-                    <i class="fas fa-cog text-xl"></i>
+                <h1 class="text-2xl font-bold text-gray-900">Clients</h1>
+            </div>
+            <div class="flex items-center gap-x-4">
+                <a href="add-client.html" class="inline-flex items-center justify-center rounded-full bg-primary p-2 text-white hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
+                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                </a>
+                <a href="../settings/settings.html" class="text-gray-500 hover:text-gray-700 p-2">
+                    <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
                 </a>
             </div>
         </div>
     </div>
 
-    <!-- Search Bar -->
-    <div class="p-4 bg-white border-b border-gray-200">
-        <div class="relative">
-            <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                <i class="fas fa-search text-gray-400"></i>
-            </div>
-            <input type="text" id="client-search" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm" placeholder="Search clients...">
-        </div>
-    </div>
-
-    <!-- Client List -->
-    <div id="client-list" class="divide-y divide-gray-200 bg-white">
-        <!-- Client list will be populated by JavaScript -->
-        <div class="p-4 text-center">
-            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-            <p class="mt-2 text-gray-500">Loading clients...</p>
-        </div>
-    </div>
-
-    <!-- Debug Button -->
-    <div class="fixed top-20 right-4 z-40 group">
-        <button id="debug-create-client" class="bg-red-500 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg hover:bg-red-600">
-            <i class="fas fa-bug"></i>
-        </button>
-        <div class="absolute top-0 right-12 bg-gray-800 text-white text-xs rounded py-1 px-2 hidden group-hover:block whitespace-nowrap">
-            Debug: Create Sample Client
-        </div>
-    </div>
-
-    <!-- Emergency Button -->
-    <div class="fixed top-36 right-4 z-40 group">
-        <button id="emergency-bypass" class="bg-yellow-500 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg hover:bg-yellow-600">
-            <i class="fas fa-exclamation-triangle"></i>
-        </button>
-        <div class="absolute top-0 right-12 bg-gray-800 text-white text-xs rounded py-1 px-2 hidden group-hover:block whitespace-nowrap">
-            Emergency: Bypass Loading
-        </div>
-    </div>
-
-    <!-- Error Container for Messages -->
-    <div id="error-container" class="hidden p-4 m-4 bg-red-100 border border-red-400 text-red-700 rounded">
-        <!-- Error messages will be displayed here -->
-    </div>
-
-    <!-- Success Container for Messages -->
-    <div id="success-container" class="hidden p-4 m-4 bg-green-100 border border-green-400 text-green-700 rounded">
-        <!-- Success messages will be displayed here -->
-    </div>
-
-    <!-- Sample Data Button -->
-    <div class="fixed bottom-20 right-4 z-40 group">
-        <button id="reset-sample-data" class="bg-green-500 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg hover:bg-green-600">
-            <i class="fas fa-database"></i>
-        </button>
-        <div class="absolute bottom-0 right-12 bg-gray-800 text-white text-xs rounded py-1 px-2 hidden group-hover:block whitespace-nowrap">
-            Reset & Add Sample Clients
-        </div>
-    </div>
-
-    <!-- Mobile Footer Navigation with Payment Badge -->
-    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30">
-        <div class="flex justify-around">
-            <a href="../index.html" class="flex flex-col items-center py-3 px-6 text-gray-500">
-                <i class="fas fa-calendar-alt text-xl"></i>
-                <span class="text-xs mt-1">Schedule</span>
-            </a>
-            <a href="clients.html" class="flex flex-col items-center py-3 px-6 text-primary">
-                <i class="fas fa-users text-xl"></i>
-                <span class="text-xs mt-1">Clients</span>
-            </a>
-            <a href="../payments/payments.html" class="flex flex-col items-center py-3 px-6 text-gray-500 relative">
-                <div class="relative">
-                    <i class="fas fa-dollar-sign text-xl"></i>
-                    <span class="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">3</span>
+    <!-- Main Content -->
+    <main class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-16">
+        <!-- Search Bar -->
+        <div class="mt-4">
+            <div class="relative">
+                <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                    <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                    </svg>
                 </div>
-                <span class="text-xs mt-1">Payments</span>
-            </a>
+                <input type="text" id="client-search" class="block w-full rounded-md border-0 py-2.5 pl-10 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" placeholder="Search clients...">
+            </div>
+        </div>
+
+        <!-- Client List -->
+        <div id="client-list" class="mt-4 space-y-4">
+            <!-- Client list will be populated by JavaScript -->
+            <div class="p-6 text-center bg-white rounded-lg shadow">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                <p class="mt-2 text-gray-500">Loading clients...</p>
+            </div>
+        </div>
+
+        <!-- Error Container -->
+        <div id="error-container" class="hidden mt-4 rounded-md bg-red-50 p-4">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-sm font-medium text-red-800">Error</h3>
+                    <div class="mt-2 text-sm text-red-700">
+                        <!-- Error messages will be displayed here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Success Container -->
+        <div id="success-container" class="hidden mt-4 rounded-md bg-green-50 p-4">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-green-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-sm font-medium text-green-800">Success</h3>
+                    <div class="mt-2 text-sm text-green-700">
+                        <!-- Success messages will be displayed here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Client Details Modal -->
+    <div id="client-details-modal" class="hidden relative z-50">
+        <!-- Background backdrop -->
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
+
+        <div class="fixed inset-0 z-50 overflow-y-auto">
+            <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+                <div class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+                    <!-- Modal Header -->
+                    <div class="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
+                        <div class="flex items-center justify-between border-b border-gray-200 pb-4">
+                            <h3 class="text-base font-semibold leading-6 text-gray-900" id="modal-client-name">Loading...</h3>
+                            <button type="button" onclick="closeClientDetailsModal()" class="rounded-md bg-white text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
+                                <span class="sr-only">Close</span>
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        
+                        <!-- View Mode Content -->
+                        <div id="view-mode-content" class="mt-4">
+                            <div class="space-y-6">
+                                <!-- Contact Info -->
+                                <div>
+                                    <p id="modal-address" class="text-sm text-gray-500">Loading address...</p>
+                                    <div class="mt-3 space-y-2">
+                                        <a id="modal-phone-link" href="tel:" class="text-sm text-primary hover:text-primary-dark flex items-center gap-2">
+                                            <i class="fas fa-phone"></i> Loading phone...
+                                        </a>
+                                        <a id="modal-email-link" href="mailto:" class="text-sm text-primary hover:text-primary-dark flex items-center gap-2">
+                                            <i class="fas fa-envelope"></i> Loading email...
+                                        </a>
+                                    </div>
+                                </div>
+
+                                <!-- Access Information -->
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-900">Access Information</h4>
+                                    <p id="modal-access-info-view" class="mt-2 text-sm text-gray-500">Loading access information...</p>
+                                </div>
+
+                                <!-- Special Instructions -->
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-900">Special Instructions</h4>
+                                    <p id="modal-special-instructions-view" class="mt-2 text-sm text-gray-500">Loading special instructions...</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Edit Mode Content -->
+                        <form id="client-edit-form" class="mt-4 hidden">
+                            <div class="space-y-6">
+                                <!-- Name Fields -->
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label for="modal-first-name" class="block text-sm font-medium leading-6 text-gray-900">First Name</label>
+                                        <div class="mt-2">
+                                            <input type="text" id="modal-first-name" class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label for="modal-last-name" class="block text-sm font-medium leading-6 text-gray-900">Last Name</label>
+                                        <div class="mt-2">
+                                            <input type="text" id="modal-last-name" class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Contact Info -->
+                                <div>
+                                    <label for="modal-phone" class="block text-sm font-medium leading-6 text-gray-900">Phone</label>
+                                    <div class="mt-2">
+                                        <input type="tel" id="modal-phone" class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label for="modal-email" class="block text-sm font-medium leading-6 text-gray-900">Email</label>
+                                    <div class="mt-2">
+                                        <input type="email" id="modal-email" class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">
+                                    </div>
+                                </div>
+
+                                <!-- Address Fields -->
+                                <div>
+                                    <label for="modal-street" class="block text-sm font-medium leading-6 text-gray-900">Street Address</label>
+                                    <div class="mt-2">
+                                        <input type="text" id="modal-street" class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-3 gap-4">
+                                    <div>
+                                        <label for="modal-city" class="block text-sm font-medium leading-6 text-gray-900">City</label>
+                                        <div class="mt-2">
+                                            <input type="text" id="modal-city" class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label for="modal-state" class="block text-sm font-medium leading-6 text-gray-900">State</label>
+                                        <div class="mt-2">
+                                            <input type="text" id="modal-state" class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label for="modal-zip" class="block text-sm font-medium leading-6 text-gray-900">ZIP</label>
+                                        <div class="mt-2">
+                                            <input type="text" id="modal-zip" class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Access Information -->
+                                <div>
+                                    <label for="modal-access-info" class="block text-sm font-medium leading-6 text-gray-900">Access Information</label>
+                                    <div class="mt-2">
+                                        <textarea id="modal-access-info" rows="3" class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6"></textarea>
+                                    </div>
+                                </div>
+
+                                <!-- Special Instructions -->
+                                <div>
+                                    <label for="modal-special-instructions" class="block text-sm font-medium leading-6 text-gray-900">Special Instructions</label>
+                                    <div class="mt-2">
+                                        <textarea id="modal-special-instructions" rows="3" class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Modal Footer -->
+                    <div class="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+                        <!-- View Mode Buttons -->
+                        <div id="view-mode-buttons">
+                            <button type="button" onclick="switchToEditMode()" class="inline-flex w-full justify-center rounded-md bg-primary px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:ml-3 sm:w-auto">
+                                Edit Client
+                            </button>
+                            <button type="button" onclick="closeClientDetailsModal()" class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto">
+                                Close
+                            </button>
+                        </div>
+                        
+                        <!-- Edit Mode Buttons -->
+                        <div id="edit-mode-buttons" class="hidden">
+                            <button type="button" onclick="saveClientDetails()" class="inline-flex w-full justify-center rounded-md bg-primary px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:ml-3 sm:w-auto">
+                                Save Changes
+                            </button>
+                            <button type="button" onclick="cancelEdit()" class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Footer Navigation -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30">
+        <div class="mx-auto max-w-7xl">
+            <div class="flex justify-around">
+                <a href="../index.html" class="flex flex-col items-center py-3 px-6 text-gray-500 hover:text-gray-900">
+                    <i class="fas fa-calendar-alt text-xl"></i>
+                    <span class="text-xs mt-1">Schedule</span>
+                </a>
+                <a href="clients.html" class="flex flex-col items-center py-3 px-6 text-primary">
+                    <i class="fas fa-users text-xl"></i>
+                    <span class="text-xs mt-1">Clients</span>
+                </a>
+                <a href="../payments/payments.html" class="flex flex-col items-center py-3 px-6 text-gray-500 hover:text-gray-900 relative">
+                    <div class="relative">
+                        <i class="fas fa-dollar-sign text-xl"></i>
+                        <span class="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">3</span>
+                    </div>
+                    <span class="text-xs mt-1">Payments</span>
+                </a>
+            </div>
         </div>
     </div>
 </body>

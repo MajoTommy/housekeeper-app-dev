@@ -115,39 +115,31 @@ function showSuccessMessage(message, duration = 5000) {
 }
 
 // Show error message
-function showErrorMessage(message, duration = 5000) {
-    // Create error container if it doesn't exist
-    let errorContainer = document.getElementById('error-container');
-    if (!errorContainer) {
-        errorContainer = document.createElement('div');
-        errorContainer.id = 'error-container';
-        errorContainer.className = 'p-4 m-4 bg-red-100 border border-red-400 text-red-700 rounded';
-        
-        // Insert at the top of the body or after the header
-        const header = document.querySelector('.sticky');
-        if (header && header.nextSibling) {
-            document.body.insertBefore(errorContainer, header.nextSibling);
+function showErrorMessage(message) {
+    console.error('Error:', message);
+    const errorContainer = document.querySelector('.error-container');
+    if (errorContainer) {
+        const errorMessage = document.getElementById('error-message');
+        if (errorMessage) {
+            errorMessage.textContent = message;
         } else {
-            document.body.prepend(errorContainer);
+            errorContainer.textContent = message;
         }
+        errorContainer.classList.remove('hidden');
+        errorContainer.style.display = 'block';
+    } else {
+        console.error('Error container not found in DOM');
+        alert('Error: ' + message);
     }
-    
-    // Make sure the container is visible
-    errorContainer.classList.remove('hidden');
-    
-    errorContainer.innerHTML = `
-        <div class="flex items-center">
-            <svg class="w-6 h-6 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
-            </svg>
-            <p>${message}</p>
-        </div>
-    `;
-    
-    // Auto-hide after duration
-    setTimeout(() => {
+}
+
+// Hide error message
+function hideErrorMessage() {
+    const errorContainer = document.querySelector('.error-container');
+    if (errorContainer) {
         errorContainer.classList.add('hidden');
-    }, duration);
+        errorContainer.style.display = 'none';
+    }
 }
 
 // Main function to load all clients
@@ -238,9 +230,8 @@ async function loadAllClients() {
 
 // Create a client list item element
 function createClientListItem(clientId, client) {
-    const clientElement = document.createElement('a');
-    clientElement.href = `client-details.html?id=${clientId}`;
-    clientElement.className = 'block p-4 hover:bg-gray-50 border-b border-gray-200';
+    const clientElement = document.createElement('div');
+    clientElement.className = 'mb-4 bg-white rounded-lg shadow overflow-hidden';
     
     // Get client properties with fallbacks
     const firstName = client.firstName || '';
@@ -268,17 +259,304 @@ function createClientListItem(clientId, client) {
     
     // Create the HTML for the client item
     clientElement.innerHTML = `
-        <div class="flex justify-between items-center">
-            <div>
-                <h3 class="text-lg font-medium text-gray-900">${fullName}</h3>
-                <p class="text-sm text-gray-500">${phone} | ${email}</p>
-                <p class="text-sm text-gray-500">${address}</p>
+        <div class="p-4">
+            <div class="flex items-center justify-between">
+                <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-x-3">
+                        <div class="flex-shrink-0">
+                            <div class="h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center">
+                                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="text-base font-semibold leading-7 text-gray-900">${fullName}</h3>
+                            ${client.frequency ? `<span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">${client.frequency}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="mt-3 grid grid-cols-1 gap-1 text-sm leading-6">
+                        <div class="flex items-center gap-x-2">
+                            <svg class="h-5 w-5 flex-none text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+                            </svg>
+                            <span class="text-gray-500">${address}</span>
+                        </div>
+                        <div class="flex items-center gap-x-2">
+                            <svg class="h-5 w-5 flex-none text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
+                            </svg>
+                            <span class="text-primary">${phone}</span>
+                        </div>
+                        <div class="flex items-center gap-x-2">
+                            <svg class="h-5 w-5 flex-none text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+                            </svg>
+                            <span class="text-gray-500">${client.accessInformation || 'Key under the mat'}</span>
+                        </div>
+                    </div>
+                </div>
+                <button class="inline-flex items-center gap-x-1.5 rounded-md bg-white px-2.5 py-1.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+                    <svg class="-ml-0.5 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    Details
+                </button>
             </div>
-            <i class="fas fa-chevron-right text-gray-400"></i>
         </div>
     `;
     
+    // Add click handler to open modal
+    clientElement.addEventListener('click', () => {
+        openClientDetailsModal(clientId, client);
+    });
+    
     return clientElement;
+}
+
+// Function to open client details modal
+function openClientDetailsModal(clientId, client) {
+    const modal = document.getElementById('client-details-modal');
+    if (!modal) return;
+    
+    // Show modal
+    modal.classList.remove('hidden');
+    
+    // Store client ID and data for later use
+    modal.dataset.clientId = clientId;
+    modal.dataset.clientData = JSON.stringify(client);
+    
+    // Update modal structure for better mobile responsiveness
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end sm:items-center justify-center';
+    
+    // Format the address
+    let address = 'No address provided';
+    if (client.street) {
+        const parts = [];
+        if (client.street) parts.push(client.street);
+        if (client.city) parts.push(client.city);
+        if (client.state) parts.push(client.state);
+        if (client.zip) parts.push(client.zip);
+        address = parts.join(', ');
+    }
+
+    // Update modal content structure
+    modal.innerHTML = `
+        <div class="bg-white w-full h-[95vh] sm:h-auto sm:max-h-[90vh] sm:w-full sm:max-w-lg rounded-t-xl sm:rounded-xl overflow-hidden">
+            <div class="flex justify-between items-center p-4 border-b border-gray-200">
+                <h2 class="text-xl font-semibold text-gray-900">${client.lastName}, ${client.firstName}</h2>
+                <button onclick="closeClientDetailsModal()" class="text-gray-400 hover:text-gray-500">
+                    <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="p-4 space-y-4">
+                <div class="flex items-center gap-x-2">
+                    <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+                    </svg>
+                    <span class="text-gray-600">${address}</span>
+                </div>
+                
+                <div class="flex items-center gap-x-2">
+                    <svg class="h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
+                    </svg>
+                    <a href="tel:${client.phone}" class="text-primary">${client.phone || 'No phone provided'}</a>
+                </div>
+
+                <div class="flex items-center gap-x-2">
+                    <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+                    </svg>
+                    <span class="text-gray-600">${client.accessInformation || 'Key under the mat'}</span>
+                </div>
+
+                <div class="mt-6">
+                    <h3 class="font-medium text-gray-900">Special Instructions</h3>
+                    <p class="mt-2 text-gray-600">${client.specialInstructions || 'No special instructions'}</p>
+                </div>
+            </div>
+
+            <div class="p-4 border-t border-gray-200">
+                <button onclick="switchToEditMode()" class="w-full bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-dark mb-2">
+                    Edit Client
+                </button>
+                <button onclick="closeClientDetailsModal()" class="w-full bg-white text-gray-700 px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50">
+                    Close
+                </button>
+            </div>
+        </div>
+    `;
+    
+    // Add close on background click
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closeClientDetailsModal();
+        }
+    });
+}
+
+// Function to switch to edit mode
+function switchToEditMode() {
+    const modal = document.getElementById('client-details-modal');
+    const clientData = JSON.parse(modal.dataset.clientData);
+    
+    // Update modal content with edit form
+    const modalContent = modal.querySelector('.bg-white');
+    modalContent.innerHTML = `
+        <div class="flex justify-between items-center p-4 border-b border-gray-200">
+            <h2 class="text-xl font-semibold text-gray-900">Edit Client</h2>
+            <button onclick="cancelEdit()" class="text-gray-400 hover:text-gray-500">
+                <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        
+        <form id="client-edit-form" class="p-4 space-y-4 overflow-y-auto" style="max-height: calc(95vh - 140px);">
+            <div class="space-y-4">
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                        <label for="modal-first-name" class="block text-sm font-medium text-gray-700">First Name</label>
+                        <input type="text" id="modal-first-name" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" value="${clientData.firstName || ''}">
+                    </div>
+                    <div>
+                        <label for="modal-last-name" class="block text-sm font-medium text-gray-700">Last Name</label>
+                        <input type="text" id="modal-last-name" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" value="${clientData.lastName || ''}">
+                    </div>
+                </div>
+
+                <div>
+                    <label for="modal-phone" class="block text-sm font-medium text-gray-700">Phone</label>
+                    <div class="mt-1 flex rounded-md shadow-sm">
+                        <input type="tel" id="modal-phone" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" value="${clientData.phone || ''}">
+                    </div>
+                </div>
+
+                <div>
+                    <label for="modal-street" class="block text-sm font-medium text-gray-700">Street Address</label>
+                    <input type="text" id="modal-street" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" value="${clientData.street || ''}">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                    <div class="col-span-2 sm:col-span-1">
+                        <label for="modal-city" class="block text-sm font-medium text-gray-700">City</label>
+                        <input type="text" id="modal-city" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" value="${clientData.city || ''}">
+                    </div>
+                    <div>
+                        <label for="modal-state" class="block text-sm font-medium text-gray-700">State</label>
+                        <input type="text" id="modal-state" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" value="${clientData.state || ''}">
+                    </div>
+                    <div>
+                        <label for="modal-zip" class="block text-sm font-medium text-gray-700">ZIP</label>
+                        <input type="text" id="modal-zip" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" value="${clientData.zip || ''}">
+                    </div>
+                </div>
+
+                <div>
+                    <label for="modal-access-info" class="block text-sm font-medium text-gray-700">Access Information</label>
+                    <input type="text" id="modal-access-info" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" value="${clientData.accessInformation || clientData.accessInfo || ''}">
+                </div>
+
+                <div>
+                    <label for="modal-special-instructions" class="block text-sm font-medium text-gray-700">Special Instructions</label>
+                    <textarea id="modal-special-instructions" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm">${clientData.specialInstructions || ''}</textarea>
+                </div>
+            </div>
+        </form>
+
+        <div class="p-4 border-t border-gray-200">
+            <button onclick="saveClientDetails()" class="w-full bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-dark mb-2">
+                Save Changes
+            </button>
+            <button onclick="cancelEdit()" class="w-full bg-white text-gray-700 px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50">
+                Cancel
+            </button>
+        </div>
+    `;
+}
+
+// Function to cancel edit and return to view mode
+function cancelEdit() {
+    const modal = document.getElementById('client-details-modal');
+    const clientData = JSON.parse(modal.dataset.clientData);
+    openClientDetailsModal(modal.dataset.clientId, clientData);
+}
+
+// Function to save client details
+async function saveClientDetails() {
+    const modal = document.getElementById('client-details-modal');
+    const clientId = modal.dataset.clientId;
+    
+    if (!clientId) {
+        showErrorMessage('No client ID found');
+        return;
+    }
+    
+    try {
+        const user = firebase.auth().currentUser;
+        if (!user) {
+            throw new Error('You must be logged in to save client details');
+        }
+        
+        // Show loading state
+        showLoading('Saving changes...');
+        
+        // Get form values
+        const updatedClient = {
+            firstName: document.getElementById('modal-first-name').value.trim(),
+            lastName: document.getElementById('modal-last-name').value.trim(),
+            phone: document.getElementById('modal-phone').value.trim(),
+            street: document.getElementById('modal-street').value.trim(),
+            city: document.getElementById('modal-city').value.trim(),
+            state: document.getElementById('modal-state').value.trim(),
+            zip: document.getElementById('modal-zip').value.trim(),
+            accessInformation: document.getElementById('modal-access-info').value.trim(),
+            specialInstructions: document.getElementById('modal-special-instructions').value.trim(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        
+        // Update in Firestore
+        const db = firebase.firestore();
+        await db.collection('users').doc(user.uid)
+            .collection('clients').doc(clientId)
+            .update(updatedClient);
+        
+        // Hide loading state
+        hideLoading();
+        
+        // Show success message
+        showSuccessMessage('Client details updated successfully');
+        
+        // Update the stored client data and refresh the view
+        modal.dataset.clientData = JSON.stringify(updatedClient);
+        openClientDetailsModal(clientId, updatedClient);
+        
+        // Refresh the client list
+        loadAllClients();
+        
+    } catch (error) {
+        console.error('Error saving client details:', error);
+        hideLoading();
+        showErrorMessage('Error saving client details: ' + error.message);
+    }
+}
+
+// Function to close client details modal
+function closeClientDetailsModal() {
+    const modal = document.getElementById('client-details-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        // Clear the stored data
+        delete modal.dataset.clientId;
+        delete modal.dataset.clientData;
+    }
 }
 
 // Initialize search functionality
@@ -445,14 +723,51 @@ function addHours(timeStr, hoursToAdd) {
 
 // Add function to load client details
 async function loadClientDetails(clientId) {
+    // CRITICAL: Check if clients.js is blocked on this page
+    if (window.blockClientsJs === true) {
+        console.log('loadClientDetails in clients.js blocked by blockClientsJs flag');
+        return; // Exit immediately
+    }
+    
     console.log('Loading client details for:', clientId);
     
+    // Hide any error messages
+    hideErrorMessage();
+    
+    // Directly hide any error messages at the top of the page
+    const errorMessages = document.querySelectorAll('.bg-red-100');
+    errorMessages.forEach(el => {
+        el.style.display = 'none';
+    });
+    
+    // Debug Firebase status to ensure it's properly initialized
+    debugFirebaseStatus();
+    
+    // Log the DOM structure to help debug
+    console.log('DOM structure:');
+    const allElements = document.querySelectorAll('*');
+    console.log('Total elements:', allElements.length);
+    console.log('h2 elements:', document.querySelectorAll('h2').length);
+    console.log('p.text-gray-600 elements:', document.querySelectorAll('p.text-gray-600').length);
+    console.log('a[href^="tel:"] elements:', document.querySelectorAll('a[href^="tel:"]').length);
+    console.log('a[href^="mailto:"] elements:', document.querySelectorAll('a[href^="mailto:"]').length);
+    console.log('client-card elements:', document.querySelectorAll('.client-card').length);
+    
+    // Show loading state - use the new loading-spinner class
+    const loadingSpinners = document.querySelectorAll('.loading-spinner');
+    loadingSpinners.forEach(el => {
+        if (el) el.style.display = 'block';
+    });
+    
     try {
+        // Validate client ID
+        if (!clientId) {
+            throw new Error('No client ID provided');
+        }
+        
         const user = firebase.auth().currentUser;
         if (!user) {
-            console.error('No user logged in');
-            showErrorMessage('You must be logged in to view client details');
-            return;
+            throw new Error('You must be logged in to view client details');
         }
         
         const db = firebase.firestore();
@@ -460,136 +775,796 @@ async function loadClientDetails(clientId) {
             .collection('clients').doc(clientId).get();
         
         if (!clientDoc.exists) {
-            console.error('Client not found');
-            showErrorMessage('Client not found');
-            return;
+            throw new Error('Client not found');
         }
         
         const client = clientDoc.data();
+        console.log('Client data loaded:', client);
+        
+        // Update page title with client name
+        try {
+            document.title = `${client.firstName} ${client.lastName} - Client Details`;
+        } catch (err) {
+            console.error('Error updating page title:', err);
+        }
+        
+        // Update edit client link to include the client ID
+        try {
+            const editLink = document.querySelector('a[href="edit-client.html"]');
+            if (editLink) {
+                editLink.href = `edit-client.html?id=${clientId}`;
+            } else {
+                console.warn('Edit link not found');
+            }
+        } catch (err) {
+            console.error('Error updating edit link:', err);
+        }
         
         // Update basic client info
-        document.querySelector('h2').textContent = `${client.lastName}, ${client.firstName}`;
-        document.querySelector('p.text-gray-600').textContent = 
-            `${client.street}, ${client.city}, ${client.state} ${client.zip}`;
-        
-        const phoneLink = document.querySelector('a[href^="tel:"]');
-        if (phoneLink) {
-            phoneLink.href = `tel:${client.phone}`;
-            phoneLink.innerHTML = `<i class="fas fa-phone"></i> ${client.phone}`;
-        }
-        
-        const emailLink = document.querySelector('a[href^="mailto:"]');
-        if (emailLink) {
-            emailLink.href = `mailto:${client.email}`;
-            emailLink.innerHTML = `<i class="fas fa-envelope"></i> ${client.email}`;
-        }
-        
-        // Update cleaning schedule section
-        const scheduleSection = document.querySelector('.client-card:nth-child(2) .p-4');
-        if (scheduleSection) {
-            const frequencyBadge = scheduleSection.querySelector('.rounded-full');
-            const scheduleText = scheduleSection.querySelector('.text-gray-700');
-            const propertyDetails = scheduleSection.querySelector('p.text-gray-600');
-            const priceText = scheduleSection.querySelectorAll('p.text-gray-600')[1];
-            
-            frequencyBadge.textContent = client.frequency || 'Not set';
-            scheduleText.textContent = client.scheduleDay && client.scheduleTime ? 
-                `Every ${client.scheduleDay} at ${client.scheduleTime}` : 'Schedule not set';
-            propertyDetails.textContent = client.propertyDetails || 'No property details';
-            priceText.textContent = client.price ? `$${client.price} per cleaning` : 'Price not set';
-        }
-        
-        // Load upcoming cleanings
-        const upcomingSection = document.querySelector('.client-card:nth-child(3) .p-4');
-        if (upcomingSection) {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            
-            const bookingsSnapshot = await db.collection('users').doc(user.uid)
-                .collection('bookings')
-                .where('clientId', '==', clientId)
-                .where('date', '>=', today)
-                .where('status', '==', 'scheduled')
-                .orderBy('date')
-                .limit(3)
-                .get();
-            
-            if (bookingsSnapshot.empty) {
-                upcomingSection.innerHTML = `
-                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Upcoming Cleanings</h3>
-                    <p class="text-gray-500">No upcoming cleanings scheduled</p>
-                    <a href="../schedule/new-cleaning.html?clientId=${clientId}" 
-                       class="mt-4 block text-center text-primary hover:text-primary-dark">
-                        <i class="fas fa-plus-circle mr-1"></i> Schedule New Cleaning
-                    </a>
-                `;
+        try {
+            const nameElement = document.querySelector('h2');
+            if (nameElement) {
+                nameElement.textContent = `${client.lastName}, ${client.firstName}`;
             } else {
-                let bookingsHTML = `
-                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Upcoming Cleanings</h3>
-                `;
+                console.warn('Name element (h2) not found');
+            }
+            
+            const addressElement = document.querySelector('p.text-gray-600');
+            if (addressElement) {
+                const address = [];
+                if (client.street) address.push(client.street);
+                if (client.city) address.push(client.city);
+                if (client.state) address.push(client.state);
+                if (client.zip) address.push(client.zip);
                 
-                bookingsSnapshot.forEach(doc => {
-                    const booking = doc.data();
-                    const date = booking.date.toDate();
-                    const formattedDate = date.toLocaleDateString('en-US', {
-                        weekday: 'long',
-                        month: 'long',
-                        day: 'numeric'
-                    });
+                addressElement.textContent = address.length > 0 ? address.join(', ') : 'No address provided';
+            } else {
+                console.warn('Address element not found');
+            }
+        } catch (err) {
+            console.error('Error updating basic client info:', err);
+        }
+        
+        // Update contact information
+        try {
+            const phoneLink = document.querySelector('a[href^="tel:"]');
+            if (phoneLink && client.phone) {
+                phoneLink.href = `tel:${client.phone}`;
+                phoneLink.innerHTML = `<i class="fas fa-phone"></i> ${client.phone}`;
+            } else if (phoneLink) {
+                phoneLink.href = '#';
+                phoneLink.innerHTML = `<i class="fas fa-phone"></i> No phone provided`;
+            } else {
+                console.warn('Phone link not found');
+            }
+            
+            const emailLink = document.querySelector('a[href^="mailto:"]');
+            if (emailLink && client.email) {
+                emailLink.href = `mailto:${client.email}`;
+                emailLink.innerHTML = `<i class="fas fa-envelope"></i> ${client.email}`;
+            } else if (emailLink) {
+                emailLink.href = '#';
+                emailLink.innerHTML = `<i class="fas fa-envelope"></i> No email provided`;
+            } else {
+                console.warn('Email link not found');
+            }
+        } catch (err) {
+            console.error('Error updating contact information:', err);
+        }
+        
+        // Update Cleaning Schedule section
+        try {
+            // Find the section by heading text
+            const cleaningScheduleHeading = Array.from(document.querySelectorAll('h3')).find(el => 
+                el.textContent.includes('Cleaning Schedule'));
+            
+            if (cleaningScheduleHeading) {
+                // Find the parent div that contains the heading
+                const sectionDiv = cleaningScheduleHeading.closest('.p-4');
+                
+                if (sectionDiv) {
+                    // Remove the loading spinner
+                    const spinner = sectionDiv.querySelector('.loading-spinner');
+                    if (spinner) {
+                        spinner.remove();
+                    }
                     
-                    bookingsHTML += `
-                        <div class="border-l-4 border-primary pl-3 py-2 mb-3">
-                            <div class="flex justify-between items-center">
-                                <div>
-                                    <p class="font-medium">${formattedDate}</p>
-                                    <p class="text-sm text-gray-600">${booking.startTime} - ${booking.endTime}</p>
-                                </div>
-                                <a href="../schedule/cleaning-details.html?id=${doc.id}" 
-                                   class="text-primary hover:text-primary-dark">
-                                    <i class="fas fa-chevron-right"></i>
+                    // Format schedule information from various fields
+                    const frequency = client.frequency || 'Not specified';
+                    
+                    // Build schedule string from various possible fields
+                    let scheduleInfo = 'Not specified';
+                    if (client.schedule) {
+                        scheduleInfo = client.schedule;
+                    } else if (client.scheduleDay && client.scheduleTime) {
+                        scheduleInfo = `Every ${client.scheduleDay} at ${client.scheduleTime}`;
+                    }
+                    
+                    // Get property details from various possible fields
+                    const propertyDetails = client.propertyDetails || client.property || 'Not specified';
+                    
+                    // Create the content HTML
+                    let scheduleHTML = `
+                        <div class="mt-4">
+                            <p class="font-medium">Frequency: <span class="font-normal">${frequency}</span></p>
+                            <p class="font-medium mt-2">Schedule: <span class="font-normal">${scheduleInfo}</span></p>
+                            <p class="font-medium mt-2">Property Details: <span class="font-normal">${propertyDetails}</span></p>
+                            <div class="mt-4">
+                                <a href="../schedule/reschedule-choice.html?clientId=${clientId}" class="text-blue-600 hover:text-blue-800">
+                                    <i class="fas fa-calendar-alt mr-1"></i> Reschedule
                                 </a>
                             </div>
                         </div>
                     `;
-                });
-                
-                upcomingSection.innerHTML = bookingsHTML;
+                    
+                    // Append the content to the section div
+                    sectionDiv.insertAdjacentHTML('beforeend', scheduleHTML);
+                } else {
+                    console.warn('Section div for Cleaning Schedule not found');
+                }
+            } else {
+                console.warn('Cleaning Schedule heading not found');
             }
+        } catch (err) {
+            console.error('Error updating Cleaning Schedule section:', err);
         }
         
-        // Update access information
-        const accessSection = document.querySelector('.client-card:nth-child(4) .p-4');
-        if (accessSection) {
-            const accessInfo = client.accessInfo || 'No access information provided';
-            accessSection.innerHTML = `
-                <h3 class="text-lg font-semibold text-gray-900 mb-2">Access Information</h3>
-                <div class="space-y-2">
-                    <p class="text-gray-700">${accessInfo}</p>
-                </div>
-            `;
+        // Update Upcoming Cleanings section
+        try {
+            // Find the section by heading text
+            const upcomingCleaningsHeading = Array.from(document.querySelectorAll('h3')).find(el => 
+                el.textContent.includes('Upcoming Cleanings'));
+            
+            if (upcomingCleaningsHeading) {
+                // Find the parent div that contains the heading
+                const sectionDiv = upcomingCleaningsHeading.closest('.p-4');
+                
+                if (sectionDiv) {
+                    // Remove the loading spinner
+                    const spinner = sectionDiv.querySelector('.loading-spinner');
+                    if (spinner) {
+                        spinner.remove();
+                    }
+                    
+                    // Show temporary loading state
+                    const loadingDiv = document.createElement('div');
+                    loadingDiv.className = 'mt-4 text-center';
+                    loadingDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading bookings...';
+                    sectionDiv.appendChild(loadingDiv);
+                    
+                    // Fetch bookings for this client
+                    try {
+                        const bookingsRef = db.collection('users').doc(user.uid)
+                            .collection('bookings');
+                        
+                        // Query for all bookings for this client without date filter
+                        const bookingsSnapshot = await bookingsRef
+                            .where('clientId', '==', clientId)
+                            .get();
+                        
+                        console.log(`Found ${bookingsSnapshot.docs.length} bookings for client ${clientId}`);
+                        
+                        // Remove the temporary loading div
+                        loadingDiv.remove();
+                        
+                        if (!bookingsSnapshot.empty) {
+                            // Filter bookings to only include future ones
+                            const now = new Date();
+                            const upcomingBookings = bookingsSnapshot.docs
+                                .map(doc => {
+                                    const data = doc.data();
+                                    // Handle different date formats
+                                    let bookingDate;
+                                    if (data.date && data.date.toDate) {
+                                        // Firestore Timestamp
+                                        bookingDate = data.date.toDate();
+                                    } else if (data.date && typeof data.date === 'string') {
+                                        // String date
+                                        bookingDate = new Date(data.date);
+                                    } else if (data.date && typeof data.date === 'object') {
+                                        // Date object
+                                        bookingDate = new Date(data.date);
+                                    } else {
+                                        console.warn('Invalid date format for booking:', data);
+                                        return null;
+                                    }
+                                    
+                                    return {
+                                        id: doc.id,
+                                        ...data,
+                                        parsedDate: bookingDate
+                                    };
+                                })
+                                .filter(booking => booking && booking.parsedDate && booking.parsedDate >= now)
+                                .sort((a, b) => a.parsedDate - b.parsedDate);
+                            
+                            console.log(`Found ${upcomingBookings.length} upcoming bookings`);
+                            
+                            if (upcomingBookings.length > 0) {
+                                let bookingsHTML = '<div class="mt-4">';
+                                
+                                upcomingBookings.forEach(booking => {
+                                    const formattedDate = booking.parsedDate.toLocaleDateString();
+                                    const formattedTime = booking.startTime || 'No time specified';
+                                    
+                                    bookingsHTML += `
+                                        <div class="mb-4 p-3 border border-gray-200 rounded-lg">
+                                            <div class="flex justify-between items-center">
+                                                <div>
+                                                    <p class="font-medium">${formattedDate} at ${formattedTime}</p>
+                                                    <p class="text-sm text-gray-600">${booking.notes || 'No notes'}</p>
+                                                </div>
+                                                <div>
+                                                    <a href="booking-details.html?id=${booking.id}" class="text-blue-600 hover:text-blue-800">
+                                                        <i class="fas fa-eye"></i>
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `;
+                                });
+                                
+                                bookingsHTML += '</div>';
+                                sectionDiv.insertAdjacentHTML('beforeend', bookingsHTML);
+                            } else {
+                                sectionDiv.insertAdjacentHTML('beforeend', '<p class="mt-4 text-gray-600">No upcoming cleanings scheduled.</p>');
+                            }
+                        } else {
+                            sectionDiv.insertAdjacentHTML('beforeend', '<p class="mt-4 text-gray-600">No cleanings scheduled for this client.</p>');
+                        }
+                    } catch (err) {
+                        console.error('Error fetching bookings:', err);
+                        // Remove the temporary loading div
+                        loadingDiv.remove();
+                        sectionDiv.insertAdjacentHTML('beforeend', `<p class="mt-4 text-red-600">Error loading bookings: ${err.message}</p>`);
+                    }
+                } else {
+                    console.warn('Section div for Upcoming Cleanings not found');
+                }
+            } else {
+                console.warn('Upcoming Cleanings heading not found');
+            }
+        } catch (err) {
+            console.error('Error updating Upcoming Cleanings section:', err);
         }
         
-        // Update special instructions
-        const instructionsSection = document.querySelector('.client-card:nth-child(5) .p-4');
-        if (instructionsSection) {
-            const instructions = client.specialInstructions || 'No special instructions provided';
-            instructionsSection.innerHTML = `
-                <h3 class="text-lg font-semibold text-gray-900 mb-2">Special Instructions</h3>
-                <div class="space-y-2">
-                    <p class="text-gray-700">${instructions}</p>
-                </div>
-            `;
+        // Update Access Information section
+        try {
+            // Find the section by heading text
+            const accessInfoHeading = Array.from(document.querySelectorAll('h3')).find(el => 
+                el.textContent.includes('Access Information'));
+            
+            if (accessInfoHeading) {
+                // Find the parent div that contains the heading
+                const sectionDiv = accessInfoHeading.closest('.p-4');
+                
+                if (sectionDiv) {
+                    // Remove the loading spinner
+                    const spinner = sectionDiv.querySelector('.loading-spinner');
+                    if (spinner) {
+                        spinner.remove();
+                    }
+                    
+                    // Check both possible field names
+                    const accessInformation = client.accessInformation || client.accessInfo || null;
+                    if (accessInformation) {
+                        sectionDiv.insertAdjacentHTML('beforeend', `<p class="mt-4">${accessInformation}</p>`);
+                    } else {
+                        sectionDiv.insertAdjacentHTML('beforeend', '<p class="mt-4 text-gray-600">No access information provided.</p>');
+                    }
+                } else {
+                    console.warn('Section div for Access Information not found');
+                }
+            } else {
+                console.warn('Access Information heading not found');
+            }
+        } catch (err) {
+            console.error('Error updating Access Information section:', err);
         }
+        
+        // Update Special Instructions section
+        try {
+            // Find the section by heading text
+            const specialInstructionsHeading = Array.from(document.querySelectorAll('h3')).find(el => 
+                el.textContent.includes('Special Instructions'));
+            
+            if (specialInstructionsHeading) {
+                // Find the parent div that contains the heading
+                const sectionDiv = specialInstructionsHeading.closest('.p-4');
+                
+                if (sectionDiv) {
+                    // Remove the loading spinner
+                    const spinner = sectionDiv.querySelector('.loading-spinner');
+                    if (spinner) {
+                        spinner.remove();
+                    }
+                    
+                    // Check both possible field names
+                    const instructions = client.specialInstructions || client.instructions || null;
+                    if (instructions) {
+                        sectionDiv.insertAdjacentHTML('beforeend', `<p class="mt-4">${instructions}</p>`);
+                    } else {
+                        sectionDiv.insertAdjacentHTML('beforeend', '<p class="mt-4 text-gray-600">No special instructions provided.</p>');
+                    }
+                } else {
+                    console.warn('Section div for Special Instructions not found');
+                }
+            } else {
+                console.warn('Special Instructions heading not found');
+            }
+        } catch (err) {
+            console.error('Error updating Special Instructions section:', err);
+        }
+        
+        // Hide all loading spinners
+        document.querySelectorAll('.loading-spinner').forEach(el => {
+            if (el) el.style.display = 'none';
+        });
         
     } catch (error) {
         console.error('Error loading client details:', error);
-        showErrorMessage('Error loading client details: ' + error.message);
+        
+        // Show error message
+        showErrorMessage(`Error loading client details: ${error.message}`);
+        
+        // Hide loading spinners
+        document.querySelectorAll('.loading-spinner').forEach(el => {
+            if (el) el.style.display = 'none';
+        });
+        
+        // Update sections with error state
+        document.querySelectorAll('.client-card .p-4').forEach(section => {
+            try {
+                const heading = section.querySelector('h3');
+                if (heading) {
+                    // Keep the heading but clear the rest of the content
+                    const headingText = heading.textContent;
+                    section.innerHTML = '';
+                    const newHeading = document.createElement('h3');
+                    newHeading.className = 'text-lg font-semibold text-gray-900 mb-2';
+                    newHeading.textContent = headingText;
+                    section.appendChild(newHeading);
+                    
+                    // Add error message
+                    const errorMsg = document.createElement('p');
+                    errorMsg.className = 'text-red-500 mt-2';
+                    errorMsg.textContent = 'Could not load data';
+                    section.appendChild(errorMsg);
+                }
+            } catch (err) {
+                console.error('Error updating section with error state:', err);
+            }
+        });
+    }
+}
+
+// A simpler approach to loading client details
+async function loadClientDetailsSimple(clientId) {
+    console.log('Loading client details (simple approach) for:', clientId);
+    
+    // Hide any existing error messages
+    try {
+        const errorContainers = document.querySelectorAll('.error-container, .bg-red-100');
+        errorContainers.forEach(container => {
+            if (container) {
+                container.style.display = 'none';
+            }
+        });
+    } catch (err) {
+        console.error('Error hiding error messages:', err);
+    }
+    
+    // Show all loading spinners
+    try {
+        const spinners = document.querySelectorAll('.loading-spinner');
+        spinners.forEach(spinner => {
+            if (spinner) {
+                spinner.style.display = 'block';
+            }
+        });
+    } catch (err) {
+        console.error('Error showing loading spinners:', err);
+    }
+    
+    try {
+        // Basic validation
+        if (!clientId) {
+            throw new Error('No client ID provided');
+        }
+        
+        // Check authentication
+        const user = firebase.auth().currentUser;
+        if (!user) {
+            throw new Error('You must be logged in to view client details');
+        }
+        
+        // Get client data
+        const db = firebase.firestore();
+        const clientDoc = await db.collection('users').doc(user.uid)
+            .collection('clients').doc(clientId).get();
+        
+        if (!clientDoc.exists) {
+            throw new Error('Client not found');
+        }
+        
+        const client = clientDoc.data();
+        console.log('Client data loaded:', client);
+        
+        // Update client info section
+        try {
+            // Update page title
+            document.title = `${client.firstName} ${client.lastName} - Client Details`;
+            
+            // Update client name
+            const nameElement = document.querySelector('h2');
+            if (nameElement) {
+                nameElement.textContent = `${client.lastName}, ${client.firstName}`;
+            }
+            
+            // Update address
+            const addressElement = document.querySelector('p.text-gray-600');
+            if (addressElement) {
+                const address = [];
+                if (client.street) address.push(client.street);
+                if (client.city) address.push(client.city);
+                if (client.state) address.push(client.state);
+                if (client.zip) address.push(client.zip);
+                
+                addressElement.textContent = address.length > 0 ? address.join(', ') : 'No address provided';
+            }
+            
+            // Update phone
+            const phoneLink = document.querySelector('a[href^="tel:"]');
+            if (phoneLink) {
+                if (client.phone) {
+                    phoneLink.href = `tel:${client.phone}`;
+                    phoneLink.innerHTML = `<i class="fas fa-phone"></i> ${client.phone}`;
+                } else {
+                    phoneLink.href = '#';
+                    phoneLink.innerHTML = `<i class="fas fa-phone"></i> No phone provided`;
+                }
+            }
+            
+            // Update email
+            const emailLink = document.querySelector('a[href^="mailto:"]');
+            if (emailLink) {
+                if (client.email) {
+                    emailLink.href = `mailto:${client.email}`;
+                    emailLink.innerHTML = `<i class="fas fa-envelope"></i> ${client.email}`;
+                } else {
+                    emailLink.href = '#';
+                    emailLink.innerHTML = `<i class="fas fa-envelope"></i> No email provided`;
+                }
+            }
+            
+            // Update edit link
+            const editLink = document.querySelector('a[href="edit-client.html"]');
+            if (editLink) {
+                editLink.href = `edit-client.html?id=${clientId}`;
+            }
+        } catch (err) {
+            console.error('Error updating client info:', err);
+        }
+        
+        // Update all sections
+        updateAllSections(client, clientId, user.uid);
+        
+    } catch (error) {
+        console.error('Error loading client details:', error);
+        
+        // Show error message at the top
+        try {
+            const errorContainer = document.querySelector('.error-container');
+            if (errorContainer) {
+                const errorMessage = document.getElementById('error-message');
+                if (errorMessage) {
+                    errorMessage.textContent = `Error: ${error.message}`;
+                } else {
+                    errorContainer.textContent = `Error: ${error.message}`;
+                }
+                errorContainer.style.display = 'block';
+                errorContainer.classList.remove('hidden');
+            } else {
+                alert(`Error: ${error.message}`);
+            }
+        } catch (err) {
+            console.error('Error showing error message:', err);
+            alert(`Error: ${error.message}`);
+        }
+        
+        // Hide all loading spinners
+        try {
+            const spinners = document.querySelectorAll('.loading-spinner');
+            spinners.forEach(spinner => {
+                if (spinner) {
+                    spinner.style.display = 'none';
+                }
+            });
+        } catch (err) {
+            console.error('Error hiding loading spinners:', err);
+        }
+    }
+}
+
+// Helper function to update all sections
+async function updateAllSections(client, clientId, userId) {
+    try {
+        // Update cleaning schedule section
+        updateSection('cleaning-schedule-section', createCleaningScheduleContent(client, clientId));
+        
+        // Update upcoming cleanings section
+        try {
+            // Show loading state for this section
+            const section = document.getElementById('upcoming-cleanings-section');
+            if (section) {
+                const spinner = section.querySelector('.loading-spinner');
+                if (spinner) {
+                    spinner.style.display = 'block';
+                }
+            }
+            
+            // Fetch bookings
+            const db = firebase.firestore();
+            const bookingsSnapshot = await db.collection('users').doc(userId)
+                .collection('bookings')
+                .where('clientId', '==', clientId)
+                .get();
+            
+            // Process and display bookings
+            const bookingsContent = createUpcomingCleaningsContent(bookingsSnapshot);
+            updateSection('upcoming-cleanings-section', bookingsContent);
+        } catch (err) {
+            console.error('Error updating upcoming cleanings:', err);
+            updateSection('upcoming-cleanings-section', `<p class="mt-4 text-red-600">Error loading bookings: ${err.message}</p>`);
+        }
+        
+        // Update access information section
+        const accessInfo = client.accessInformation || client.accessInfo || null;
+        if (accessInfo) {
+            updateSection('access-info-section', `<p class="mt-4">${accessInfo}</p>`);
+        } else {
+            updateSection('access-info-section', '<p class="mt-4 text-gray-600">No access information provided.</p>');
+        }
+        
+        // Update special instructions section
+        const instructions = client.specialInstructions || client.instructions || null;
+        if (instructions) {
+            updateSection('special-instructions-section', `<p class="mt-4">${instructions}</p>`);
+        } else {
+            updateSection('special-instructions-section', '<p class="mt-4 text-gray-600">No special instructions provided.</p>');
+        }
+    } catch (err) {
+        console.error('Error updating sections:', err);
+    }
+}
+
+// Helper function to update a section
+function updateSection(sectionId, content) {
+    try {
+        const section = document.getElementById(sectionId);
+        if (!section) {
+            console.warn(`Section ${sectionId} not found`);
+            return;
+        }
+        
+        // Hide spinner
+        const spinner = section.querySelector('.loading-spinner');
+        if (spinner) {
+            spinner.style.display = 'none';
+        }
+        
+        // Update content
+        const contentDiv = section.querySelector('.section-content');
+        if (contentDiv) {
+            contentDiv.innerHTML = content;
+            contentDiv.style.display = 'block';
+        } else {
+            console.warn(`Content div not found in section ${sectionId}`);
+        }
+    } catch (err) {
+        console.error(`Error updating section ${sectionId}:`, err);
+    }
+}
+
+// Helper function to create cleaning schedule content
+function createCleaningScheduleContent(client, clientId) {
+    // Format schedule information
+    const frequency = client.frequency || 'Not specified';
+    
+    // Build schedule string
+    let scheduleInfo = 'Not specified';
+    if (client.schedule) {
+        scheduleInfo = client.schedule;
+    } else if (client.scheduleDay && client.scheduleTime) {
+        scheduleInfo = `Every ${client.scheduleDay} at ${client.scheduleTime}`;
+    }
+    
+    // Get property details
+    const propertyDetails = client.propertyDetails || client.property || 'Not specified';
+    
+    // Create HTML content
+    return `
+        <div class="mt-4">
+            <p class="font-medium">Frequency: <span class="font-normal">${frequency}</span></p>
+            <p class="font-medium mt-2">Schedule: <span class="font-normal">${scheduleInfo}</span></p>
+            <p class="font-medium mt-2">Property Details: <span class="font-normal">${propertyDetails}</span></p>
+            <div class="mt-4">
+                <a href="../schedule/reschedule-choice.html?clientId=${clientId}" class="text-blue-600 hover:text-blue-800">
+                    <i class="fas fa-calendar-alt mr-1"></i> Reschedule
+                </a>
+            </div>
+        </div>
+    `;
+}
+
+// Helper function to create upcoming cleanings content
+function createUpcomingCleaningsContent(bookingsSnapshot) {
+    if (bookingsSnapshot.empty) {
+        return '<p class="mt-4 text-gray-600">No cleanings scheduled for this client.</p>';
+    }
+    
+    // Filter for upcoming bookings
+    const now = new Date();
+    const upcomingBookings = bookingsSnapshot.docs
+        .map(doc => {
+            const data = doc.data();
+            let bookingDate;
+            
+            if (data.date && data.date.toDate) {
+                bookingDate = data.date.toDate();
+            } else if (data.date && typeof data.date === 'string') {
+                bookingDate = new Date(data.date);
+            } else if (data.date && typeof data.date === 'object') {
+                bookingDate = new Date(data.date);
+            } else {
+                return null;
+            }
+            
+            return {
+                id: doc.id,
+                ...data,
+                parsedDate: bookingDate
+            };
+        })
+        .filter(booking => booking && booking.parsedDate && booking.parsedDate >= now)
+        .sort((a, b) => a.parsedDate - b.parsedDate);
+    
+    if (upcomingBookings.length === 0) {
+        return '<p class="mt-4 text-gray-600">No upcoming cleanings scheduled.</p>';
+    }
+    
+    // Create HTML for bookings
+    let html = '<div class="mt-4">';
+    
+    upcomingBookings.forEach(booking => {
+        const formattedDate = booking.parsedDate.toLocaleDateString();
+        const formattedTime = booking.startTime || 'No time specified';
+        
+        html += `
+            <div class="mb-4 p-3 border border-gray-200 rounded-lg">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <p class="font-medium">${formattedDate} at ${formattedTime}</p>
+                        <p class="text-sm text-gray-600">${booking.notes || 'No notes'}</p>
+                    </div>
+                    <div>
+                        <a href="../schedule/index.html?bookingId=${booking.id}" class="text-blue-600 hover:text-blue-800">
+                            <i class="fas fa-eye"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    return html;
+}
+
+// A very simple function to fix the client details page
+function fixClientDetailsPage() {
+    console.log('Fixing client details page');
+    
+    // Hide any error messages
+    try {
+        const errorContainers = document.querySelectorAll('.error-container, .bg-red-100');
+        errorContainers.forEach(container => {
+            if (container) {
+                container.style.display = 'none';
+            }
+        });
+    } catch (err) {
+        console.error('Error hiding error messages:', err);
+    }
+    
+    // Fix the loading spinners
+    try {
+        const spinners = document.querySelectorAll('.loading-spinner');
+        spinners.forEach(spinner => {
+            if (spinner) {
+                spinner.style.display = 'none';
+            }
+        });
+    } catch (err) {
+        console.error('Error hiding spinners:', err);
+    }
+    
+    // Add placeholder content to each section
+    try {
+        const sections = document.querySelectorAll('.client-card');
+        sections.forEach(section => {
+            try {
+                const heading = section.querySelector('h3');
+                if (!heading) return;
+                
+                const headingText = heading.textContent;
+                const contentDiv = section.querySelector('.p-4');
+                
+                if (!contentDiv) return;
+                
+                // Create placeholder content based on section type
+                let placeholderHTML = '';
+                
+                if (headingText.includes('Cleaning Schedule')) {
+                    placeholderHTML = `
+                        <h3 class="text-lg font-semibold text-gray-900 mb-2">Cleaning Schedule</h3>
+                        <p class="mt-4 text-gray-600">Schedule information will appear here.</p>
+                    `;
+                }
+                else if (headingText.includes('Upcoming Cleanings')) {
+                    placeholderHTML = `
+                        <h3 class="text-lg font-semibold text-gray-900 mb-2">Upcoming Cleanings</h3>
+                        <p class="mt-4 text-gray-600">Upcoming cleanings will appear here.</p>
+                    `;
+                }
+                else if (headingText.includes('Access Information')) {
+                    placeholderHTML = `
+                        <h3 class="text-lg font-semibold text-gray-900 mb-2">Access Information</h3>
+                        <p class="mt-4 text-gray-600">Access information will appear here.</p>
+                    `;
+                }
+                else if (headingText.includes('Special Instructions')) {
+                    placeholderHTML = `
+                        <h3 class="text-lg font-semibold text-gray-900 mb-2">Special Instructions</h3>
+                        <p class="mt-4 text-gray-600">Special instructions will appear here.</p>
+                    `;
+                }
+                
+                // Set the content
+                if (placeholderHTML) {
+                    contentDiv.innerHTML = placeholderHTML;
+                }
+            } catch (err) {
+                console.error('Error updating section:', err);
+            }
+        });
+    } catch (err) {
+        console.error('Error updating sections:', err);
     }
 }
 
 // Initialize the page when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Clients.js loaded');
+    
+    // CRITICAL: Check if clients.js is blocked on this page
+    if (window.blockClientsJs === true) {
+        console.log('clients.js execution blocked by blockClientsJs flag');
+        return; // Exit immediately
+    }
+    
+    // Check if we're on the client-details.html page
+    if (window.location.pathname.includes('client-details.html')) {
+        console.log('On client-details.html page - checking if blockClientsJs flag is set');
+        
+        // Double-check the blockClientsJs flag
+        if (window.blockClientsJs === true) {
+            console.log('blockClientsJs flag is set, skipping clients.js initialization for client-details.html');
+            return; // Skip the rest of the initialization
+        } else {
+            console.log('blockClientsJs flag is not set, proceeding with caution');
+        }
+    }
     
     // Check if user is logged in
     firebase.auth().onAuthStateChanged(function(user) {
@@ -598,9 +1573,16 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Check if we're on the client details page
             if (window.location.pathname.includes('client-details.html')) {
+                // Double-check the blockClientsJs flag again
+                if (window.blockClientsJs === true) {
+                    console.log('blockClientsJs flag is set, skipping loadClientDetails');
+                    return;
+                }
+                
                 const urlParams = new URLSearchParams(window.location.search);
                 const clientId = urlParams.get('id');
                 if (clientId) {
+                    console.log('Loading client details from clients.js');
                     loadClientDetails(clientId);
                 } else {
                     showErrorMessage('No client ID provided');
