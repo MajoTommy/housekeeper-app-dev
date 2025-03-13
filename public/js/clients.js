@@ -329,6 +329,7 @@ function openClientDetailsModal(clientId, client) {
     modal.dataset.clientData = JSON.stringify(client);
     
     // Update modal structure for better mobile responsiveness
+    // Use fixed positioning with flex to ensure consistent display regardless of scroll position
     modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end sm:items-center justify-center';
     
     // Format the address
@@ -344,7 +345,7 @@ function openClientDetailsModal(clientId, client) {
 
     // Update modal content structure
     modal.innerHTML = `
-        <div class="bg-white w-full h-[95vh] sm:h-auto sm:max-h-[90vh] sm:w-full sm:max-w-lg rounded-t-xl sm:rounded-xl overflow-hidden">
+        <div class="bg-white w-full sm:w-full sm:max-w-lg rounded-t-xl sm:rounded-xl overflow-hidden shadow-xl transform transition-all">
             <div class="flex justify-between items-center p-4 border-b border-gray-200">
                 <h2 class="text-xl font-semibold text-gray-900">${client.lastName}, ${client.firstName}</h2>
                 <button onclick="closeClientDetailsModal()" class="text-gray-400 hover:text-gray-500">
@@ -354,7 +355,7 @@ function openClientDetailsModal(clientId, client) {
                 </button>
             </div>
             
-            <div class="p-4 space-y-4">
+            <div class="p-4 space-y-4 overflow-y-auto" style="max-height: 60vh;">
                 <div class="flex items-center gap-x-2">
                     <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -394,6 +395,21 @@ function openClientDetailsModal(clientId, client) {
         </div>
     `;
     
+    // Ensure the modal is properly positioned in the viewport
+    // This helps with items at the top of the list
+    setTimeout(() => {
+        const modalContent = modal.querySelector('.bg-white');
+        if (modalContent) {
+            // On mobile, ensure the modal slides up from the bottom
+            if (window.innerWidth < 640) { // sm breakpoint in Tailwind
+                modalContent.style.maxHeight = '80vh';
+            }
+        }
+        
+        // Prevent body scrolling when modal is open
+        document.body.style.overflow = 'hidden';
+    }, 10);
+    
     // Add close on background click
     modal.addEventListener('click', (e) => {
         if (e.target === modal) {
@@ -411,71 +427,89 @@ function switchToEditMode() {
     const modalContent = modal.querySelector('.bg-white');
     modalContent.innerHTML = `
         <div class="flex justify-between items-center p-4 border-b border-gray-200">
-            <h2 class="text-xl font-semibold text-gray-900">Edit Client</h2>
-            <button onclick="cancelEdit()" class="text-gray-400 hover:text-gray-500">
+            <h2 class="text-lg font-medium text-gray-900">Edit Client</h2>
+            <button onclick="cancelEdit()" class="text-gray-400 hover:text-gray-500 p-1">
                 <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
             </button>
         </div>
         
-        <form id="client-edit-form" class="p-4 space-y-4 overflow-y-auto" style="max-height: calc(95vh - 140px);">
-            <div class="space-y-4">
-                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div>
-                        <label for="modal-first-name" class="block text-sm font-medium text-gray-700">First Name</label>
-                        <input type="text" id="modal-first-name" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" value="${clientData.firstName || ''}">
+        <div class="px-4 py-5 overflow-y-auto" style="max-height: calc(95vh - 140px);">
+            <form id="client-edit-form" class="space-y-6">
+                <div>
+                    <label for="modal-first-name" class="block text-sm font-medium leading-6 text-gray-900">First Name</label>
+                    <div class="mt-2">
+                        <input type="text" id="modal-first-name" class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" value="${clientData.firstName || ''}">
                     </div>
-                    <div>
-                        <label for="modal-last-name" class="block text-sm font-medium text-gray-700">Last Name</label>
-                        <input type="text" id="modal-last-name" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" value="${clientData.lastName || ''}">
+                </div>
+                
+                <div>
+                    <label for="modal-last-name" class="block text-sm font-medium leading-6 text-gray-900">Last Name</label>
+                    <div class="mt-2">
+                        <input type="text" id="modal-last-name" class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" value="${clientData.lastName || ''}">
                     </div>
                 </div>
 
                 <div>
-                    <label for="modal-phone" class="block text-sm font-medium text-gray-700">Phone</label>
-                    <div class="mt-1 flex rounded-md shadow-sm">
-                        <input type="tel" id="modal-phone" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" value="${clientData.phone || ''}">
+                    <label for="modal-phone" class="block text-sm font-medium leading-6 text-gray-900">Phone</label>
+                    <div class="mt-2">
+                        <input type="tel" id="modal-phone" class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" value="${clientData.phone || ''}">
                     </div>
                 </div>
 
                 <div>
-                    <label for="modal-street" class="block text-sm font-medium text-gray-700">Street Address</label>
-                    <input type="text" id="modal-street" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" value="${clientData.street || ''}">
+                    <label for="modal-street" class="block text-sm font-medium leading-6 text-gray-900">Street Address</label>
+                    <div class="mt-2">
+                        <input type="text" id="modal-street" class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" value="${clientData.street || ''}">
+                    </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                    <div class="col-span-2 sm:col-span-1">
-                        <label for="modal-city" class="block text-sm font-medium text-gray-700">City</label>
-                        <input type="text" id="modal-city" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" value="${clientData.city || ''}">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="col-span-2">
+                        <label for="modal-city" class="block text-sm font-medium leading-6 text-gray-900">City</label>
+                        <div class="mt-2">
+                            <input type="text" id="modal-city" class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" value="${clientData.city || ''}">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="modal-state" class="block text-sm font-medium leading-6 text-gray-900">State</label>
+                        <div class="mt-2">
+                            <input type="text" id="modal-state" class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" value="${clientData.state || ''}">
+                        </div>
                     </div>
                     <div>
-                        <label for="modal-state" class="block text-sm font-medium text-gray-700">State</label>
-                        <input type="text" id="modal-state" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" value="${clientData.state || ''}">
-                    </div>
-                    <div>
-                        <label for="modal-zip" class="block text-sm font-medium text-gray-700">ZIP</label>
-                        <input type="text" id="modal-zip" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" value="${clientData.zip || ''}">
+                        <label for="modal-zip" class="block text-sm font-medium leading-6 text-gray-900">ZIP</label>
+                        <div class="mt-2">
+                            <input type="text" id="modal-zip" class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" value="${clientData.zip || ''}">
+                        </div>
                     </div>
                 </div>
 
                 <div>
-                    <label for="modal-access-info" class="block text-sm font-medium text-gray-700">Access Information</label>
-                    <input type="text" id="modal-access-info" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" value="${clientData.accessInformation || clientData.accessInfo || ''}">
+                    <label for="modal-access-info" class="block text-sm font-medium leading-6 text-gray-900">Access Information</label>
+                    <div class="mt-2">
+                        <input type="text" id="modal-access-info" class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" value="${clientData.accessInformation || clientData.accessInfo || ''}">
+                    </div>
                 </div>
 
                 <div>
-                    <label for="modal-special-instructions" class="block text-sm font-medium text-gray-700">Special Instructions</label>
-                    <textarea id="modal-special-instructions" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm">${clientData.specialInstructions || ''}</textarea>
+                    <label for="modal-special-instructions" class="block text-sm font-medium leading-6 text-gray-900">Special Instructions</label>
+                    <div class="mt-2">
+                        <textarea id="modal-special-instructions" rows="3" class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">${clientData.specialInstructions || ''}</textarea>
+                    </div>
                 </div>
-            </div>
-        </form>
+            </form>
+        </div>
 
-        <div class="p-4 border-t border-gray-200">
-            <button onclick="saveClientDetails()" class="w-full bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-dark mb-2">
+        <div class="px-4 py-3 bg-gray-50 border-t border-gray-200 sm:px-6">
+            <button onclick="saveClientDetails()" class="w-full mb-2 inline-flex justify-center rounded-md bg-primary px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
                 Save Changes
             </button>
-            <button onclick="cancelEdit()" class="w-full bg-white text-gray-700 px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50">
+            <button onclick="cancelEdit()" class="w-full inline-flex justify-center rounded-md bg-white px-3 py-2.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
                 Cancel
             </button>
         </div>
@@ -556,6 +590,9 @@ function closeClientDetailsModal() {
         // Clear the stored data
         delete modal.dataset.clientId;
         delete modal.dataset.clientData;
+        
+        // Re-enable body scrolling
+        document.body.style.overflow = '';
     }
 }
 
