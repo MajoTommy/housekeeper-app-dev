@@ -64,7 +64,7 @@ function showLoading(message = 'Loading...') {
         loadingOverlay.innerHTML = `
             <div class="bg-white p-4 rounded-lg shadow-lg flex items-center">
                 <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-3"></div>
-                <p class="text-gray-700">${message}</p>
+                <p class="text-black">${message}</p>
             </div>
         `;
         document.body.appendChild(loadingOverlay);
@@ -157,7 +157,7 @@ async function loadAllClients() {
     clientListContainer.innerHTML = `
         <div class="p-4 text-center">
             <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-            <p class="mt-2 text-gray-500">Loading clients...</p>
+            <p class="mt-2 text-primary">Loading clients...</p>
         </div>
     `;
     
@@ -189,7 +189,7 @@ async function loadAllClients() {
             // No clients found
             clientListContainer.innerHTML = `
                 <div class="p-4 text-center">
-                    <p class="text-gray-500">No clients found</p>
+                    <p class="text-primary">No clients found</p>
                     <a href="add-client.html" class="mt-4 inline-block px-4 py-2 bg-primary text-white rounded">
                         Add Your First Client
                     </a>
@@ -249,7 +249,26 @@ function createClientListItem(clientId, client) {
         
         const cityState = [];
         if (client.city) cityState.push(client.city);
-        if (client.state) cityState.push(client.state);
+        
+        // Handle state and country
+        if (client.state) {
+            if (client.country) {
+                if (client.country === 'United States') {
+                    cityState.push(`${client.state}, USA`);
+                } else if (client.country === 'Canada') {
+                    cityState.push(`${client.state}, Canada`);
+                } else if (client.country === 'Other') {
+                    cityState.push(client.state);
+                } else {
+                    cityState.push(`${client.state}, ${client.country}`);
+                }
+            } else {
+                cityState.push(client.state);
+            }
+        } else if (client.country) {
+            cityState.push(client.country);
+        }
+        
         if (cityState.length > 0) parts.push(cityState.join(', '));
         
         if (client.zip) parts.push(client.zip);
@@ -277,11 +296,11 @@ function createClientListItem(clientId, client) {
                     </div>
                     <div class="mt-3 grid grid-cols-1 gap-1 text-sm leading-6">
                         <div class="flex items-center gap-x-2">
-                            <svg class="h-5 w-5 flex-none text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <svg class="h-5 w-5 flex-none text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
                             </svg>
-                            <span class="text-gray-500">${address}</span>
+                            <span class="text-black">${address}</span>
                         </div>
                         <div class="flex items-center gap-x-2">
                             <svg class="h-5 w-5 flex-none text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -290,15 +309,15 @@ function createClientListItem(clientId, client) {
                             <span class="text-primary">${phone}</span>
                         </div>
                         <div class="flex items-center gap-x-2">
-                            <svg class="h-5 w-5 flex-none text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <svg class="h-5 w-5 flex-none text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
                             </svg>
-                            <span class="text-gray-500">${client.accessInformation || 'Key under the mat'}</span>
+                            <span class="text-black">${client.accessInformation || 'Key under the mat'}</span>
                         </div>
                     </div>
                 </div>
                 <button class="inline-flex items-center gap-x-1.5 rounded-md bg-white px-2.5 py-1.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
-                    <svg class="-ml-0.5 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <svg class="-ml-0.5 h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
@@ -321,6 +340,9 @@ function openClientDetailsModal(clientId, client) {
     const modal = document.getElementById('client-details-modal');
     if (!modal) return;
     
+    // Clean up any existing backdrops first
+    cleanupBackdrops();
+    
     // Show modal
     modal.classList.remove('hidden');
     
@@ -333,12 +355,29 @@ function openClientDetailsModal(clientId, client) {
     modal.className = 'fixed inset-x-0 bottom-0 z-50 transform transition-transform duration-300 ease-in-out';
     
     // Format the address
-    let address = 'No address provided';
+    let address = 'No address';
     if (client.street) {
         const parts = [];
         if (client.street) parts.push(client.street);
         if (client.city) parts.push(client.city);
-        if (client.state) parts.push(client.state);
+        if (client.state) {
+            // If country is specified, include it in the format
+            if (client.country) {
+                if (client.country === 'United States') {
+                    parts.push(`${client.state}, USA`);
+                } else if (client.country === 'Canada') {
+                    parts.push(`${client.state}, Canada`);
+                } else if (client.country === 'Other') {
+                    parts.push(client.state);
+                } else {
+                    parts.push(`${client.state}, ${client.country}`);
+                }
+            } else {
+                parts.push(client.state);
+            }
+        } else if (client.country) {
+            parts.push(client.country);
+        }
         if (client.zip) parts.push(client.zip);
         address = parts.join(', ');
     }
@@ -357,20 +396,20 @@ function openClientDetailsModal(clientId, client) {
             </div>
             <div class="flex justify-between items-center p-4 border-b border-gray-200">
                 <h2 class="text-xl font-semibold text-gray-900">${client.lastName}, ${client.firstName}</h2>
-                <button onclick="closeClientDetailsModal()" class="text-gray-400 hover:text-gray-500">
+                <button onclick="closeClientDetailsModal()" class="text-primary hover:text-primary-dark">
                     <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                 </button>
             </div>
             
-            <div class="p-4 space-y-4 overflow-y-auto flex-grow">
+            <div class="p-4 space-y-4 overflow-y-auto flex-grow -webkit-overflow-scrolling-touch">
                 <div class="flex items-center gap-x-2">
-                    <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <svg class="h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
                         <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
                     </svg>
-                    <span class="text-gray-600">${address}</span>
+                    <span class="text-black">${address}</span>
                 </div>
                 
                 <div class="flex items-center gap-x-2">
@@ -381,15 +420,15 @@ function openClientDetailsModal(clientId, client) {
                 </div>
 
                 <div class="flex items-center gap-x-2">
-                    <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <svg class="h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
                     </svg>
-                    <span class="text-gray-600">${client.accessInformation || 'Key under the mat'}</span>
+                    <span class="text-black">${client.accessInformation || 'Key under the mat'}</span>
                 </div>
 
                 <div class="mt-6">
                     <h3 class="font-medium text-gray-900">Special Instructions</h3>
-                    <p class="mt-2 text-gray-600">${client.specialInstructions || 'No special instructions'}</p>
+                    <p class="mt-2 text-black">${client.specialInstructions || 'No special instructions'}</p>
                 </div>
             </div>
 
@@ -397,7 +436,7 @@ function openClientDetailsModal(clientId, client) {
                 <button onclick="switchToEditMode()" class="w-full bg-primary text-white px-4 py-3 rounded-lg hover:bg-primary-dark mb-2">
                     Edit Client
                 </button>
-                <button onclick="closeClientDetailsModal()" class="w-full bg-white text-gray-700 px-4 py-3 rounded-lg border border-gray-300 hover:bg-gray-50">
+                <button onclick="closeClientDetailsModal()" class="w-full bg-white text-black px-4 py-3 rounded-lg border border-gray-300 hover:bg-gray-50">
                     Close
                 </button>
             </div>
@@ -406,6 +445,7 @@ function openClientDetailsModal(clientId, client) {
     
     // Prevent body scrolling when bottom sheet is open
     document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
     
     // Add swipe down to close functionality
     setupBottomSheetDrag(modal);
@@ -420,10 +460,6 @@ function openClientDetailsModal(clientId, client) {
     backdrop.addEventListener('click', () => {
         closeClientDetailsModal();
     });
-    
-    // Store backdrop reference for removal on close
-    modal.dataset.backdropElement = 'backdrop-' + Date.now();
-    backdrop.id = modal.dataset.backdropElement;
 }
 
 // Function to set up drag functionality for bottom sheet
@@ -516,13 +552,44 @@ function closeClientDetailsModal() {
             
             // Re-enable body scrolling
             document.body.style.overflow = '';
+            document.documentElement.style.overflow = '';
+            
+            // Safety check: remove any other backdrops that might be lingering
+            cleanupBackdrops();
         }, 300); // Match the duration in the CSS transition
+    } else {
+        // If modal not found, still clean up any lingering backdrops
+        cleanupBackdrops();
     }
+}
+
+// Helper function to clean up any lingering backdrops
+function cleanupBackdrops() {
+    // Find and remove any backdrop elements that might be lingering
+    const backdrops = document.querySelectorAll('div[id^="backdrop-"]');
+    backdrops.forEach(backdrop => {
+        backdrop.remove();
+    });
+    
+    // Also find any elements with the backdrop styling
+    const backdropElements = document.querySelectorAll('.fixed.inset-0.bg-black.bg-opacity-50.z-40');
+    backdropElements.forEach(element => {
+        element.remove();
+    });
+    
+    // Ensure body scrolling is re-enabled
+    document.body.style.overflow = '';
+    document.documentElement.style.overflow = '';
+    document.body.style.position = '';
+    document.documentElement.style.position = '';
 }
 
 // Function to switch to edit mode
 function switchToEditMode() {
     const modal = document.getElementById('client-details-modal');
+    if (!modal) return;
+    
+    const clientId = modal.dataset.clientId;
     const clientData = JSON.parse(modal.dataset.clientData);
     
     // Update bottom sheet content with edit form - improved for mobile
@@ -533,28 +600,28 @@ function switchToEditMode() {
         </div>
         <div class="flex justify-between items-center p-4 border-b border-gray-200">
             <h2 class="text-xl font-semibold text-gray-900">Edit Client</h2>
-            <button onclick="cancelEdit()" class="text-gray-400 hover:text-gray-500 p-1 rounded-full hover:bg-gray-100">
+            <button onclick="cancelEdit()" class="text-primary hover:text-primary-dark p-1 rounded-full hover:bg-gray-100">
                 <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
             </button>
         </div>
         
-        <div class="px-4 py-5 overflow-y-auto flex-grow bg-gray-50">
+        <div class="px-4 py-5 overflow-y-auto flex-grow bg-gray-50 -webkit-overflow-scrolling-touch">
             <form id="client-edit-form" class="space-y-6 max-w-lg mx-auto">
-                <!-- Name Fields - 2 column grid on same row -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <!-- Name Fields - 2 column grid on same row for all screen sizes -->
+                <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label for="modal-first-name" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">First Name</label>
                         <input type="text" id="modal-first-name" 
-                            class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                            class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
                             value="${clientData.firstName || ''}">
                     </div>
                     
                     <div>
                         <label for="modal-last-name" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Last Name</label>
                         <input type="text" id="modal-last-name" 
-                            class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                            class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
                             value="${clientData.lastName || ''}">
                     </div>
                 </div>
@@ -562,7 +629,7 @@ function switchToEditMode() {
                 <div>
                     <label for="modal-phone" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Phone</label>
                     <input type="tel" id="modal-phone" 
-                        class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                        class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
                         value="${clientData.phone || ''}">
                 </div>
 
@@ -574,28 +641,42 @@ function switchToEditMode() {
                         <div>
                             <label for="modal-street" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Street Address</label>
                             <input type="text" id="modal-street" 
-                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
                                 value="${clientData.street || ''}">
                         </div>
 
                         <div>
                             <label for="modal-city" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">City</label>
                             <input type="text" id="modal-city" 
-                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
                                 value="${clientData.city || ''}">
+                        </div>
+                        
+                        <div>
+                            <label for="modal-country" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Country</label>
+                            <select id="modal-country" onchange="updateStateProvinceField()"
+                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">
+                                <option value="">Select a country</option>
+                                <option value="United States" ${clientData.country === 'United States' ? 'selected' : ''}>United States</option>
+                                <option value="Canada" ${clientData.country === 'Canada' ? 'selected' : ''}>Canada</option>
+                                <option value="Other" ${clientData.country && clientData.country !== 'United States' && clientData.country !== 'Canada' ? 'selected' : ''}>Other</option>
+                            </select>
                         </div>
                         
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label for="modal-state" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">State</label>
-                                <input type="text" id="modal-state" 
-                                    class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
-                                    value="${clientData.state || ''}">
+                                <label id="state-province-label" for="modal-state" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">State/Province</label>
+                                <div id="state-province-container">
+                                    <!-- This will be populated by JavaScript based on country selection -->
+                                    <input type="text" id="modal-state" 
+                                        class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                                        value="${clientData.state || ''}">
+                                </div>
                             </div>
                             <div>
-                                <label for="modal-zip" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">ZIP</label>
+                                <label for="modal-zip" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">ZIP/Postal Code</label>
                                 <input type="text" id="modal-zip" 
-                                    class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                                    class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
                                     value="${clientData.zip || ''}">
                             </div>
                         </div>
@@ -610,14 +691,14 @@ function switchToEditMode() {
                         <div>
                             <label for="modal-access-info" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Access Information</label>
                             <input type="text" id="modal-access-info" 
-                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
                                 value="${clientData.accessInformation || clientData.accessInfo || ''}">
                         </div>
 
                         <div>
                             <label for="modal-special-instructions" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Special Instructions</label>
                             <textarea id="modal-special-instructions" rows="3" 
-                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">${clientData.specialInstructions || ''}</textarea>
+                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">${clientData.specialInstructions || ''}</textarea>
                         </div>
                     </div>
                 </div>
@@ -628,11 +709,16 @@ function switchToEditMode() {
             <button onclick="saveClientDetails()" class="w-full mb-3 inline-flex justify-center rounded-lg bg-primary px-3 py-3.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
                 Save Changes
             </button>
-            <button onclick="cancelEdit()" class="w-full inline-flex justify-center rounded-lg bg-white px-3 py-3.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+            <button onclick="cancelEdit()" class="w-full inline-flex justify-center rounded-lg bg-white px-3 py-3.5 text-sm font-semibold text-black shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
                 Cancel
             </button>
         </div>
     `;
+    
+    // Initialize the state/province field based on the current country
+    setTimeout(() => {
+        updateStateProvinceField();
+    }, 0);
     
     // Re-add the drag functionality
     setupBottomSheetDrag(modal);
@@ -671,6 +757,7 @@ async function saveClientDetails() {
             phone: document.getElementById('modal-phone').value.trim(),
             street: document.getElementById('modal-street').value.trim(),
             city: document.getElementById('modal-city').value.trim(),
+            country: document.getElementById('modal-country').value.trim(),
             state: document.getElementById('modal-state').value.trim(),
             zip: document.getElementById('modal-zip').value.trim(),
             accessInformation: document.getElementById('modal-access-info').value.trim(),
@@ -1685,6 +1772,9 @@ function fixClientDetailsPage() {
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Clients.js loaded');
     
+    // Clean up any lingering backdrops on page load
+    cleanupBackdrops();
+    
     // CRITICAL: Check if clients.js is blocked on this page
     if (window.blockClientsJs === true) {
         console.log('clients.js execution blocked by blockClientsJs flag');
@@ -1736,3 +1826,307 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 }); 
+
+// Function to update the state/province field based on country selection
+function updateStateProvinceField() {
+    const countrySelect = document.getElementById('modal-country');
+    const stateProvinceContainer = document.getElementById('state-province-container');
+    const stateProvinceLabel = document.getElementById('state-province-label');
+    const currentValue = document.getElementById('modal-state')?.value || '';
+    
+    if (!countrySelect || !stateProvinceContainer || !stateProvinceLabel) return;
+    
+    const country = countrySelect.value;
+    
+    // Define US states
+    const usStates = [
+        'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut', 
+        'Delaware', 'Florida', 'Georgia', 'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa', 
+        'Kansas', 'Kentucky', 'Louisiana', 'Maine', 'Maryland', 'Massachusetts', 'Michigan', 
+        'Minnesota', 'Mississippi', 'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire', 
+        'New Jersey', 'New Mexico', 'New York', 'North Carolina', 'North Dakota', 'Ohio', 'Oklahoma', 
+        'Oregon', 'Pennsylvania', 'Rhode Island', 'South Carolina', 'South Dakota', 'Tennessee', 
+        'Texas', 'Utah', 'Vermont', 'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming',
+        'District of Columbia', 'American Samoa', 'Guam', 'Northern Mariana Islands', 'Puerto Rico',
+        'U.S. Virgin Islands'
+    ];
+    
+    // Define Canadian provinces
+    const canadianProvinces = [
+        'Alberta', 'British Columbia', 'Manitoba', 'New Brunswick', 'Newfoundland and Labrador',
+        'Northwest Territories', 'Nova Scotia', 'Nunavut', 'Ontario', 'Prince Edward Island',
+        'Quebec', 'Saskatchewan', 'Yukon'
+    ];
+    
+    // Update the label and field based on country selection
+    if (country === 'United States') {
+        stateProvinceLabel.textContent = 'State';
+        
+        // Create dropdown for US states
+        let stateOptions = '<option value="">Select a state</option>';
+        usStates.forEach(state => {
+            stateOptions += `<option value="${state}" ${currentValue === state ? 'selected' : ''}>${state}</option>`;
+        });
+        
+        stateProvinceContainer.innerHTML = `
+            <select id="modal-state" class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">
+                ${stateOptions}
+            </select>
+        `;
+    } 
+    else if (country === 'Canada') {
+        stateProvinceLabel.textContent = 'Province';
+        
+        // Create dropdown for Canadian provinces
+        let provinceOptions = '<option value="">Select a province</option>';
+        canadianProvinces.forEach(province => {
+            provinceOptions += `<option value="${province}" ${currentValue === province ? 'selected' : ''}>${province}</option>`;
+        });
+        
+        stateProvinceContainer.innerHTML = `
+            <select id="modal-state" class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">
+                ${provinceOptions}
+            </select>
+        `;
+    } 
+    else {
+        stateProvinceLabel.textContent = 'State/Province';
+        
+        // Create text input for other countries
+        stateProvinceContainer.innerHTML = `
+            <input type="text" id="modal-state" 
+                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                value="${currentValue}">
+        `;
+    }
+}
+
+function openAddClientModal() {
+    const modal = document.getElementById('client-details-modal');
+    if (!modal) return;
+    
+    // Clean up any existing backdrops first
+    cleanupBackdrops();
+    
+    // Show modal
+    modal.classList.remove('hidden');
+    
+    // Clear any existing client data
+    delete modal.dataset.clientId;
+    delete modal.dataset.clientData;
+    
+    // Update to use bottom sheet pattern
+    modal.className = 'fixed inset-x-0 bottom-0 z-50 transform transition-transform duration-300 ease-in-out';
+    
+    // Add a semi-transparent backdrop
+    const backdrop = document.createElement('div');
+    backdrop.className = 'fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity duration-300';
+    backdrop.style.opacity = '0';
+    document.body.appendChild(backdrop);
+    
+    // Update bottom sheet content with add form
+    modal.innerHTML = `
+        <div class="bg-white w-full rounded-t-xl overflow-hidden shadow-xl transform transition-all max-h-[90vh] flex flex-col">
+            <div class="flex justify-center pt-2 pb-1">
+                <div class="w-10 h-1 bg-gray-300 rounded-full"></div>
+            </div>
+            <div class="flex justify-between items-center p-4 border-b border-gray-200">
+                <h2 class="text-xl font-semibold text-gray-900">Add New Client</h2>
+                <button onclick="closeClientDetailsModal()" class="text-primary hover:text-primary-dark p-1 rounded-full hover:bg-gray-100">
+                    <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="px-4 py-5 overflow-y-auto flex-grow bg-gray-50 -webkit-overflow-scrolling-touch">
+                <form id="client-edit-form" class="space-y-6 max-w-lg mx-auto">
+                    <!-- Name Fields - 2 column grid on same row for all screen sizes -->
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="modal-first-name" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">First Name</label>
+                            <input type="text" id="modal-first-name" 
+                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                                placeholder="First Name">
+                        </div>
+                        
+                        <div>
+                            <label for="modal-last-name" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Last Name</label>
+                            <input type="text" id="modal-last-name" 
+                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                                placeholder="Last Name">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="modal-phone" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Phone</label>
+                        <input type="tel" id="modal-phone" 
+                            class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                            placeholder="Phone Number">
+                    </div>
+
+                    <!-- Address Section with visual grouping -->
+                    <div class="pt-2 pb-1 border-t border-gray-200">
+                        <h3 class="text-base font-medium text-gray-900 mb-4">Address Information</h3>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label for="modal-street" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Street Address</label>
+                                <input type="text" id="modal-street" 
+                                    class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                                    placeholder="Street Address">
+                            </div>
+
+                            <div>
+                                <label for="modal-city" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">City</label>
+                                <input type="text" id="modal-city" 
+                                    class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                                    placeholder="City">
+                            </div>
+                            
+                            <div>
+                                <label for="modal-country" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Country</label>
+                                <select id="modal-country" onchange="updateStateProvinceField()"
+                                    class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">
+                                    <option value="">Select a country</option>
+                                    <option value="United States">United States</option>
+                                    <option value="Canada">Canada</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label id="state-province-label" for="modal-state" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">State/Province</label>
+                                    <div id="state-province-container">
+                                        <!-- This will be populated by JavaScript based on country selection -->
+                                        <input type="text" id="modal-state" 
+                                            class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                                            placeholder="State/Province">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label for="modal-zip" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">ZIP/Postal Code</label>
+                                    <input type="text" id="modal-zip" 
+                                        class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                                        placeholder="ZIP/Postal Code">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Additional Information Section -->
+                    <div class="pt-2 pb-1 border-t border-gray-200">
+                        <h3 class="text-base font-medium text-gray-900 mb-4">Additional Information</h3>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label for="modal-access-info" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Access Information</label>
+                                <input type="text" id="modal-access-info" 
+                                    class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                                    placeholder="Key code, entry instructions, etc.">
+                            </div>
+
+                            <div>
+                                <label for="modal-special-instructions" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Special Instructions</label>
+                                <textarea id="modal-special-instructions" rows="3" 
+                                    class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6"
+                                    placeholder="Special cleaning instructions, preferences, etc."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <div class="px-4 py-4 bg-white border-t border-gray-200">
+                <button onclick="saveNewClient()" class="w-full mb-3 inline-flex justify-center rounded-lg bg-primary px-3 py-3.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+                    Add Client
+                </button>
+                <button onclick="closeClientDetailsModal()" class="w-full inline-flex justify-center rounded-lg bg-white px-3 py-3.5 text-sm font-semibold text-black shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    `;
+    
+    // Prevent body scrolling when bottom sheet is open
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    
+    // Add swipe down to close functionality
+    setupBottomSheetDrag(modal);
+    
+    // Animate in the bottom sheet and backdrop
+    setTimeout(() => {
+        modal.style.transform = 'translateY(0)';
+        backdrop.style.opacity = '1';
+    }, 10);
+    
+    // Add close on backdrop click
+    backdrop.addEventListener('click', () => {
+        closeClientDetailsModal();
+    });
+    
+    // Initialize the state/province field
+    setTimeout(() => {
+        updateStateProvinceField();
+    }, 100);
+}
+
+// Function to save a new client
+async function saveNewClient() {
+    try {
+        const user = firebase.auth().currentUser;
+        if (!user) {
+            throw new Error('You must be logged in to add a client');
+        }
+        
+        // Show loading state
+        showLoading('Adding new client...');
+        
+        // Get form values
+        const newClient = {
+            firstName: document.getElementById('modal-first-name').value.trim(),
+            lastName: document.getElementById('modal-last-name').value.trim(),
+            phone: document.getElementById('modal-phone').value.trim(),
+            street: document.getElementById('modal-street').value.trim(),
+            city: document.getElementById('modal-city').value.trim(),
+            country: document.getElementById('modal-country').value.trim(),
+            state: document.getElementById('modal-state').value.trim(),
+            zip: document.getElementById('modal-zip').value.trim(),
+            accessInformation: document.getElementById('modal-access-info').value.trim(),
+            specialInstructions: document.getElementById('modal-special-instructions').value.trim(),
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        
+        // Validate required fields
+        if (!newClient.firstName || !newClient.lastName) {
+            hideLoading();
+            showErrorMessage('First name and last name are required');
+            return;
+        }
+        
+        // Add to Firestore
+        const db = firebase.firestore();
+        const docRef = await db.collection('users').doc(user.uid)
+            .collection('clients').add(newClient);
+        
+        // Hide loading state
+        hideLoading();
+        
+        // Close the modal
+        closeClientDetailsModal();
+        
+        // Show success message
+        showSuccessMessage(`Client ${newClient.firstName} ${newClient.lastName} added successfully`);
+        
+        // Refresh the client list
+        loadAllClients();
+        
+    } catch (error) {
+        console.error('Error adding new client:', error);
+        hideLoading();
+        showErrorMessage('Error adding new client: ' + error.message);
+    }
+}
