@@ -1068,8 +1068,12 @@ function logDeviceInfo() {
     return deviceInfo;
 }
 
+// Document ready function
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM fully loaded');
+    console.log('DOM content loaded');
+    
+    // Clean up any lingering backdrops from previous sessions
+    cleanupAllBackdrops();
     
     // Log device info for debugging
     const deviceInfo = logDeviceInfo();
@@ -1079,7 +1083,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const modalInitialized = initializeBookingModal();
     console.log('Booking modal initialized:', modalInitialized);
     
-    // Set up week navigation
+    // Set up week navigation buttons
     const prevWeekBtn = document.getElementById('prev-week');
     const nextWeekBtn = document.getElementById('next-week');
     const todayBtn = document.getElementById('today-btn');
@@ -1110,7 +1114,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const closeModalBtn = document.getElementById('closeBookingModal');
     if (closeModalBtn) {
         closeModalBtn.addEventListener('click', function() {
-            document.getElementById('bookingModal').classList.add('hidden');
+            closeBookingModal();
         });
     }
     
@@ -1688,11 +1692,8 @@ async function saveBooking() {
         await Promise.all(bookingPromises);
         console.log(`Successfully created ${bookingPromises.length} booking(s)`);
         
-        // Hide the booking modal
-        const bookingModal = document.getElementById('bookingModal');
-        if (bookingModal) {
-            bookingModal.classList.add('hidden');
-        }
+        // Close the booking modal with animation
+        closeBookingModal();
         
         // Show success message as a separate modal
         const message = occurrences > 1 
@@ -1939,13 +1940,30 @@ function addTimeSlot(container, startTime, endTime, date, durationMinutes) {
             updateBookingDateTime();
             console.log('Booking date and time display updated');
             
-            // Show the booking modal
+            // Show the booking modal as a drawer
             const bookingModal = document.getElementById('bookingModal');
+            const bookingModalBackdrop = document.getElementById('bookingModalBackdrop');
             console.log('Booking modal element:', bookingModal);
             
             if (bookingModal) {
-                bookingModal.classList.remove('hidden');
+                // Show backdrop first
+                if (bookingModalBackdrop) {
+                    bookingModalBackdrop.classList.remove('hidden');
+                    // Fade in the backdrop
+                    setTimeout(() => {
+                        bookingModalBackdrop.style.opacity = '1';
+                    }, 10);
+                }
+                
+                // Prevent body scrolling
+                document.body.style.overflow = 'hidden';
+                
+                // Slide up the modal
+                bookingModal.classList.remove('translate-y-full');
                 console.log('Booking modal shown');
+                
+                // Set up drag functionality
+                setupBottomSheetDrag(bookingModal);
                 
                 // Show the client selection step first
                 console.log('Attempting to show client selection step');
@@ -2713,7 +2731,8 @@ async function cancelBooking(bookingId) {
 function showAlertModal(message, onClose) {
     // Create the modal element
     const modal = document.createElement('div');
-    modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
+    modal.id = 'alertModal';
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-60 flex items-center justify-center'; // Higher z-index
     
     // Create the modal content
     modal.innerHTML = `
@@ -2906,6 +2925,14 @@ function initializeBookingModal() {
     if (!bookingHandlersInitialized) {
         setupBookingHandlers();
         bookingHandlersInitialized = true;
+    }
+    
+    // Set up backdrop click to close modal
+    const bookingModalBackdrop = document.getElementById('bookingModalBackdrop');
+    if (bookingModalBackdrop) {
+        bookingModalBackdrop.addEventListener('click', function() {
+            closeBookingModal();
+        });
     }
     
     console.log('Booking modal initialized successfully');
@@ -3307,4 +3334,132 @@ function normalizeTimeFormat(timeStr) {
     
     // Return in the exact format expected: "HH:MM AM/PM"
     return `${formattedHours.padStart(2, '0')}:${minutes} ${period}`;
+}
+
+// Function to clean up all backdrops and reset body scrolling
+function cleanupAllBackdrops() {
+    console.log('Cleaning up all backdrops...');
+    
+    // Reset body scrolling
+    document.body.style.overflow = '';
+    document.documentElement.style.overflow = '';
+    
+    // Find and remove any backdrop elements
+    const backdrops = document.querySelectorAll('.fixed.inset-0.bg-black.bg-opacity-50');
+    backdrops.forEach(backdrop => {
+        console.log('Removing backdrop:', backdrop);
+        backdrop.remove();
+    });
+    
+    // Also check for specific backdrop elements
+    const bookingModalBackdrop = document.getElementById('bookingModalBackdrop');
+    if (bookingModalBackdrop) {
+        bookingModalBackdrop.classList.add('hidden');
+        bookingModalBackdrop.style.opacity = '0';
+    }
+    
+    // Check for any alert modals
+    const alertModal = document.getElementById('alertModal');
+    if (alertModal) {
+        alertModal.remove();
+    }
+}
+
+// Function to close the booking modal with animation
+function closeBookingModal() {
+    const bookingModal = document.getElementById('bookingModal');
+    const bookingModalBackdrop = document.getElementById('bookingModalBackdrop');
+    
+    if (bookingModal) {
+        // Slide down the modal
+        bookingModal.classList.add('translate-y-full');
+        
+        // Fade out the backdrop
+        if (bookingModalBackdrop) {
+            bookingModalBackdrop.style.opacity = '0';
+        }
+        
+        // Wait for animation to complete before hiding
+        setTimeout(() => {
+            // Hide backdrop
+            if (bookingModalBackdrop) {
+                bookingModalBackdrop.classList.add('hidden');
+            }
+            
+            // Clean up all backdrops and reset body scrolling
+            cleanupAllBackdrops();
+            
+            // Reset the booking data
+            resetBookingModal();
+        }, 300); // Match the duration in the CSS transition
+    } else {
+        // If modal not found, still clean up backdrops
+        cleanupAllBackdrops();
+    }
+}
+
+// Function to set up drag functionality for the bottom sheet
+function setupBottomSheetDrag(bottomSheet) {
+    if (!bottomSheet) return;
+    
+    const dragHandle = bottomSheet.querySelector('.w-10.h-1.bg-gray-300');
+    if (!dragHandle) return;
+    
+    let startY = 0;
+    let startTranslate = 0;
+    let currentTranslate = 0;
+    
+    const onStart = (e) => {
+        startY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+        
+        // Get the current transform value
+        const transform = window.getComputedStyle(bottomSheet).transform;
+        if (transform && transform !== 'none') {
+            // Extract the Y translation value
+            const matrix = transform.match(/^matrix\((.+)\)$/);
+            if (matrix) {
+                const values = matrix[1].split(', ');
+                startTranslate = parseInt(values[5]) || 0;
+            }
+        } else {
+            startTranslate = 0;
+        }
+        
+        currentTranslate = startTranslate;
+        
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('touchmove', onMove);
+        document.addEventListener('mouseup', onEnd);
+        document.addEventListener('touchend', onEnd);
+    };
+    
+    const onMove = (e) => {
+        const y = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+        const diff = y - startY;
+        
+        // Only allow dragging down, not up past the starting position
+        if (diff > 0) {
+            currentTranslate = startTranslate + diff;
+            bottomSheet.style.transform = `translateY(${currentTranslate}px)`;
+        }
+    };
+    
+    const onEnd = (e) => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('mouseup', onEnd);
+        document.removeEventListener('touchend', onEnd);
+        
+        // If dragged more than 150px down, close the sheet
+        if (currentTranslate > 150) {
+            closeBookingModal();
+        } else {
+            // Otherwise, snap back to fully open
+            bottomSheet.style.transform = '';
+            bottomSheet.classList.remove('translate-y-full');
+        }
+    };
+    
+    dragHandle.addEventListener('mousedown', onStart);
+    dragHandle.addEventListener('touchstart', onStart);
 }

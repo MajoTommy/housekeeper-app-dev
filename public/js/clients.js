@@ -190,9 +190,9 @@ async function loadAllClients() {
             clientListContainer.innerHTML = `
                 <div class="p-4 text-center">
                     <p class="text-primary">No clients found</p>
-                    <a href="add-client.html" class="mt-4 inline-block px-4 py-2 bg-primary text-white rounded">
+                    <button onclick="openAddClientModal()" class="mt-4 inline-block px-4 py-2 bg-primary text-white rounded hover:bg-primary-dark">
                         Add Your First Client
-                    </a>
+                    </button>
                 </div>
             `;
             return;
@@ -205,15 +205,7 @@ async function loadAllClients() {
             clientListContainer.appendChild(clientElement);
         });
         
-        // Add a button to add more clients
-        const addMoreButton = document.createElement('div');
-        addMoreButton.className = 'p-4 text-center';
-        addMoreButton.innerHTML = `
-            <a href="add-client.html" class="inline-block px-4 py-2 bg-primary text-white rounded hover:bg-primary-dark">
-                Add New Client
-            </a>
-        `;
-        clientListContainer.appendChild(addMoreButton);
+        // We no longer need the "Add More" button since we have the + button in the header
         
     } catch (error) {
         console.error('Error loading clients:', error);
@@ -614,14 +606,14 @@ function switchToEditMode() {
                     <div>
                         <label for="modal-first-name" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">First Name</label>
                         <input type="text" id="modal-first-name" 
-                            class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                            class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
                             value="${clientData.firstName || ''}">
                     </div>
                     
                     <div>
                         <label for="modal-last-name" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Last Name</label>
                         <input type="text" id="modal-last-name" 
-                            class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                            class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
                             value="${clientData.lastName || ''}">
                     </div>
                 </div>
@@ -629,7 +621,7 @@ function switchToEditMode() {
                 <div>
                     <label for="modal-phone" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Phone</label>
                     <input type="tel" id="modal-phone" 
-                        class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                        class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
                         value="${clientData.phone || ''}">
                 </div>
 
@@ -641,21 +633,21 @@ function switchToEditMode() {
                         <div>
                             <label for="modal-street" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Street Address</label>
                             <input type="text" id="modal-street" 
-                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
                                 value="${clientData.street || ''}">
                         </div>
 
                         <div>
                             <label for="modal-city" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">City</label>
                             <input type="text" id="modal-city" 
-                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
                                 value="${clientData.city || ''}">
                         </div>
                         
                         <div>
                             <label for="modal-country" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Country</label>
                             <select id="modal-country" onchange="updateStateProvinceField()"
-                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">
+                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">
                                 <option value="">Select a country</option>
                                 <option value="United States" ${clientData.country === 'United States' ? 'selected' : ''}>United States</option>
                                 <option value="Canada" ${clientData.country === 'Canada' ? 'selected' : ''}>Canada</option>
@@ -669,14 +661,14 @@ function switchToEditMode() {
                                 <div id="state-province-container">
                                     <!-- This will be populated by JavaScript based on country selection -->
                                     <input type="text" id="modal-state" 
-                                        class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                                        class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
                                         value="${clientData.state || ''}">
                                 </div>
                             </div>
                             <div>
                                 <label for="modal-zip" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">ZIP/Postal Code</label>
                                 <input type="text" id="modal-zip" 
-                                    class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                                    class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
                                     value="${clientData.zip || ''}">
                             </div>
                         </div>
@@ -691,14 +683,14 @@ function switchToEditMode() {
                         <div>
                             <label for="modal-access-info" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Access Information</label>
                             <input type="text" id="modal-access-info" 
-                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
                                 value="${clientData.accessInformation || clientData.accessInfo || ''}">
                         </div>
 
                         <div>
                             <label for="modal-special-instructions" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Special Instructions</label>
                             <textarea id="modal-special-instructions" rows="3" 
-                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">${clientData.specialInstructions || ''}</textarea>
+                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">${clientData.specialInstructions || ''}</textarea>
                         </div>
                     </div>
                 </div>
@@ -765,6 +757,13 @@ async function saveClientDetails() {
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
         
+        // Validate required fields
+        if (!updatedClient.firstName || !updatedClient.lastName) {
+            hideLoading();
+            showErrorMessage('First name and last name are required');
+            return;
+        }
+        
         // Update in Firestore
         const db = firebase.firestore();
         await db.collection('users').doc(user.uid)
@@ -800,19 +799,33 @@ function initSearchFunctionality() {
     
     searchInput.addEventListener('input', function() {
         const searchTerm = this.value.toLowerCase();
-        const clientElements = document.querySelectorAll('#client-list a');
+        const clientElements = document.querySelectorAll('#client-list > div:not(.p-4)');
         
         clientElements.forEach(element => {
-            const clientName = element.querySelector('h3').textContent.toLowerCase();
-            const clientInfo = element.querySelectorAll('p');
+            // Skip the "Add New Client" button at the end
+            if (element.querySelector('a[href="add-client.html"]')) {
+                return;
+            }
+            
+            const clientName = element.querySelector('h3')?.textContent.toLowerCase() || '';
             let matchFound = clientName.includes(searchTerm);
             
-            // Also search in other client info
-            clientInfo.forEach(info => {
-                if (info.textContent.toLowerCase().includes(searchTerm)) {
-                    matchFound = true;
-                }
-            });
+            // Also search in address, phone, and access information
+            const addressElement = element.querySelector('svg[d*="M15 10.5a3 3 0 11-6 0"] + span');
+            const phoneElement = element.querySelector('svg[d*="M2.25 6.75c0 8.284"] + span');
+            const accessElement = element.querySelector('svg[d*="M15.75 5.25a3 3 0 013 3m3"] + span');
+            
+            if (addressElement && addressElement.textContent.toLowerCase().includes(searchTerm)) {
+                matchFound = true;
+            }
+            
+            if (phoneElement && phoneElement.textContent.toLowerCase().includes(searchTerm)) {
+                matchFound = true;
+            }
+            
+            if (accessElement && accessElement.textContent.toLowerCase().includes(searchTerm)) {
+                matchFound = true;
+            }
             
             element.style.display = matchFound ? '' : 'none';
         });
@@ -1858,44 +1871,39 @@ function updateStateProvinceField() {
         'Quebec', 'Saskatchewan', 'Yukon'
     ];
     
-    // Update the label and field based on country selection
+    // Update the label based on country
     if (country === 'United States') {
         stateProvinceLabel.textContent = 'State';
         
-        // Create dropdown for US states
-        let stateOptions = '<option value="">Select a state</option>';
-        usStates.forEach(state => {
-            stateOptions += `<option value="${state}" ${currentValue === state ? 'selected' : ''}>${state}</option>`;
-        });
+        // Create options for US states
+        const stateOptions = usStates.map(state => 
+            `<option value="${state}" ${currentValue === state ? 'selected' : ''}>${state}</option>`
+        ).join('');
         
         stateProvinceContainer.innerHTML = `
-            <select id="modal-state" class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">
+            <select id="modal-state" class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">
                 ${stateOptions}
             </select>
         `;
-    } 
-    else if (country === 'Canada') {
+    } else if (country === 'Canada') {
         stateProvinceLabel.textContent = 'Province';
         
-        // Create dropdown for Canadian provinces
-        let provinceOptions = '<option value="">Select a province</option>';
-        canadianProvinces.forEach(province => {
-            provinceOptions += `<option value="${province}" ${currentValue === province ? 'selected' : ''}>${province}</option>`;
-        });
+        // Create options for Canadian provinces
+        const provinceOptions = canadianProvinces.map(province => 
+            `<option value="${province}" ${currentValue === province ? 'selected' : ''}>${province}</option>`
+        ).join('');
         
         stateProvinceContainer.innerHTML = `
-            <select id="modal-state" class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">
+            <select id="modal-state" class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">
                 ${provinceOptions}
             </select>
         `;
-    } 
-    else {
+    } else {
         stateProvinceLabel.textContent = 'State/Province';
         
-        // Create text input for other countries
         stateProvinceContainer.innerHTML = `
             <input type="text" id="modal-state" 
-                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
                 value="${currentValue}">
         `;
     }
@@ -1946,14 +1954,14 @@ function openAddClientModal() {
                         <div>
                             <label for="modal-first-name" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">First Name</label>
                             <input type="text" id="modal-first-name" 
-                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
                                 placeholder="First Name">
                         </div>
                         
                         <div>
                             <label for="modal-last-name" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Last Name</label>
                             <input type="text" id="modal-last-name" 
-                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
                                 placeholder="Last Name">
                         </div>
                     </div>
@@ -1961,7 +1969,7 @@ function openAddClientModal() {
                     <div>
                         <label for="modal-phone" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Phone</label>
                         <input type="tel" id="modal-phone" 
-                            class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                            class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
                             placeholder="Phone Number">
                     </div>
 
@@ -1973,21 +1981,21 @@ function openAddClientModal() {
                             <div>
                                 <label for="modal-street" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Street Address</label>
                                 <input type="text" id="modal-street" 
-                                    class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                                    class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
                                     placeholder="Street Address">
                             </div>
 
                             <div>
                                 <label for="modal-city" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">City</label>
                                 <input type="text" id="modal-city" 
-                                    class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                                    class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
                                     placeholder="City">
                             </div>
                             
                             <div>
                                 <label for="modal-country" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Country</label>
                                 <select id="modal-country" onchange="updateStateProvinceField()"
-                                    class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">
+                                    class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">
                                     <option value="">Select a country</option>
                                     <option value="United States">United States</option>
                                     <option value="Canada">Canada</option>
@@ -2001,14 +2009,14 @@ function openAddClientModal() {
                                     <div id="state-province-container">
                                         <!-- This will be populated by JavaScript based on country selection -->
                                         <input type="text" id="modal-state" 
-                                            class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                                            class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
                                             placeholder="State/Province">
                                     </div>
                                 </div>
                                 <div>
                                     <label for="modal-zip" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">ZIP/Postal Code</label>
                                     <input type="text" id="modal-zip" 
-                                        class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                                        class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
                                         placeholder="ZIP/Postal Code">
                                 </div>
                             </div>
@@ -2023,14 +2031,14 @@ function openAddClientModal() {
                             <div>
                                 <label for="modal-access-info" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Access Information</label>
                                 <input type="text" id="modal-access-info" 
-                                    class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
+                                    class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
                                     placeholder="Key code, entry instructions, etc.">
                             </div>
 
                             <div>
                                 <label for="modal-special-instructions" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Special Instructions</label>
                                 <textarea id="modal-special-instructions" rows="3" 
-                                    class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-primary-light focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6"
+                                    class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6"
                                     placeholder="Special cleaning instructions, preferences, etc."></textarea>
                             </div>
                         </div>
