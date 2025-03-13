@@ -355,7 +355,7 @@ function openClientDetailsModal(clientId, client) {
                 </button>
             </div>
             
-            <div class="p-4 space-y-4 overflow-y-auto" style="max-height: 60vh;">
+            <div class="p-4 space-y-4 overflow-y-auto" style="max-height: 50vh;">
                 <div class="flex items-center gap-x-2">
                     <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -395,19 +395,34 @@ function openClientDetailsModal(clientId, client) {
         </div>
     `;
     
+    // Force a scroll reset to ensure proper modal positioning
+    window.scrollTo(0, 0);
+    
     // Ensure the modal is properly positioned in the viewport
     // This helps with items at the top of the list
     setTimeout(() => {
         const modalContent = modal.querySelector('.bg-white');
         if (modalContent) {
-            // On mobile, ensure the modal slides up from the bottom
+            // On mobile, ensure the modal slides up from the bottom with proper height
             if (window.innerWidth < 640) { // sm breakpoint in Tailwind
-                modalContent.style.maxHeight = '80vh';
+                // Set a fixed height for iPhone portrait mode
+                modalContent.style.maxHeight = '85vh';
+                
+                // Force layout recalculation
+                document.body.offsetHeight;
+                
+                // Add a transform to ensure it's visible
+                modalContent.style.transform = 'translateY(0)';
             }
         }
         
         // Prevent body scrolling when modal is open
         document.body.style.overflow = 'hidden';
+        
+        // Force a reflow to ensure the modal is properly rendered
+        modal.style.display = 'none';
+        modal.offsetHeight; // Force reflow
+        modal.style.display = '';
     }, 10);
     
     // Add close on background click
