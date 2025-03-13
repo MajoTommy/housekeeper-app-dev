@@ -328,9 +328,9 @@ function openClientDetailsModal(clientId, client) {
     modal.dataset.clientId = clientId;
     modal.dataset.clientData = JSON.stringify(client);
     
-    // Update modal structure for better mobile responsiveness
-    // Use fixed positioning with flex to ensure consistent display regardless of scroll position
-    modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end sm:items-center justify-center';
+    // Update to use bottom sheet pattern instead of modal
+    // Fixed at bottom, full width on mobile, with a drag handle
+    modal.className = 'fixed inset-x-0 bottom-0 z-50 transform transition-transform duration-300 ease-in-out';
     
     // Format the address
     let address = 'No address provided';
@@ -343,9 +343,18 @@ function openClientDetailsModal(clientId, client) {
         address = parts.join(', ');
     }
 
-    // Update modal content structure
+    // Add a semi-transparent backdrop
+    const backdrop = document.createElement('div');
+    backdrop.className = 'fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity duration-300';
+    backdrop.style.opacity = '0';
+    document.body.appendChild(backdrop);
+    
+    // Update bottom sheet content structure with a drag handle
     modal.innerHTML = `
-        <div class="bg-white w-full sm:w-full sm:max-w-lg rounded-t-xl sm:rounded-xl overflow-hidden shadow-xl transform transition-all">
+        <div class="bg-white w-full rounded-t-xl overflow-hidden shadow-xl transform transition-all max-h-[90vh] flex flex-col">
+            <div class="flex justify-center pt-2 pb-1">
+                <div class="w-10 h-1 bg-gray-300 rounded-full"></div>
+            </div>
             <div class="flex justify-between items-center p-4 border-b border-gray-200">
                 <h2 class="text-xl font-semibold text-gray-900">${client.lastName}, ${client.firstName}</h2>
                 <button onclick="closeClientDetailsModal()" class="text-gray-400 hover:text-gray-500">
@@ -355,7 +364,7 @@ function openClientDetailsModal(clientId, client) {
                 </button>
             </div>
             
-            <div class="p-4 space-y-4 overflow-y-auto" style="max-height: 50vh;">
+            <div class="p-4 space-y-4 overflow-y-auto flex-grow">
                 <div class="flex items-center gap-x-2">
                     <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -384,53 +393,131 @@ function openClientDetailsModal(clientId, client) {
                 </div>
             </div>
 
-            <div class="p-4 border-t border-gray-200">
-                <button onclick="switchToEditMode()" class="w-full bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-dark mb-2">
+            <div class="p-4 border-t border-gray-200 bg-gray-50">
+                <button onclick="switchToEditMode()" class="w-full bg-primary text-white px-4 py-3 rounded-lg hover:bg-primary-dark mb-2">
                     Edit Client
                 </button>
-                <button onclick="closeClientDetailsModal()" class="w-full bg-white text-gray-700 px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50">
+                <button onclick="closeClientDetailsModal()" class="w-full bg-white text-gray-700 px-4 py-3 rounded-lg border border-gray-300 hover:bg-gray-50">
                     Close
                 </button>
             </div>
         </div>
     `;
     
-    // Force a scroll reset to ensure proper modal positioning
-    window.scrollTo(0, 0);
+    // Prevent body scrolling when bottom sheet is open
+    document.body.style.overflow = 'hidden';
     
-    // Ensure the modal is properly positioned in the viewport
-    // This helps with items at the top of the list
+    // Add swipe down to close functionality
+    setupBottomSheetDrag(modal);
+    
+    // Animate in the bottom sheet and backdrop
     setTimeout(() => {
-        const modalContent = modal.querySelector('.bg-white');
-        if (modalContent) {
-            // On mobile, ensure the modal slides up from the bottom with proper height
-            if (window.innerWidth < 640) { // sm breakpoint in Tailwind
-                // Set a fixed height for iPhone portrait mode
-                modalContent.style.maxHeight = '85vh';
-                
-                // Force layout recalculation
-                document.body.offsetHeight;
-                
-                // Add a transform to ensure it's visible
-                modalContent.style.transform = 'translateY(0)';
-            }
-        }
-        
-        // Prevent body scrolling when modal is open
-        document.body.style.overflow = 'hidden';
-        
-        // Force a reflow to ensure the modal is properly rendered
-        modal.style.display = 'none';
-        modal.offsetHeight; // Force reflow
-        modal.style.display = '';
+        modal.style.transform = 'translateY(0)';
+        backdrop.style.opacity = '1';
     }, 10);
     
-    // Add close on background click
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            closeClientDetailsModal();
-        }
+    // Add close on backdrop click
+    backdrop.addEventListener('click', () => {
+        closeClientDetailsModal();
     });
+    
+    // Store backdrop reference for removal on close
+    modal.dataset.backdropElement = 'backdrop-' + Date.now();
+    backdrop.id = modal.dataset.backdropElement;
+}
+
+// Function to set up drag functionality for bottom sheet
+function setupBottomSheetDrag(bottomSheet) {
+    const content = bottomSheet.querySelector('.bg-white');
+    if (!content) return;
+    
+    let startY = 0;
+    let startHeight = 0;
+    let isDragging = false;
+    
+    // The drag handle at the top of the sheet
+    const dragHandle = content.querySelector('div:first-child');
+    
+    const onStart = (e) => {
+        const touch = e.touches ? e.touches[0] : e;
+        startY = touch.clientY;
+        startHeight = content.offsetHeight;
+        isDragging = true;
+        
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('touchmove', onMove);
+        document.addEventListener('mouseup', onEnd);
+        document.addEventListener('touchend', onEnd);
+    };
+    
+    const onMove = (e) => {
+        if (!isDragging) return;
+        
+        const touch = e.touches ? e.touches[0] : e;
+        const deltaY = touch.clientY - startY;
+        
+        // Only allow dragging down, not up
+        if (deltaY > 0) {
+            bottomSheet.style.transform = `translateY(${deltaY}px)`;
+        }
+    };
+    
+    const onEnd = (e) => {
+        if (!isDragging) return;
+        isDragging = false;
+        
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('mouseup', onEnd);
+        document.removeEventListener('touchend', onEnd);
+        
+        const touch = e.changedTouches ? e.changedTouches[0] : e;
+        const deltaY = touch.clientY - startY;
+        
+        // If dragged more than 150px down or with enough velocity, close the sheet
+        if (deltaY > 150) {
+            closeClientDetailsModal();
+        } else {
+            // Otherwise snap back to fully open
+            bottomSheet.style.transform = 'translateY(0)';
+        }
+    };
+    
+    // Add event listeners for mouse and touch
+    dragHandle.addEventListener('mousedown', onStart);
+    dragHandle.addEventListener('touchstart', onStart);
+}
+
+// Function to close client details modal
+function closeClientDetailsModal() {
+    const modal = document.getElementById('client-details-modal');
+    if (modal) {
+        // Get the backdrop element
+        const backdropId = modal.dataset.backdropElement;
+        const backdrop = document.getElementById(backdropId);
+        
+        // Animate out
+        modal.style.transform = 'translateY(100%)';
+        if (backdrop) {
+            backdrop.style.opacity = '0';
+        }
+        
+        // After animation completes, hide and clean up
+        setTimeout(() => {
+            modal.classList.add('hidden');
+            // Clear the stored data
+            delete modal.dataset.clientId;
+            delete modal.dataset.clientData;
+            
+            // Remove the backdrop
+            if (backdrop) {
+                backdrop.remove();
+            }
+            
+            // Re-enable body scrolling
+            document.body.style.overflow = '';
+        }, 300); // Match the duration in the CSS transition
+    }
 }
 
 // Function to switch to edit mode
@@ -438,9 +525,12 @@ function switchToEditMode() {
     const modal = document.getElementById('client-details-modal');
     const clientData = JSON.parse(modal.dataset.clientData);
     
-    // Update modal content with edit form
+    // Update bottom sheet content with edit form
     const modalContent = modal.querySelector('.bg-white');
     modalContent.innerHTML = `
+        <div class="flex justify-center pt-2 pb-1">
+            <div class="w-10 h-1 bg-gray-300 rounded-full"></div>
+        </div>
         <div class="flex justify-between items-center p-4 border-b border-gray-200">
             <h2 class="text-lg font-medium text-gray-900">Edit Client</h2>
             <button onclick="cancelEdit()" class="text-gray-400 hover:text-gray-500 p-1">
@@ -450,7 +540,7 @@ function switchToEditMode() {
             </button>
         </div>
         
-        <div class="px-4 py-5 overflow-y-auto" style="max-height: calc(95vh - 140px);">
+        <div class="px-4 py-5 overflow-y-auto flex-grow">
             <form id="client-edit-form" class="space-y-6">
                 <div>
                     <label for="modal-first-name" class="block text-sm font-medium leading-6 text-gray-900">First Name</label>
@@ -520,15 +610,18 @@ function switchToEditMode() {
             </form>
         </div>
 
-        <div class="px-4 py-3 bg-gray-50 border-t border-gray-200 sm:px-6">
-            <button onclick="saveClientDetails()" class="w-full mb-2 inline-flex justify-center rounded-md bg-primary px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+        <div class="px-4 py-3 bg-gray-50 border-t border-gray-200">
+            <button onclick="saveClientDetails()" class="w-full mb-2 inline-flex justify-center rounded-md bg-primary px-3 py-3 text-sm font-semibold text-white shadow-sm hover:bg-primary-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
                 Save Changes
             </button>
-            <button onclick="cancelEdit()" class="w-full inline-flex justify-center rounded-md bg-white px-3 py-2.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+            <button onclick="cancelEdit()" class="w-full inline-flex justify-center rounded-md bg-white px-3 py-3 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
                 Cancel
             </button>
         </div>
     `;
+    
+    // Re-add the drag functionality
+    setupBottomSheetDrag(modal);
 }
 
 // Function to cancel edit and return to view mode
@@ -594,20 +687,6 @@ async function saveClientDetails() {
         console.error('Error saving client details:', error);
         hideLoading();
         showErrorMessage('Error saving client details: ' + error.message);
-    }
-}
-
-// Function to close client details modal
-function closeClientDetailsModal() {
-    const modal = document.getElementById('client-details-modal');
-    if (modal) {
-        modal.classList.add('hidden');
-        // Clear the stored data
-        delete modal.dataset.clientId;
-        delete modal.dataset.clientData;
-        
-        // Re-enable body scrolling
-        document.body.style.overflow = '';
     }
 }
 
@@ -1287,12 +1366,6 @@ async function loadClientDetailsSimple(clientId) {
                     emailLink.href = '#';
                     emailLink.innerHTML = `<i class="fas fa-envelope"></i> No email provided`;
                 }
-            }
-            
-            // Update edit link
-            const editLink = document.querySelector('a[href="edit-client.html"]');
-            if (editLink) {
-                editLink.href = `edit-client.html?id=${clientId}`;
             }
         } catch (err) {
             console.error('Error updating client info:', err);
