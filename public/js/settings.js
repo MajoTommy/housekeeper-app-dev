@@ -33,63 +33,63 @@ document.addEventListener('DOMContentLoaded', function() {
     const DEFAULT_END_TIME = '5:00 PM';
     const DEFAULT_JOB_DURATION = 180; // 3 hours in minutes
     
-    // Working days state
+    // Initialize default working days
     const workingDays = {
-        monday: {
-            isWorking: true,
-            startTime: DEFAULT_START_TIME,
-            endTime: DEFAULT_END_TIME,
-            jobsPerDay: DEFAULT_JOBS_PER_DAY,
-            breakTime: DEFAULT_BREAK_TIME,
-            jobDuration: DEFAULT_JOB_DURATION
+        monday: { 
+            isWorking: true, 
+            startTime: '8:00 AM', 
+            jobsPerDay: 2, 
+            breakTime: 90, // Legacy - kept for backward compatibility
+            breakDurations: [90],  // New array to store individual break durations
+            jobDurations: [DEFAULT_JOB_DURATION, DEFAULT_JOB_DURATION]
         },
-        tuesday: {
-            isWorking: true,
-            startTime: DEFAULT_START_TIME,
-            endTime: DEFAULT_END_TIME,
-            jobsPerDay: DEFAULT_JOBS_PER_DAY,
-            breakTime: DEFAULT_BREAK_TIME,
-            jobDuration: DEFAULT_JOB_DURATION
+        tuesday: { 
+            isWorking: true, 
+            startTime: '8:00 AM', 
+            jobsPerDay: 2, 
+            breakTime: 90,
+            breakDurations: [90],
+            jobDurations: [DEFAULT_JOB_DURATION, DEFAULT_JOB_DURATION]
         },
-        wednesday: {
-            isWorking: false,
-            startTime: DEFAULT_START_TIME,
-            endTime: DEFAULT_END_TIME,
-            jobsPerDay: DEFAULT_JOBS_PER_DAY,
-            breakTime: DEFAULT_BREAK_TIME,
-            jobDuration: DEFAULT_JOB_DURATION
+        wednesday: { 
+            isWorking: false, 
+            startTime: '8:00 AM', 
+            jobsPerDay: 2, 
+            breakTime: 90,
+            breakDurations: [90],
+            jobDurations: [DEFAULT_JOB_DURATION, DEFAULT_JOB_DURATION]
         },
-        thursday: {
-            isWorking: true,
-            startTime: DEFAULT_START_TIME,
-            endTime: DEFAULT_END_TIME,
-            jobsPerDay: DEFAULT_JOBS_PER_DAY,
-            breakTime: DEFAULT_BREAK_TIME,
-            jobDuration: DEFAULT_JOB_DURATION
+        thursday: { 
+            isWorking: true, 
+            startTime: '8:00 AM', 
+            jobsPerDay: 2, 
+            breakTime: 90,
+            breakDurations: [90],
+            jobDurations: [DEFAULT_JOB_DURATION, DEFAULT_JOB_DURATION]
         },
-        friday: {
-            isWorking: true,
-            startTime: DEFAULT_START_TIME,
-            endTime: DEFAULT_END_TIME,
-            jobsPerDay: DEFAULT_JOBS_PER_DAY,
-            breakTime: DEFAULT_BREAK_TIME,
-            jobDuration: DEFAULT_JOB_DURATION
+        friday: { 
+            isWorking: true, 
+            startTime: '8:00 AM', 
+            jobsPerDay: 2, 
+            breakTime: 90,
+            breakDurations: [90],
+            jobDurations: [DEFAULT_JOB_DURATION, DEFAULT_JOB_DURATION]
         },
-        saturday: {
-            isWorking: false,
-            startTime: DEFAULT_START_TIME,
-            endTime: DEFAULT_END_TIME,
-            jobsPerDay: DEFAULT_JOBS_PER_DAY,
-            breakTime: DEFAULT_BREAK_TIME,
-            jobDuration: DEFAULT_JOB_DURATION
+        saturday: { 
+            isWorking: false, 
+            startTime: '8:00 AM', 
+            jobsPerDay: 2, 
+            breakTime: 90,
+            breakDurations: [90],
+            jobDurations: [DEFAULT_JOB_DURATION, DEFAULT_JOB_DURATION]
         },
-        sunday: {
-            isWorking: false,
-            startTime: DEFAULT_START_TIME,
-            endTime: DEFAULT_END_TIME,
-            jobsPerDay: DEFAULT_JOBS_PER_DAY,
-            breakTime: DEFAULT_BREAK_TIME,
-            jobDuration: DEFAULT_JOB_DURATION
+        sunday: { 
+            isWorking: false, 
+            startTime: '8:00 AM', 
+            jobsPerDay: 2, 
+            breakTime: 90,
+            breakDurations: [90],
+            jobDurations: [DEFAULT_JOB_DURATION, DEFAULT_JOB_DURATION]
         }
     };
     
@@ -200,7 +200,7 @@ document.addEventListener('DOMContentLoaded', function() {
             this.classList.add('bg-blue-50', 'border-blue-300');
             
             // Update job duration in state
-            workingDays[day].jobDuration = duration;
+            workingDays[day].jobDurations = Array(workingDays[day].jobsPerDay).fill(duration);
             
             // Update visual timeline
             updateDayVisualIndicators(day);
@@ -234,6 +234,60 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
+    // Convert 24-hour format time to AM/PM display
+    function convertTo12HourFormat(timeStr) {
+        // Handle empty strings
+        if (!timeStr) return '';
+        
+        // If already in 12-hour format, return as is
+        if (timeStr.includes('AM') || timeStr.includes('PM')) {
+            return timeStr;
+        }
+        
+        try {
+            // Parse time in 24-hour format (HH:MM)
+            const [hours, minutes] = timeStr.split(':').map(Number);
+            
+            // Convert to 12-hour format
+            const period = hours >= 12 ? 'PM' : 'AM';
+            const hours12 = hours % 12 || 12;
+            
+            // Format the time string
+            return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
+        } catch (error) {
+            console.error('Error converting time format:', error);
+            return timeStr;
+        }
+    }
+    
+    // Convert AM/PM time to 24-hour format for the input
+    function convertTo24HourFormat(timeStr) {
+        // If already in 24-hour format or empty, return as is
+        if (!timeStr || (timeStr.includes(':') && !timeStr.includes('AM') && !timeStr.includes('PM'))) {
+            return timeStr;
+        }
+        
+        try {
+            // Parse the 12-hour format time
+            const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+            if (!match) return timeStr;
+            
+            let hours = parseInt(match[1]);
+            const minutes = parseInt(match[2]);
+            const period = match[3].toUpperCase();
+            
+            // Convert to 24-hour format
+            if (period === 'PM' && hours < 12) hours += 12;
+            if (period === 'AM' && hours === 12) hours = 0;
+            
+            // Format the time string for the input
+            return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+        } catch (error) {
+            console.error('Error converting to 24-hour format:', error);
+            return timeStr;
+        }
+    }
+    
     // Start time change handler
     document.addEventListener('change', function(e) {
         const startTimeMatch = e.target.getAttribute('data-start-time');
@@ -243,11 +297,18 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (startTimeMatch) {
             day = startTimeMatch;
-            workingDays[day].startTime = e.target.value;
+            // For type="time" inputs, they return 24-hour format (HH:MM)
+            // We need to convert to 12-hour format for our internal data
+            const timeValue = e.target.value;
+            workingDays[day].startTime = convertTo12HourFormat(timeValue);
+            
+            // Update visual timeline
             updateDayVisualIndicators(day);
         } else if (breakTimeMatch) {
             day = breakTimeMatch;
             workingDays[day].breakTime = parseInt(e.target.value);
+            
+            // Update visual timeline
             updateDayVisualIndicators(day);
         }
         
@@ -267,7 +328,6 @@ document.addEventListener('DOMContentLoaded', function() {
         // Get the current settings
         const jobCount = workingDays[day].jobsPerDay || 2;
         const startTime = startTimeSelect ? startTimeSelect.value : workingDays[day].startTime;
-        const breakTime = workingDays[day].breakTime || DEFAULT_BREAK_TIME;
         
         // Initialize job durations if not set
         if (!workingDays[day].jobDurations) {
@@ -282,6 +342,23 @@ document.addEventListener('DOMContentLoaded', function() {
         // Trim extra durations if needed
         if (workingDays[day].jobDurations.length > jobCount) {
             workingDays[day].jobDurations = workingDays[day].jobDurations.slice(0, jobCount);
+        }
+        
+        // Initialize break durations if not set
+        if (!workingDays[day].breakDurations) {
+            // If we have a legacy breakTime, use it for all breaks
+            const breakTime = workingDays[day].breakTime || DEFAULT_BREAK_TIME;
+            workingDays[day].breakDurations = Array(jobCount - 1).fill(breakTime);
+        }
+        
+        // Make sure we have enough break durations
+        while (workingDays[day].breakDurations.length < jobCount - 1) {
+            workingDays[day].breakDurations.push(DEFAULT_BREAK_TIME);
+        }
+        
+        // Trim extra break durations if needed
+        if (workingDays[day].breakDurations.length > jobCount - 1) {
+            workingDays[day].breakDurations = workingDays[day].breakDurations.slice(0, jobCount - 1);
         }
         
         // Calculate timeline
@@ -307,13 +384,18 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Add break if not the last job
             if (i < jobCount - 1) {
+                // Get the duration for this specific break
+                const breakDuration = workingDays[day].breakDurations[i];
+                
                 const breakStart = new Date(jobEnd);
-                const breakEnd = new Date(breakStart.getTime() + breakTime * 60000);
+                const breakEnd = new Date(breakStart.getTime() + breakDuration * 60000);
                 timeline.push({
                     type: 'break',
+                    index: i, // Add index to identify which break this is
                     startTime: formatTime(breakStart),
                     endTime: formatTime(breakEnd),
-                    durationText: getBreakDurationText(breakTime)
+                    duration: breakDuration,
+                    durationText: getBreakDurationText(breakDuration)
                 });
                 currentTime = new Date(breakEnd);
             } else {
@@ -375,10 +457,10 @@ document.addEventListener('DOMContentLoaded', function() {
                                         ${item.durationText}
                         </div>
                                     <div class="flex items-center space-x-4">
-                                        <button type="button" class="h-9 w-9 rounded-full bg-white border border-gray-300 flex items-center justify-center text-gray-600 shadow-sm" data-break-decrease="${day}" ${breakTime <= 30 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
+                                        <button type="button" class="h-9 w-9 rounded-full bg-white border border-gray-300 flex items-center justify-center text-gray-600 shadow-sm" data-break-decrease="${day}-${item.index}" ${item.duration <= 30 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
                                             <i class="fas fa-minus"></i>
                                         </button>
-                                        <button type="button" class="h-9 w-9 rounded-full bg-white border border-gray-300 flex items-center justify-center text-gray-600 shadow-sm" data-break-increase="${day}" ${breakTime >= 180 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
+                                        <button type="button" class="h-9 w-9 rounded-full bg-white border border-gray-300 flex items-center justify-center text-gray-600 shadow-sm" data-break-increase="${day}-${item.index}" ${item.duration >= 180 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
                                             <i class="fas fa-plus"></i>
                                         </button>
                     </div>
@@ -434,34 +516,37 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         // Add event listeners to the + and - buttons for breaks
-        const breakDecreaseButton = timelineContainer.querySelector(`[data-break-decrease="${day}"]`);
-        const breakIncreaseButton = timelineContainer.querySelector(`[data-break-increase="${day}"]`);
-        
-        if (breakDecreaseButton) {
-            breakDecreaseButton.addEventListener('click', function() {
-                const currentBreakTime = workingDays[day].breakTime;
-                // Minimum break is 30 minutes
-                if (currentBreakTime > 30) {
-                    workingDays[day].breakTime = currentBreakTime - 30;
-                    updateDayVisualIndicators(day);
-                showSavingIndicator();
-                validateAndSaveSettings();
-                }
-            });
-        }
-        
-        if (breakIncreaseButton) {
-            breakIncreaseButton.addEventListener('click', function() {
-                const currentBreakTime = workingDays[day].breakTime;
-                // Maximum break is 180 minutes (3 hours)
-                if (currentBreakTime < 180) {
-                    workingDays[day].breakTime = currentBreakTime + 30;
-                    updateDayVisualIndicators(day);
-                showSavingIndicator();
-                validateAndSaveSettings();
-                }
-            });
-        }
+        timeline.filter(item => item.type === 'break').forEach(breakItem => {
+            const breakIndex = breakItem.index;
+            const breakDecreaseButton = timelineContainer.querySelector(`[data-break-decrease="${day}-${breakIndex}"]`);
+            const breakIncreaseButton = timelineContainer.querySelector(`[data-break-increase="${day}-${breakIndex}"]`);
+            
+            if (breakDecreaseButton) {
+                breakDecreaseButton.addEventListener('click', function() {
+                    const currentBreakTime = workingDays[day].breakDurations[breakIndex];
+                    // Minimum break is 30 minutes
+                    if (currentBreakTime > 30) {
+                        workingDays[day].breakDurations[breakIndex] = currentBreakTime - 30;
+                        updateDayVisualIndicators(day);
+                        showSavingIndicator();
+                        validateAndSaveSettings();
+                    }
+                });
+            }
+            
+            if (breakIncreaseButton) {
+                breakIncreaseButton.addEventListener('click', function() {
+                    const currentBreakTime = workingDays[day].breakDurations[breakIndex];
+                    // Maximum break is 180 minutes (3 hours)
+                    if (currentBreakTime < 180) {
+                        workingDays[day].breakDurations[breakIndex] = currentBreakTime + 30;
+                        updateDayVisualIndicators(day);
+                        showSavingIndicator();
+                        validateAndSaveSettings();
+                    }
+                });
+            }
+        });
         
         // Also calculate and update end time in the state
         const lastItem = timeline.find(item => item.type === 'end');
@@ -534,16 +619,28 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     document.getElementById('break-time').addEventListener('change', function() {
+        const newBreakTime = parseInt(this.value);
+        
         // Ask if user wants to apply this change to all working days
         if (confirm('Do you want to apply this change to all working days?')) {
             Object.keys(workingDays).forEach(day => {
                 if (workingDays[day].isWorking) {
-                    workingDays[day].breakTime = parseInt(this.value);
+                    // Update both legacy breakTime and new breakDurations array
+                    workingDays[day].breakTime = newBreakTime;
+                    
+                    // Initialize or update break durations array
+                    const jobCount = workingDays[day].jobsPerDay || 2;
+                    if (!workingDays[day].breakDurations) {
+                        workingDays[day].breakDurations = Array(jobCount - 1).fill(newBreakTime);
+                    } else {
+                        // Fill all break durations with the new value
+                        workingDays[day].breakDurations = workingDays[day].breakDurations.map(() => newBreakTime);
+                    }
                     
                     // Update the day-specific select if it's visible
                     const daySelect = document.querySelector(`[data-break-time="${day}"]`);
                     if (daySelect) {
-                        daySelect.value = this.value;
+                        daySelect.value = String(newBreakTime);
                     }
                 }
             });
@@ -978,7 +1075,13 @@ document.addEventListener('DOMContentLoaded', function() {
                             
                             // Update start time
                             if (startTimeSelect && daySettings.startTime) {
-                                startTimeSelect.value = daySettings.startTime;
+                                // For input type="time", convert to 24-hour format
+                                if (startTimeSelect.type === 'time') {
+                                    startTimeSelect.value = convertTo24HourFormat(daySettings.startTime);
+                                } else {
+                                    // For select elements (backward compatibility)
+                                    startTimeSelect.value = daySettings.startTime;
+                                }
                             }
                             
                             // Update job count radio buttons
@@ -1200,7 +1303,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Add break time if not the last cleaning
                     if (i < jobCount - 1) {
-                    currentTime = new Date(slotEnd.getTime() + breakTime * 60000);
+                    // Get the specific break duration for this break
+                    let breakDuration;
+                    if (settings.breakDurations && settings.breakDurations[i]) {
+                        breakDuration = settings.breakDurations[i];
+                    } else {
+                        // Fallback to legacy breakTime or default
+                        breakDuration = settings.breakTime || DEFAULT_BREAK_TIME;
+                    }
+                    
+                    currentTime = new Date(slotEnd.getTime() + breakDuration * 60000);
                 }
             }
             
