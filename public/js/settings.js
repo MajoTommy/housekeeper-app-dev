@@ -8,15 +8,11 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('Settings.js loaded');
 
     // References to form elements
-    const dayButtons = document.querySelectorAll('[data-day]');
+    const dayToggles = document.querySelectorAll('.day-toggle');
     const daySettings = document.querySelectorAll('[data-day-settings]');
-    const monFriSetupButton = document.getElementById('mon-fri-setup');
-    const weekendsSetupButton = document.getElementById('weekends-setup');
-    const resetDefaultsButton = document.getElementById('reset-defaults');
-    const hourlyRateInput = document.getElementById('hourly-rate');
     const autoSendReceiptsToggle = document.getElementById('auto-send-receipts');
     
-    // Create hidden inputs for default settings (since we removed the visible ones)
+    // Create hidden inputs for default settings
     const settingsContainer = document.querySelector('.p-4');
     const hiddenInputsContainer = document.createElement('div');
     hiddenInputsContainer.style.display = 'none';
@@ -24,25 +20,18 @@ document.addEventListener('DOMContentLoaded', function() {
         <select id="cleanings-per-day">
             <option value="2" selected>2 jobs per day</option>
         </select>
-        <select id="cleaning-duration">
-            <option value="180" selected>3 hours</option>
-        </select>
         <select id="break-time">
             <option value="90" selected>1.5 hours</option>
-        </select>
-        <select id="max-hours">
-            <option value="420" selected>7 hours</option>
         </select>
     `;
     settingsContainer.appendChild(hiddenInputsContainer);
     
     // Default values for settings
     const DEFAULT_JOBS_PER_DAY = 2;
-    const DEFAULT_CLEANING_DURATION = 180; // 3 hours in minutes
     const DEFAULT_BREAK_TIME = 90; // 1.5 hours in minutes
-    const DEFAULT_MAX_HOURS = 420; // 7 hours in minutes
     const DEFAULT_START_TIME = '8:00 AM';
     const DEFAULT_END_TIME = '5:00 PM';
+    const DEFAULT_JOB_DURATION = 180; // 3 hours in minutes
     
     // Working days state
     const workingDays = {
@@ -51,362 +40,476 @@ document.addEventListener('DOMContentLoaded', function() {
             startTime: DEFAULT_START_TIME,
             endTime: DEFAULT_END_TIME,
             jobsPerDay: DEFAULT_JOBS_PER_DAY,
-            cleaningDuration: DEFAULT_CLEANING_DURATION,
             breakTime: DEFAULT_BREAK_TIME,
-            maxHours: DEFAULT_MAX_HOURS
+            jobDuration: DEFAULT_JOB_DURATION
         },
         tuesday: {
             isWorking: true,
             startTime: DEFAULT_START_TIME,
             endTime: DEFAULT_END_TIME,
             jobsPerDay: DEFAULT_JOBS_PER_DAY,
-            cleaningDuration: DEFAULT_CLEANING_DURATION,
             breakTime: DEFAULT_BREAK_TIME,
-            maxHours: DEFAULT_MAX_HOURS
+            jobDuration: DEFAULT_JOB_DURATION
         },
         wednesday: {
-            isWorking: true,
+            isWorking: false,
             startTime: DEFAULT_START_TIME,
             endTime: DEFAULT_END_TIME,
             jobsPerDay: DEFAULT_JOBS_PER_DAY,
-            cleaningDuration: DEFAULT_CLEANING_DURATION,
             breakTime: DEFAULT_BREAK_TIME,
-            maxHours: DEFAULT_MAX_HOURS
+            jobDuration: DEFAULT_JOB_DURATION
         },
         thursday: {
             isWorking: true,
             startTime: DEFAULT_START_TIME,
             endTime: DEFAULT_END_TIME,
             jobsPerDay: DEFAULT_JOBS_PER_DAY,
-            cleaningDuration: DEFAULT_CLEANING_DURATION,
             breakTime: DEFAULT_BREAK_TIME,
-            maxHours: DEFAULT_MAX_HOURS
+            jobDuration: DEFAULT_JOB_DURATION
         },
         friday: {
             isWorking: true,
             startTime: DEFAULT_START_TIME,
             endTime: DEFAULT_END_TIME,
             jobsPerDay: DEFAULT_JOBS_PER_DAY,
-            cleaningDuration: DEFAULT_CLEANING_DURATION,
             breakTime: DEFAULT_BREAK_TIME,
-            maxHours: DEFAULT_MAX_HOURS
+            jobDuration: DEFAULT_JOB_DURATION
         },
         saturday: {
             isWorking: false,
             startTime: DEFAULT_START_TIME,
             endTime: DEFAULT_END_TIME,
             jobsPerDay: DEFAULT_JOBS_PER_DAY,
-            cleaningDuration: DEFAULT_CLEANING_DURATION,
             breakTime: DEFAULT_BREAK_TIME,
-            maxHours: DEFAULT_MAX_HOURS
+            jobDuration: DEFAULT_JOB_DURATION
         },
         sunday: {
             isWorking: false,
             startTime: DEFAULT_START_TIME,
             endTime: DEFAULT_END_TIME,
             jobsPerDay: DEFAULT_JOBS_PER_DAY,
-            cleaningDuration: DEFAULT_CLEANING_DURATION,
             breakTime: DEFAULT_BREAK_TIME,
-            maxHours: DEFAULT_MAX_HOURS
+            jobDuration: DEFAULT_JOB_DURATION
         }
     };
     
-    // Quick setup handlers
-    monFriSetupButton.addEventListener('click', function() {
-        setupDays(['monday', 'tuesday', 'wednesday', 'thursday', 'friday'], true);
-        setupDays(['saturday', 'sunday'], false);
-        updateQuickSetupButtons(this);
+    // Day toggle handlers
+    dayToggles.forEach(toggle => {
+        toggle.addEventListener('change', function() {
+            const day = this.getAttribute('data-day-toggle');
+            workingDays[day].isWorking = this.checked;
+            
+            // Show/hide settings panel
+            const settingsPanel = document.querySelector(`[data-day-settings="${day}"]`);
+            if (settingsPanel) {
+                if (this.checked) {
+                    settingsPanel.classList.remove('hidden');
+                    updateDayVisualIndicators(day);
+                } else {
+                    settingsPanel.classList.add('hidden');
+                }
+            }
+            
+            // Update visual style of the day card
+            const dayCard = this.closest('.rounded-lg');
+            const dayIcon = dayCard.querySelector('.rounded-full');
+            
+            if (this.checked) {
+                dayIcon.classList.remove('bg-gray-300');
+                dayIcon.classList.add('bg-primary');
+            } else {
+                dayIcon.classList.remove('bg-primary');
+                dayIcon.classList.add('bg-gray-300');
+            }
+            
+            showSavingIndicator();
+            validateAndSaveSettings();
+        });
     });
     
-    weekendsSetupButton.addEventListener('click', function() {
-        setupDays(['monday', 'tuesday', 'wednesday', 'thursday', 'friday'], false);
-        setupDays(['saturday', 'sunday'], true);
-        updateQuickSetupButtons(this);
-    });
-    
-    resetDefaultsButton.addEventListener('click', function() {
-        if (confirm('Reset all days to default settings?')) {
-            Object.keys(workingDays).forEach(day => {
-                workingDays[day] = {
-                    isWorking: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].includes(day),
-                    startTime: DEFAULT_START_TIME,
-                    endTime: DEFAULT_END_TIME,
-                    jobsPerDay: DEFAULT_JOBS_PER_DAY,
-                    cleaningDuration: DEFAULT_CLEANING_DURATION,
-                    breakTime: DEFAULT_BREAK_TIME,
-                    maxHours: DEFAULT_MAX_HOURS
-                };
-                updateDayButtonStyle(day, workingDays[day].isWorking);
-            });
+    // Day card header click to expand/collapse
+    document.querySelectorAll('.rounded-lg > div:first-child').forEach(header => {
+        header.addEventListener('click', function(e) {
+            // Don't trigger if clicking on the toggle switch
+            if (e.target.closest('.inline-flex') || e.target.closest('input')) {
+                return;
+            }
+            
+            const card = this.closest('.rounded-lg');
+            const day = card.querySelector('.day-toggle').getAttribute('data-day-toggle');
+            const settingsPanel = document.querySelector(`[data-day-settings="${day}"]`);
+            
+            if (settingsPanel) {
+                settingsPanel.classList.toggle('hidden');
+                
+                // Make sure the day is working if we're showing the settings
+                if (!settingsPanel.classList.contains('hidden')) {
+                    const toggle = card.querySelector('.day-toggle');
+                    if (toggle && !toggle.checked) {
+                        toggle.checked = true;
+                        workingDays[day].isWorking = true;
+                        
+                        // Update UI
+                        const dayIcon = card.querySelector('.rounded-full');
+                        dayIcon.classList.remove('bg-gray-300');
+                        dayIcon.classList.add('bg-primary');
             
             showSavingIndicator();
             validateAndSaveSettings();
         }
-        updateQuickSetupButtons(monFriSetupButton);
+                }
+            }
+        });
     });
     
-    function setupDays(daysList, isWorking) {
-        daysList.forEach(day => {
-            workingDays[day].isWorking = isWorking;
-            updateDayButtonStyle(day, isWorking);
-        });
+    // Job option radio button handlers
+    document.querySelectorAll('[data-job-option]').forEach(option => {
+        option.addEventListener('click', function() {
+            const jobCount = parseInt(this.getAttribute('data-job-option'));
+            const day = this.querySelector('input').getAttribute('data-jobs-input');
+            
+            // Update selected state
+            const container = this.closest('.flex');
+            container.querySelectorAll('[data-job-option]').forEach(opt => {
+                opt.classList.remove('bg-blue-50', 'border-blue-300');
+            });
+            this.classList.add('bg-blue-50', 'border-blue-300');
+            
+            // Update job count in state
+            workingDays[day].jobsPerDay = jobCount;
+            
+            // Update visual timeline
+            updateDayVisualIndicators(day);
         
         showSavingIndicator();
         validateAndSaveSettings();
-    }
-    
-    function updateQuickSetupButtons(activeButton) {
-        const allButtons = [monFriSetupButton, weekendsSetupButton, resetDefaultsButton];
-        
-        allButtons.forEach(btn => {
-            btn.classList.toggle('bg-primary', btn === activeButton);
-            btn.classList.toggle('text-white', btn === activeButton);
-            btn.classList.toggle('bg-gray-200', btn !== activeButton);
-            btn.classList.toggle('text-gray-700', btn !== activeButton);
-        });
-    }
-    
-    // Accordion functionality for day settings
-    dayButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const day = this.getAttribute('data-day');
-            const settings = document.querySelector(`[data-day-settings="${day}"]`);
-            const arrow = this.querySelector('svg');
-            
-            // Close all other panels
-            daySettings.forEach(panel => {
-                if (panel !== settings) {
-                    panel.classList.add('hidden');
-                    const otherArrow = panel.previousElementSibling.querySelector('svg');
-                    otherArrow.classList.remove('rotate-180');
-                }
-            });
-            
-            // Toggle current panel
-            settings.classList.toggle('hidden');
-            arrow.classList.toggle('rotate-180');
         });
     });
     
-    // Make Working Day / Rest Day toggle
-    document.querySelectorAll('[data-day-settings] button').forEach(button => {
-        button.addEventListener('click', function() {
-            const day = this.closest('[data-day-settings]').getAttribute('data-day-settings');
-            const isCurrentlyWorking = workingDays[day].isWorking;
+    // Job duration radio button handlers
+    document.querySelectorAll('[data-duration-option]').forEach(option => {
+        option.addEventListener('click', function() {
+            const duration = parseInt(this.getAttribute('data-duration-option'));
+            const day = this.querySelector('input').getAttribute('data-duration-input');
             
-            workingDays[day].isWorking = !isCurrentlyWorking;
-            updateDayButtonStyle(day, !isCurrentlyWorking);
+            // Update selected state
+            const container = this.closest('.flex');
+            container.querySelectorAll('[data-duration-option]').forEach(opt => {
+                opt.classList.remove('bg-blue-50', 'border-blue-300');
+            });
+            this.classList.add('bg-blue-50', 'border-blue-300');
+            
+            // Update job duration in state
+            workingDays[day].jobDuration = duration;
+            
+            // Update visual timeline
+            updateDayVisualIndicators(day);
             
             showSavingIndicator();
             validateAndSaveSettings();
         });
     });
     
-    function updateDayButtonStyle(day, isWorking) {
-        const button = document.querySelector(`[data-day="${day}"]`);
-        const circle = button.querySelector('.rounded-full');
-        const statusText = button.querySelector('.text-sm.text-gray-500');
-        const settingsPanel = document.querySelector(`[data-day-settings="${day}"]`);
+    // Break time radio button handlers
+    document.querySelectorAll('[data-break-option]').forEach(option => {
+        option.addEventListener('click', function() {
+            const breakTime = parseInt(this.getAttribute('data-break-option'));
+            const day = this.querySelector('input').getAttribute('data-break-input');
+            
+            // Update selected state
+            const container = this.closest('.flex');
+            container.querySelectorAll('[data-break-option]').forEach(opt => {
+                opt.classList.remove('bg-blue-50', 'border-blue-300');
+            });
+            this.classList.add('bg-blue-50', 'border-blue-300');
+            
+            // Update break time in state
+            workingDays[day].breakTime = breakTime;
+            
+            // Update visual timeline
+            updateDayVisualIndicators(day);
+            
+            showSavingIndicator();
+            validateAndSaveSettings();
+        });
+    });
+    
+    // Start time change handler
+    document.addEventListener('change', function(e) {
+        const startTimeMatch = e.target.getAttribute('data-start-time');
+        const breakTimeMatch = e.target.getAttribute('data-break-time');
         
-        if (isWorking) {
-            circle.classList.remove('bg-gray-200', 'text-gray-600');
-            circle.classList.add('bg-primary', 'text-white');
-            statusText.textContent = 'Working Day';
+        let day = null;
+        
+        if (startTimeMatch) {
+            day = startTimeMatch;
+            workingDays[day].startTime = e.target.value;
+            updateDayVisualIndicators(day);
+        } else if (breakTimeMatch) {
+            day = breakTimeMatch;
+            workingDays[day].breakTime = parseInt(e.target.value);
+            updateDayVisualIndicators(day);
+        }
+        
+        if (day) {
+            showSavingIndicator();
+            validateAndSaveSettings();
+        }
+    });
+    
+    // Function to update the visual job timeline
+    function updateDayVisualIndicators(day) {
+        const timelineContainer = document.querySelector(`[data-day-settings="${day}"] .bg-white.p-3.rounded-md.border`);
+        if (!timelineContainer) return;
+        
+        const startTimeSelect = document.querySelector(`[data-start-time="${day}"]`);
+        
+        // Get the current settings
+        const jobCount = workingDays[day].jobsPerDay || 2;
+        const startTime = startTimeSelect ? startTimeSelect.value : workingDays[day].startTime;
+        const breakTime = workingDays[day].breakTime || DEFAULT_BREAK_TIME;
+        
+        // Initialize job durations if not set
+        if (!workingDays[day].jobDurations) {
+            workingDays[day].jobDurations = Array(jobCount).fill(DEFAULT_JOB_DURATION);
+        }
+        
+        // Make sure we have enough durations for all jobs
+        while (workingDays[day].jobDurations.length < jobCount) {
+            workingDays[day].jobDurations.push(DEFAULT_JOB_DURATION);
+        }
+        
+        // Trim extra durations if needed
+        if (workingDays[day].jobDurations.length > jobCount) {
+            workingDays[day].jobDurations = workingDays[day].jobDurations.slice(0, jobCount);
+        }
+        
+        // Calculate timeline
+        const timeline = [];
+        let currentTime = new Date(`2000-01-01 ${startTime}`);
+        
+        // Add job slots
+        for (let i = 0; i < jobCount; i++) {
+            // Get the duration for this specific job
+            const jobDuration = workingDays[day].jobDurations[i];
             
-            // Show time settings
-            settingsPanel.innerHTML = `
-                <div class="flex justify-end mb-3">
-                    <label class="inline-flex items-center cursor-pointer">
-                        <span class="mr-3 text-sm font-medium text-gray-700">Not Working</span>
-                        <div class="relative">
-                            <input type="checkbox" value="" class="sr-only peer day-toggle" data-day-toggle="${day}" checked>
-                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-light rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                        </div>
-                        <span class="ml-3 text-sm font-medium text-gray-700">Working Day</span>
-                    </label>
-                </div>
-                <div class="grid grid-cols-2 gap-3 mb-3">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
-                        <select class="block w-full rounded-md border-gray-300 text-sm" data-start-time="${day}">
-                            <option ${workingDays[day].startTime === '6:00 AM' ? 'selected' : ''}>6:00 AM</option>
-                            <option ${workingDays[day].startTime === '6:30 AM' ? 'selected' : ''}>6:30 AM</option>
-                            <option ${workingDays[day].startTime === '7:00 AM' ? 'selected' : ''}>7:00 AM</option>
-                            <option ${workingDays[day].startTime === '7:30 AM' ? 'selected' : ''}>7:30 AM</option>
-                            <option ${workingDays[day].startTime === '8:00 AM' ? 'selected' : ''}>8:00 AM</option>
-                            <option ${workingDays[day].startTime === '8:30 AM' ? 'selected' : ''}>8:30 AM</option>
-                            <option ${workingDays[day].startTime === '9:00 AM' ? 'selected' : ''}>9:00 AM</option>
-                            <option ${workingDays[day].startTime === '9:30 AM' ? 'selected' : ''}>9:30 AM</option>
-                            <option ${workingDays[day].startTime === '10:00 AM' ? 'selected' : ''}>10:00 AM</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">End Time</label>
-                        <select class="block w-full rounded-md border-gray-300 text-sm" data-end-time="${day}">
-                            <option ${workingDays[day].endTime === '3:00 PM' ? 'selected' : ''}>3:00 PM</option>
-                            <option ${workingDays[day].endTime === '3:30 PM' ? 'selected' : ''}>3:30 PM</option>
-                            <option ${workingDays[day].endTime === '4:00 PM' ? 'selected' : ''}>4:00 PM</option>
-                            <option ${workingDays[day].endTime === '4:30 PM' ? 'selected' : ''}>4:30 PM</option>
-                            <option ${workingDays[day].endTime === '5:00 PM' ? 'selected' : ''}>5:00 PM</option>
-                            <option ${workingDays[day].endTime === '5:30 PM' ? 'selected' : ''}>5:30 PM</option>
-                            <option ${workingDays[day].endTime === '6:00 PM' ? 'selected' : ''}>6:00 PM</option>
-                            <option ${workingDays[day].endTime === '6:30 PM' ? 'selected' : ''}>6:30 PM</option>
-                            <option ${workingDays[day].endTime === '7:00 PM' ? 'selected' : ''}>7:00 PM</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="space-y-3">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Jobs on ${day.charAt(0).toUpperCase() + day.slice(1)}</label>
-                        <select class="block w-full rounded-md border-gray-300 text-sm" data-jobs-per-day="${day}">
-                            <option value="1" ${workingDays[day].jobsPerDay === 1 ? 'selected' : ''}>1 job</option>
-                            <option value="2" ${workingDays[day].jobsPerDay === 2 ? 'selected' : ''}>2 jobs</option>
-                            <option value="3" ${workingDays[day].jobsPerDay === 3 ? 'selected' : ''}>3 jobs</option>
-                        </select>
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Job Duration</label>
-                            <select class="block w-full rounded-md border-gray-300 text-sm" data-cleaning-duration="${day}">
-                                <option value="120" ${workingDays[day].cleaningDuration === 120 ? 'selected' : ''}>2 hours</option>
-                                <option value="150" ${workingDays[day].cleaningDuration === 150 ? 'selected' : ''}>2.5 hours</option>
-                                <option value="180" ${workingDays[day].cleaningDuration === 180 ? 'selected' : ''}>3 hours</option>
-                                <option value="210" ${workingDays[day].cleaningDuration === 210 ? 'selected' : ''}>3.5 hours</option>
-                                <option value="240" ${workingDays[day].cleaningDuration === 240 ? 'selected' : ''}>4 hours</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Break Time</label>
-                            <select class="block w-full rounded-md border-gray-300 text-sm" data-break-time="${day}">
-                                <option value="30" ${workingDays[day].breakTime === 30 ? 'selected' : ''}>30 min</option>
-                                <option value="60" ${workingDays[day].breakTime === 60 ? 'selected' : ''}>1 hour</option>
-                                <option value="90" ${workingDays[day].breakTime === 90 ? 'selected' : ''}>1.5 hours</option>
-                                <option value="120" ${workingDays[day].breakTime === 120 ? 'selected' : ''}>2 hours</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Max Hours</label>
-                        <select class="block w-full rounded-md border-gray-300 text-sm" data-max-hours="${day}">
-                            <option value="300" ${workingDays[day].maxHours === 300 ? 'selected' : ''}>5 hours</option>
-                            <option value="360" ${workingDays[day].maxHours === 360 ? 'selected' : ''}>6 hours</option>
-                            <option value="420" ${workingDays[day].maxHours === 420 ? 'selected' : ''}>7 hours</option>
-                            <option value="480" ${workingDays[day].maxHours === 480 ? 'selected' : ''}>8 hours</option>
-                            <option value="540" ${workingDays[day].maxHours === 540 ? 'selected' : ''}>9 hours</option>
-                        </select>
-                    </div>
-                </div>
-            `;
+            // Add job
+            const jobStart = formatTime(currentTime);
+            const jobEnd = new Date(currentTime.getTime() + jobDuration * 60000);
+            timeline.push({
+                type: 'job',
+                index: i + 1,
+                startTime: jobStart,
+                endTime: formatTime(jobEnd),
+                duration: jobDuration,
+                durationText: getDurationText(jobDuration)
+            });
             
-            // Add event listeners to the newly created selects
-            addDaySpecificListeners(day);
-        } else {
-            circle.classList.remove('bg-primary', 'text-white');
-            circle.classList.add('bg-gray-200', 'text-gray-600');
-            statusText.textContent = 'Not Working';
-            
-            // Show "Make Working Day" button and toggle
-            settingsPanel.innerHTML = `
-                <div class="flex justify-end mb-3">
-                    <label class="inline-flex items-center cursor-pointer">
-                        <span class="mr-3 text-sm font-medium text-gray-700">Not Working</span>
-                        <div class="relative">
-                            <input type="checkbox" value="" class="sr-only peer day-toggle" data-day-toggle="${day}">
-                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-light rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                        </div>
-                        <span class="ml-3 text-sm font-medium text-gray-700">Working Day</span>
-                    </label>
-                </div>
-                <div class="text-center py-2">
-                    <p class="text-sm text-gray-500">This day is set as not working. Toggle the switch above to make it a working day.</p>
-                </div>
-            `;
-            
-            // Add event listener to the toggle
-            const dayToggle = settingsPanel.querySelector(`[data-day-toggle="${day}"]`);
-            if (dayToggle) {
-                dayToggle.addEventListener('change', function() {
-                    workingDays[day].isWorking = this.checked;
-                    updateDayButtonStyle(day, this.checked);
-                    showSavingIndicator();
-                    validateAndSaveSettings();
+            // Add break if not the last job
+            if (i < jobCount - 1) {
+                const breakStart = new Date(jobEnd);
+                const breakEnd = new Date(breakStart.getTime() + breakTime * 60000);
+                timeline.push({
+                    type: 'break',
+                    startTime: formatTime(breakStart),
+                    endTime: formatTime(breakEnd),
+                    durationText: getBreakDurationText(breakTime)
+                });
+                currentTime = new Date(breakEnd);
+            } else {
+                // Final end time
+                timeline.push({
+                    type: 'end',
+                    time: formatTime(jobEnd)
                 });
             }
         }
+        
+        // Render the timeline
+        let timelineHTML = '';
+        timeline.forEach(item => {
+            if (item.type === 'job') {
+                const hours = item.duration / 60;
+                timelineHTML += `
+                    <div class="flex items-start text-sm ${item.index > 1 ? 'mt-4' : ''}">
+                        <div class="w-16 text-gray-500 pt-2">${item.startTime}</div>
+                        <div class="flex-1">
+                            <div class="bg-blue-100 rounded-md border-l-4 border-blue-500 overflow-hidden">
+                                <!-- Job header with title -->
+                                <div class="px-3 py-2 font-medium text-blue-800 border-b border-blue-200">
+                                    Job ${item.index}
+                                </div>
+                                
+                                <!-- Duration controls in a separate row -->
+                                <div class="px-3 py-3 bg-blue-50 flex items-center justify-between">
+                                    <div class="text-blue-700 font-medium">
+                                        ${item.durationText}
+                        </div>
+                                    <div class="flex items-center space-x-4">
+                                        <button type="button" class="h-10 w-10 rounded-full bg-white border border-blue-300 flex items-center justify-center text-blue-800 shadow-sm" data-job-decrease="${day}-${item.index - 1}" ${hours <= 1 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
+                                            <i class="fas fa-minus text-lg"></i>
+                                        </button>
+                                        <button type="button" class="h-10 w-10 rounded-full bg-white border border-blue-300 flex items-center justify-center text-blue-800 shadow-sm" data-job-increase="${day}-${item.index - 1}" ${hours >= 5 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
+                                            <i class="fas fa-plus text-lg"></i>
+                                        </button>
+                </div>
+                    </div>
+                    </div>
+                </div>
+                    </div>
+                `;
+            } else if (item.type === 'break') {
+                timelineHTML += `
+                    <div class="flex items-start text-sm mt-3">
+                        <div class="w-16 text-gray-500 pt-2">${item.startTime}</div>
+                        <div class="flex-1">
+                            <div class="bg-gray-100 rounded-md overflow-hidden">
+                                <!-- Break header -->
+                                <div class="px-3 py-2 font-medium text-gray-600 border-b border-gray-200">
+                                    Break
+                        </div>
+                                
+                                <!-- Duration controls in a separate row -->
+                                <div class="px-3 py-3 bg-gray-50 flex items-center justify-between">
+                                    <div class="text-gray-600 font-medium">
+                                        ${item.durationText}
+                        </div>
+                                    <div class="flex items-center space-x-4">
+                                        <button type="button" class="h-9 w-9 rounded-full bg-white border border-gray-300 flex items-center justify-center text-gray-600 shadow-sm" data-break-decrease="${day}" ${breakTime <= 30 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
+                                            <i class="fas fa-minus"></i>
+                                        </button>
+                                        <button type="button" class="h-9 w-9 rounded-full bg-white border border-gray-300 flex items-center justify-center text-gray-600 shadow-sm" data-break-increase="${day}" ${breakTime >= 180 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
+                                            <i class="fas fa-plus"></i>
+                                        </button>
+                    </div>
+                    </div>
+                </div>
+                        </div>
+                </div>
+                `;
+            } else if (item.type === 'end') {
+                timelineHTML += `
+                    <div class="flex items-center text-sm mt-4">
+                        <div class="w-16 text-gray-500">${item.time}</div>
+                        <div class="flex-1 bg-gray-50 py-2 px-3 rounded-md border border-gray-200 text-gray-500">
+                            Done for the day
+                        </div>
+                </div>
+            `;
+            }
+        });
+        
+        timelineContainer.innerHTML = timelineHTML;
+        
+        // Add event listeners to the + and - buttons for jobs
+        timeline.filter(item => item.type === 'job').forEach((item, index) => {
+            const decreaseButton = timelineContainer.querySelector(`[data-job-decrease="${day}-${index}"]`);
+            const increaseButton = timelineContainer.querySelector(`[data-job-increase="${day}-${index}"]`);
+            
+            if (decreaseButton) {
+                decreaseButton.addEventListener('click', function() {
+                    const currentDuration = workingDays[day].jobDurations[index];
+                    // Minimum duration is 60 minutes (1 hour)
+                    if (currentDuration > 60) {
+                        workingDays[day].jobDurations[index] = currentDuration - 30;
+                        updateDayVisualIndicators(day);
+                showSavingIndicator();
+                validateAndSaveSettings();
+                    }
+                });
+            }
+            
+            if (increaseButton) {
+                increaseButton.addEventListener('click', function() {
+                    const currentDuration = workingDays[day].jobDurations[index];
+                    // Maximum duration is 300 minutes (5 hours)
+                    if (currentDuration < 300) {
+                        workingDays[day].jobDurations[index] = currentDuration + 30;
+                        updateDayVisualIndicators(day);
+                showSavingIndicator();
+                validateAndSaveSettings();
+                    }
+                });
+            }
+        });
+        
+        // Add event listeners to the + and - buttons for breaks
+        const breakDecreaseButton = timelineContainer.querySelector(`[data-break-decrease="${day}"]`);
+        const breakIncreaseButton = timelineContainer.querySelector(`[data-break-increase="${day}"]`);
+        
+        if (breakDecreaseButton) {
+            breakDecreaseButton.addEventListener('click', function() {
+                const currentBreakTime = workingDays[day].breakTime;
+                // Minimum break is 30 minutes
+                if (currentBreakTime > 30) {
+                    workingDays[day].breakTime = currentBreakTime - 30;
+                    updateDayVisualIndicators(day);
+                showSavingIndicator();
+                validateAndSaveSettings();
+                }
+            });
+        }
+        
+        if (breakIncreaseButton) {
+            breakIncreaseButton.addEventListener('click', function() {
+                const currentBreakTime = workingDays[day].breakTime;
+                // Maximum break is 180 minutes (3 hours)
+                if (currentBreakTime < 180) {
+                    workingDays[day].breakTime = currentBreakTime + 30;
+                    updateDayVisualIndicators(day);
+                showSavingIndicator();
+                validateAndSaveSettings();
+                }
+            });
+        }
+        
+        // Also calculate and update end time in the state
+        const lastItem = timeline.find(item => item.type === 'end');
+        if (lastItem) {
+            workingDays[day].endTime = lastItem.time;
+        }
     }
     
-    // Add event listeners for day-specific settings
-    function addDaySpecificListeners(day) {
-        // Start time
-        const startTimeSelect = document.querySelector(`[data-start-time="${day}"]`);
-        if (startTimeSelect) {
-            startTimeSelect.addEventListener('change', function() {
-                workingDays[day].startTime = this.value;
-                showSavingIndicator();
-                validateAndSaveSettings();
-            });
+    function getBreakDurationText(breakMinutes) {
+        if (breakMinutes < 60) {
+            return `${breakMinutes} min`;
+        } else if (breakMinutes === 60) {
+            return `1 hour`;
+        } else if (breakMinutes % 60 === 0) {
+            return `${breakMinutes / 60} hours`;
+        } else {
+            return `${Math.floor(breakMinutes / 60)}.${Math.floor((breakMinutes % 60) / 6)} hours`;
         }
-        
-        // End time
-        const endTimeSelect = document.querySelector(`[data-end-time="${day}"]`);
-        if (endTimeSelect) {
-            endTimeSelect.addEventListener('change', function() {
-                workingDays[day].endTime = this.value;
-                showSavingIndicator();
-                validateAndSaveSettings();
-            });
+    }
+    
+    function getDurationText(durationMinutes) {
+        const hours = durationMinutes / 60;
+        return `${hours} hour${hours !== 1 ? 's' : ''}`;
+    }
+    
+    function formatTime(dateObj) {
+        return dateObj.toLocaleTimeString('en-US', { 
+            hour: 'numeric', 
+            minute: '2-digit', 
+            hour12: true 
+        });
+    }
+    
+    // Initialize the visual indicators for all working days
+            Object.keys(workingDays).forEach(day => {
+                if (workingDays[day].isWorking) {
+            updateDayVisualIndicators(day);
         }
-        
-        // Jobs per day
-        const jobsPerDaySelect = document.querySelector(`[data-jobs-per-day="${day}"]`);
-        if (jobsPerDaySelect) {
-            jobsPerDaySelect.addEventListener('change', function() {
-                workingDays[day].jobsPerDay = parseInt(this.value);
-                showSavingIndicator();
-                validateAndSaveSettings();
-            });
-        }
-        
-        // Cleaning duration
-        const cleaningDurationSelect = document.querySelector(`[data-cleaning-duration="${day}"]`);
-        if (cleaningDurationSelect) {
-            cleaningDurationSelect.addEventListener('change', function() {
-                workingDays[day].cleaningDuration = parseInt(this.value);
-                showSavingIndicator();
-                validateAndSaveSettings();
-            });
-        }
-        
-        // Break time
-        const breakTimeSelect = document.querySelector(`[data-break-time="${day}"]`);
-        if (breakTimeSelect) {
-            breakTimeSelect.addEventListener('change', function() {
-                workingDays[day].breakTime = parseInt(this.value);
-                showSavingIndicator();
-                validateAndSaveSettings();
-            });
-        }
-        
-        // Max hours
-        const maxHoursSelect = document.querySelector(`[data-max-hours="${day}"]`);
-        if (maxHoursSelect) {
-            maxHoursSelect.addEventListener('change', function() {
-                workingDays[day].maxHours = parseInt(this.value);
-                showSavingIndicator();
-                validateAndSaveSettings();
-            });
-        }
-        
-        // Day toggle
-        const dayToggle = document.querySelector(`[data-day-toggle="${day}"]`);
-        if (dayToggle) {
-            dayToggle.addEventListener('change', function() {
-                workingDays[day].isWorking = this.checked;
-                updateDayButtonStyle(day, this.checked);
-                showSavingIndicator();
-                validateAndSaveSettings();
-            });
-        }
+    });
+    
+    // Saving indicator
+    const savingIndicator = document.createElement('div');
+    savingIndicator.className = 'fixed bottom-20 right-4 bg-primary text-white py-2 px-4 rounded-lg shadow-lg transform translate-y-10 opacity-0 transition-all duration-300';
+    savingIndicator.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Saving...';
+    document.body.appendChild(savingIndicator);
+    
+    function showSavingIndicator() {
+        savingIndicator.classList.remove('translate-y-10', 'opacity-0');
     }
     
     // Add change event listeners to default settings
@@ -450,166 +553,174 @@ document.addEventListener('DOMContentLoaded', function() {
         validateAndSaveSettings();
     });
     
-    document.getElementById('cleaning-duration').addEventListener('change', function() {
-        // Ask if user wants to apply this change to all working days
-        if (confirm('Do you want to apply this change to all working days?')) {
-            Object.keys(workingDays).forEach(day => {
-                if (workingDays[day].isWorking) {
-                    workingDays[day].cleaningDuration = parseInt(this.value);
-                    
-                    // Update the day-specific select if it's visible
-                    const daySelect = document.querySelector(`[data-cleaning-duration="${day}"]`);
-                    if (daySelect) {
-                        daySelect.value = this.value;
-                    }
-                }
-            });
-        }
-        
-        showSavingIndicator();
-        validateAndSaveSettings();
-    });
-    
-    document.getElementById('max-hours').addEventListener('change', function() {
-        // Ask if user wants to apply this change to all working days
-        if (confirm('Do you want to apply this change to all working days?')) {
-            Object.keys(workingDays).forEach(day => {
-                if (workingDays[day].isWorking) {
-                    workingDays[day].maxHours = parseInt(this.value);
-                    
-                    // Update the day-specific select if it's visible
-                    const daySelect = document.querySelector(`[data-max-hours="${day}"]`);
-                    if (daySelect) {
-                        daySelect.value = this.value;
-                    }
-                }
-            });
-        }
-        
-        showSavingIndicator();
-        validateAndSaveSettings();
-    });
-    
-    hourlyRateInput.addEventListener('change', function() {
-        showSavingIndicator();
-        validateAndSaveSettings();
-    });
-    
     autoSendReceiptsToggle.addEventListener('change', function() {
         showSavingIndicator();
         validateAndSaveSettings();
     });
     
-    // Saving indicator
-    const savingIndicator = document.createElement('div');
-    savingIndicator.className = 'fixed bottom-20 right-4 bg-primary text-white py-2 px-4 rounded-lg shadow-lg transform translate-y-10 opacity-0 transition-all duration-300';
-    savingIndicator.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Saving...';
-    document.body.appendChild(savingIndicator);
-    
-    function showSavingIndicator() {
-        savingIndicator.classList.remove('translate-y-10', 'opacity-0');
-    }
-    
-    function hideSavingIndicator(success = true) {
-        if (success) {
-            savingIndicator.innerHTML = '<i class="fas fa-check mr-2"></i> Saved!';
-            setTimeout(() => {
-                savingIndicator.classList.add('translate-y-10', 'opacity-0');
-            }, 1500);
-        } else {
-            savingIndicator.innerHTML = '<i class="fas fa-times mr-2"></i> Error saving!';
-            setTimeout(() => {
-                savingIndicator.classList.add('translate-y-10', 'opacity-0');
-            }, 3000);
-        }
-    }
-    
     function validateTimeSlots() {
-        // Validate each working day's time slots
+        // Use our new validateTimeSettings function for each working day
         const workingDaysList = Object.entries(workingDays).filter(([_, settings]) => settings.isWorking);
+        let allValid = true;
+        let warningMessages = [];
         
-        for (const [day, settings] of workingDaysList) {
+        for (const [day, _] of workingDaysList) {
+            if (!validateTimeSettings(day)) {
+                allValid = false;
+                
+                // Get specific validation error messages for this day
+                const settings = workingDays[day];
+                const dayName = day.charAt(0).toUpperCase() + day.slice(1);
+                
+                try {
             const startTime = new Date('2000-01-01 ' + settings.startTime);
             const endTime = new Date('2000-01-01 ' + settings.endTime);
-            const cleaningsPerDay = settings.jobsPerDay;
-            const cleaningDuration = settings.cleaningDuration;
-            const breakTime = settings.breakTime;
-            const maxHours = settings.maxHours;
-            
-            // 1. Validate that end time is after start time
-            if (endTime <= startTime) {
-                alert(`${day.charAt(0).toUpperCase() + day.slice(1)}: End time must be after start time`);
-                return false;
-            }
-            
-            // 2. Calculate total available minutes in the working day
-            const totalAvailableMinutes = (endTime - startTime) / 60000; // Convert milliseconds to minutes
-            
-            // 3. Calculate total time needed for cleanings and breaks
-            const totalCleaningMinutes = cleaningDuration * cleaningsPerDay;
-            const totalBreakMinutes = breakTime * (cleaningsPerDay - 1); // One fewer breaks than cleanings
-            const totalTimeNeeded = totalCleaningMinutes + totalBreakMinutes;
-            
-            console.log(`Validation for ${day}:`, {
-                totalAvailableMinutes,
-                maxHours,
-                totalCleaningMinutes,
-                totalBreakMinutes,
-                totalTimeNeeded
-            });
-            
-            // 4. Check if the total time needed fits within the working hours
-            if (totalTimeNeeded > totalAvailableMinutes) {
-                const maxPossibleJobDuration = Math.floor((totalAvailableMinutes - (breakTime * (cleaningsPerDay - 1))) / cleaningsPerDay);
-                const maxPossibleJobs = Math.floor((totalAvailableMinutes + breakTime) / (cleaningDuration + breakTime));
-                
-                let suggestedChanges = '';
-                
-                if (maxPossibleJobDuration >= 120) {
-                    suggestedChanges += `\n- Reduce job duration to ${Math.floor(maxPossibleJobDuration/60)} hours`;
+                    
+                    if (isNaN(startTime) || isNaN(endTime)) {
+                        warningMessages.push(`${dayName}: Invalid time format`);
+                    } else if (startTime >= endTime) {
+                        warningMessages.push(`${dayName}: End time must be after start time`);
+                    } else {
+                        // Calculate time requirements
+                        const totalMinutes = (endTime - startTime) / (60 * 1000);
+                        const jobsPerDay = settings.jobsPerDay || 2;
+                        const cleaningDuration = 180; // Fixed at 3 hours
+                        const breakTime = settings.breakTime || 90;
+                        const requiredMinutes = (cleaningDuration * jobsPerDay) + (breakTime * (jobsPerDay - 1));
+                        
+                        if (totalMinutes < requiredMinutes) {
+                            warningMessages.push(`${dayName}: Not enough time for ${jobsPerDay} jobs`);
+                        }
+                    }
+                } catch (error) {
+                    warningMessages.push(`${dayName}: Invalid settings`);
                 }
-                
-                if (maxPossibleJobs > 0) {
-                    suggestedChanges += `\n- Reduce jobs per day to ${maxPossibleJobs}`;
-                }
-                
-                suggestedChanges += `\n- Increase working hours for ${day}`;
-                suggestedChanges += `\n- Reduce break time between jobs`;
-                
-                alert(`Your current settings won't fit in your working hours for ${day}.\n\nYou've selected ${cleaningsPerDay} jobs of ${cleaningDuration/60} hours each with ${breakTime/60} hour breaks, requiring ${Math.round(totalTimeNeeded/60)} total hours, but you only have ${Math.round(totalAvailableMinutes/60)} hours available.\n\nPossible solutions:${suggestedChanges}`);
-                return false;
-            }
-            
-            // 5. Check if the total time needed exceeds the maximum working hours
-            if (totalCleaningMinutes > maxHours) {
-                const maxPossibleJobDuration = Math.floor(maxHours / cleaningsPerDay);
-                const maxPossibleJobs = Math.floor(maxHours / cleaningDuration);
-                
-                let suggestedChanges = '';
-                
-                if (maxPossibleJobDuration >= 120) {
-                    suggestedChanges += `\n- Reduce job duration to ${Math.floor(maxPossibleJobDuration/60)} hours`;
-                }
-                
-                if (maxPossibleJobs > 0) {
-                    suggestedChanges += `\n- Reduce jobs per day to ${maxPossibleJobs}`;
-                }
-                
-                suggestedChanges += `\n- Increase maximum working hours per day`;
-                
-                alert(`Your cleaning time exceeds your maximum working hours for ${day}.\n\nYou've selected ${cleaningsPerDay} jobs of ${cleaningDuration/60} hours each, requiring ${Math.round(totalCleaningMinutes/60)} hours of cleaning time, but your maximum is ${Math.round(maxHours/60)} hours.\n\nPossible solutions:${suggestedChanges}`);
-                return false;
             }
         }
         
+        // Display warnings if we have any
+        if (warningMessages.length > 0) {
+            // Create or update warning banner
+            let warningBanner = document.getElementById('settings-warning-banner');
+            if (!warningBanner) {
+                warningBanner = document.createElement('div');
+                warningBanner.id = 'settings-warning-banner';
+                warningBanner.className = 'fixed top-16 right-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded shadow-md max-w-md z-50 transform transition-all duration-300';
+                document.body.appendChild(warningBanner);
+            }
+            
+            // Populate warning content
+            warningBanner.innerHTML = `
+                <div class="flex items-start">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-exclamation-triangle text-yellow-600"></i>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium">Schedule Warning</h3>
+                        <div class="mt-1 text-xs">
+                            <ul class="list-disc pl-5 space-y-1">
+                                ${warningMessages.map(msg => `<li>${msg}</li>`).join('')}
+                            </ul>
+                        </div>
+                        <div class="mt-2 text-xs">
+                            <p>Your settings have been saved, but may need adjustment.</p>
+                        </div>
+                        <button id="dismiss-warning" class="mt-2 px-2 py-1 text-xs text-yellow-800 hover:bg-yellow-200 rounded">Dismiss</button>
+                    </div>
+                </div>
+            `;
+            
+            // Show the banner
+            setTimeout(() => {
+                warningBanner.classList.add('translate-y-2');
+            }, 100);
+            
+            // Add dismiss functionality
+            document.getElementById('dismiss-warning').addEventListener('click', function() {
+                warningBanner.classList.remove('translate-y-2');
+                setTimeout(() => {
+                    warningBanner.remove();
+                }, 300);
+            });
+            
+            // Auto-dismiss after 15 seconds
+            setTimeout(() => {
+                if (document.getElementById('settings-warning-banner')) {
+                    document.getElementById('settings-warning-banner').classList.remove('translate-y-2');
+                    setTimeout(() => {
+                        if (document.getElementById('settings-warning-banner')) {
+                            document.getElementById('settings-warning-banner').remove();
+                        }
+                    }, 300);
+                }
+            }, 15000);
+        }
+        
+        // Always return true to allow saving, we just show warnings
         return true;
     }
     
-    function validateAndSaveSettings() {
-        if (!validateTimeSlots()) {
-            hideSavingIndicator(false);
-            return;
+    function validateTimeSettings(day) {
+        try {
+            const daySettings = workingDays[day];
+            
+            if (!daySettings.isWorking) {
+                return true; // No need to validate non-working days
+            }
+            
+            const startTime = new Date(`2000-01-01 ${daySettings.startTime}`);
+            const jobCount = daySettings.jobsPerDay || 2;
+            const breakDuration = daySettings.breakTime || DEFAULT_BREAK_TIME;
+            
+            // Ensure we have job durations initialized
+            if (!daySettings.jobDurations || daySettings.jobDurations.length !== jobCount) {
+                daySettings.jobDurations = Array(jobCount).fill(DEFAULT_JOB_DURATION);
+            }
+            
+            // Calculate total working time in minutes
+            const totalJobTime = daySettings.jobDurations.reduce((sum, duration) => sum + duration, 0);
+            const totalBreakTime = (jobCount - 1) * breakDuration;
+            const totalMinutes = totalJobTime + totalBreakTime;
+            
+            // Check if we exceed 12 hours in a day
+            if (totalMinutes > 12 * 60) {
+                console.warn(`Warning: ${day} has a long schedule of ${Math.round(totalMinutes / 60)} hours`);
+                return false;
         }
+        
+        return true;
+        } catch (error) {
+            console.error(`Error validating time settings for ${day}:`, error);
+            return false;
+        }
+    }
+    
+    function validateAndSaveSettings() {
+        // Validate time settings for each working day
+        let hasInvalidSettings = false;
+        Object.keys(workingDays).forEach(day => {
+            if (workingDays[day].isWorking && !validateTimeSettings(day)) {
+                hasInvalidSettings = true;
+                // Visual indication for invalid day settings
+                const dayToggle = document.querySelector(`[data-day-toggle="${day}"]`);
+                if (dayToggle) {
+                    const card = dayToggle.closest('.rounded-lg');
+                    if (card) {
+                        card.classList.add('border-red-300', 'bg-red-50');
+                        setTimeout(() => {
+                            card.classList.remove('border-red-300', 'bg-red-50');
+                        }, 3000);
+                    }
+                }
+            }
+        });
+        
+        // Even if we have invalid settings, still save the current state
+        if (hasInvalidSettings) {
+            console.warn('Some days have invalid time settings');
+            // Optionally show a warning to the user
+        }
+        
         saveSettings();
     }
     
@@ -635,6 +746,27 @@ document.addEventListener('DOMContentLoaded', function() {
             5: workingDays.friday.isWorking,    // Friday
             6: workingDays.saturday.isWorking   // Saturday
         };
+        
+        // Add debug logging to ensure the conversion is correct
+        console.log('CONVERSION TO COMPAT FORMAT:', {
+            original: {
+                sunday: workingDays.sunday.isWorking,
+                monday: workingDays.monday.isWorking,
+                tuesday: workingDays.tuesday.isWorking,
+                wednesday: workingDays.wednesday.isWorking,
+                thursday: workingDays.thursday.isWorking,
+                friday: workingDays.friday.isWorking,
+                saturday: workingDays.saturday.isWorking
+            },
+            compat: compatWorkingDays,
+            wednesdayDetailCheck: {
+                isWorking: workingDays.wednesday.isWorking,
+                value: compatWorkingDays[3],
+                typeBeforeConvert: typeof workingDays.wednesday.isWorking,
+                typeAfterConvert: typeof compatWorkingDays[3],
+                explicitlyFalse: workingDays.wednesday.isWorking === false
+            }
+        });
         
         // Convert time slots from object format to array format for schedule.js
         const dayMapping = {
@@ -670,9 +802,6 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             cleaningsPerDay: parseInt(document.getElementById('cleanings-per-day').value),
             breakTime: parseInt(document.getElementById('break-time').value),
-            cleaningDuration: parseInt(document.getElementById('cleaning-duration').value),
-            maxHours: parseInt(document.getElementById('max-hours').value),
-            hourlyRate: parseFloat(hourlyRateInput.value) || 0,
             autoSendReceipts: autoSendReceiptsToggle.checked,
             calculatedTimeSlots: formattedTimeSlots,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -718,18 +847,103 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Populate working days
                     if (settings.workingDays) {
                         Object.entries(settings.workingDays).forEach(([day, daySettings]) => {
-                            workingDays[day] = daySettings;
-                            updateDayButtonStyle(day, daySettings.isWorking);
-                            
-                            // Update time selects if they exist
-                            const startSelect = document.querySelector(`[data-start-time="${day}"]`);
-                            const endSelect = document.querySelector(`[data-end-time="${day}"]`);
-                            
-                            if (startSelect && daySettings.startTime) {
-                                startSelect.value = daySettings.startTime;
+                            // Initialize with default job durations if missing
+                            if (!daySettings.jobDurations) {
+                                const jobCount = daySettings.jobsPerDay || DEFAULT_JOBS_PER_DAY;
+                                
+                                // If they have the old single jobDuration property, use it
+                                if (daySettings.jobDuration) {
+                                    daySettings.jobDurations = Array(jobCount).fill(daySettings.jobDuration);
+                                } else {
+                                    daySettings.jobDurations = Array(jobCount).fill(DEFAULT_JOB_DURATION);
+                                }
                             }
-                            if (endSelect && daySettings.endTime) {
-                                endSelect.value = daySettings.endTime;
+                            
+                            // Copy to working days state
+                            workingDays[day] = daySettings;
+                            
+                            // Update UI elements
+                            const dayToggle = document.querySelector(`[data-day-toggle="${day}"]`);
+                            const settingsPanel = document.querySelector(`[data-day-settings="${day}"]`);
+                            const startTimeSelect = document.querySelector(`[data-start-time="${day}"]`);
+                            
+                            // Update day toggle
+                            if (dayToggle) {
+                                dayToggle.checked = daySettings.isWorking;
+                                
+                                // Update the day card appearance
+                                const dayCard = dayToggle.closest('.rounded-lg');
+                                const dayIcon = dayCard.querySelector('.rounded-full');
+                                
+                                if (daySettings.isWorking) {
+                                    dayIcon.classList.remove('bg-gray-300');
+                                    dayIcon.classList.add('bg-primary');
+                                    
+                                    // Show settings panel
+                                    if (settingsPanel) {
+                                        settingsPanel.classList.remove('hidden');
+                                    }
+                                } else {
+                                    dayIcon.classList.remove('bg-primary');
+                                    dayIcon.classList.add('bg-gray-300');
+                                    
+                                    // Hide settings panel
+                                    if (settingsPanel) {
+                                        settingsPanel.classList.add('hidden');
+                                    }
+                                }
+                            }
+                            
+                            // Update start time
+                            if (startTimeSelect && daySettings.startTime) {
+                                startTimeSelect.value = daySettings.startTime;
+                            }
+                            
+                            // Update job count radio buttons
+                            const jobRadios = document.querySelectorAll(`[data-jobs-input="${day}"]`);
+                            if (jobRadios.length > 0) {
+                                jobRadios.forEach(radio => {
+                                    const value = parseInt(radio.value);
+                                    const label = radio.closest('label');
+                                    
+                                    if (value === daySettings.jobsPerDay) {
+                                        radio.checked = true;
+                                        if (label) {
+                                            label.classList.add('bg-blue-50', 'border-blue-300');
+                                        }
+                                    } else {
+                                        radio.checked = false;
+                                        if (label) {
+                                            label.classList.remove('bg-blue-50', 'border-blue-300');
+                                        }
+                                    }
+                                });
+                            }
+                            
+                            // Update break time radio buttons
+                            const breakRadios = document.querySelectorAll(`[data-break-input="${day}"]`);
+                            if (breakRadios.length > 0) {
+                                breakRadios.forEach(radio => {
+                                    const value = parseInt(radio.value);
+                                    const label = radio.closest('label');
+                                    
+                                    if (value === (daySettings.breakTime || DEFAULT_BREAK_TIME)) {
+                                        radio.checked = true;
+                                        if (label) {
+                                            label.classList.add('bg-blue-50', 'border-blue-300');
+                                        }
+                                    } else {
+                                        radio.checked = false;
+                                        if (label) {
+                                            label.classList.remove('bg-blue-50', 'border-blue-300');
+                                        }
+                                    }
+                                });
+                            }
+                            
+                            // Update visual timeline
+                            if (daySettings.isWorking) {
+                                updateDayVisualIndicators(day);
                             }
                         });
                     }
@@ -741,18 +955,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     if (settings.breakTime) {
                         document.getElementById('break-time').value = settings.breakTime;
-                    }
-                    
-                    if (settings.cleaningDuration) {
-                        document.getElementById('cleaning-duration').value = settings.cleaningDuration;
-                    }
-                    
-                    if (settings.maxHours) {
-                        document.getElementById('max-hours').value = settings.maxHours;
-                    }
-                    
-                    if (settings.hourlyRate) {
-                        hourlyRateInput.value = settings.hourlyRate;
                     }
                     
                     if (typeof settings.autoSendReceipts !== 'undefined') {
@@ -809,88 +1011,145 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             console.log(`Calculating slots for ${day}:`, settings);
+            console.log(`JobsPerDay setting for ${day}: ${settings.jobsPerDay}`);
             
+            // Ensure we have valid time values
+            if (!settings.startTime) {
+                console.error(`Invalid time settings for ${day}`);
+                return;
+            }
+            
+            try {
             const startTime = new Date('2000-01-01 ' + settings.startTime);
-            const endTime = new Date('2000-01-01 ' + settings.endTime);
-            const cleaningsPerDay = settings.jobsPerDay || 2;
-            const cleaningDuration = settings.cleaningDuration || 180;
-            const breakTime = settings.breakTime || 90;
+                
+                // Validate date objects
+                if (isNaN(startTime.getTime())) {
+                    console.error(`Invalid date objects created for ${day}`);
+                    return;
+                }
+                
+                const jobCount = settings.jobsPerDay || 2;
+                const breakTime = settings.breakTime || DEFAULT_BREAK_TIME;
+                
+                // Ensure we have job durations initialized
+                if (!settings.jobDurations || settings.jobDurations.length !== jobCount) {
+                    settings.jobDurations = Array(jobCount).fill(DEFAULT_JOB_DURATION);
+                }
             
             console.log(`${day} settings:`, {
                 startTime: settings.startTime,
-                endTime: settings.endTime,
-                cleaningsPerDay,
-                cleaningDuration,
+                    jobCount,
+                    jobDurations: settings.jobDurations,
                 breakTime
             });
             
             const daySlots = [];
             let currentTime = new Date(startTime);
             
-            for (let i = 0; i < cleaningsPerDay; i++) {
+                // Generate slots based on job count, start time, job durations, and break time
+                console.log(`Creating ${jobCount} slots for ${day}`);
+                for (let i = 0; i < jobCount; i++) {
+                    // Get the duration for this specific job
+                    const jobDuration = settings.jobDurations[i];
+                    
                 // Add the cleaning slot
-                const slotEnd = new Date(currentTime.getTime() + cleaningDuration * 60000);
+                    const slotEnd = new Date(currentTime.getTime() + jobDuration * 60000);
+                    
+                    // Format times using a reliable method
+                    const startTimeStr = currentTime.toLocaleTimeString('en-US', { 
+                        hour: 'numeric', 
+                        minute: '2-digit', 
+                        hour12: true 
+                    });
+                    
+                    const endTimeStr = slotEnd.toLocaleTimeString('en-US', { 
+                        hour: 'numeric', 
+                        minute: '2-digit', 
+                        hour12: true 
+                    });
+                    
                 const slotObj = {
-                    start: currentTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }),
-                    end: slotEnd.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }),
-                    durationMinutes: cleaningDuration
+                        start: startTimeStr,
+                        end: endTimeStr,
+                        durationMinutes: jobDuration
                 };
                 
                 console.log(`Adding slot ${i+1} for ${day}:`, slotObj);
                 daySlots.push(slotObj);
                 
                 // Add break time if not the last cleaning
-                if (i < cleaningsPerDay - 1) {
+                    if (i < jobCount - 1) {
                     currentTime = new Date(slotEnd.getTime() + breakTime * 60000);
                 }
             }
             
             console.log(`Generated ${daySlots.length} slots for ${day}:`, daySlots);
             slots[day] = daySlots;
+            } catch (error) {
+                console.error(`Error calculating time slots for ${day}:`, error);
+                // Provide a default set of slots if there's an error
+                const defaultSlots = [];
+                const defaultDurations = Array(settings.jobsPerDay || 2).fill(DEFAULT_JOB_DURATION);
+                
+                let startTime = new Date('2000-01-01 9:00 AM');
+                for (let i = 0; i < defaultDurations.length; i++) {
+                    const slotEnd = new Date(startTime.getTime() + defaultDurations[i] * 60000);
+                    defaultSlots.push({
+                        start: formatTime(startTime),
+                        end: formatTime(slotEnd),
+                        durationMinutes: defaultDurations[i]
+                    });
+                    
+                    if (i < defaultDurations.length - 1) {
+                        startTime = new Date(slotEnd.getTime() + DEFAULT_BREAK_TIME * 60000);
+                    }
+                }
+                
+                console.log(`Using ${defaultSlots.length} default slots for ${day} due to error`);
+                slots[day] = defaultSlots;
+            }
         });
         
         return slots;
     }
 
-    // Add change event listeners for day-specific time settings
-    function addTimeSettingsListeners() {
-        document.addEventListener('change', function(e) {
-            const startTimeMatch = e.target.getAttribute('data-start-time');
-            const endTimeMatch = e.target.getAttribute('data-end-time');
-            const jobsPerDayMatch = e.target.getAttribute('data-jobs-per-day');
-            const cleaningDurationMatch = e.target.getAttribute('data-cleaning-duration');
-            const breakTimeMatch = e.target.getAttribute('data-break-time');
-            const maxHoursMatch = e.target.getAttribute('data-max-hours');
+    function hideSavingIndicator(success = true) {
+        if (success) {
+            savingIndicator.innerHTML = '<i class="fas fa-check mr-2"></i> Saved!';
             
-            let day = null;
+            // Create a success toast notification
+            const successToast = document.createElement('div');
+            successToast.className = 'fixed top-16 right-4 bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded shadow-md max-w-md z-50 transform transition-all duration-300 opacity-0 translate-y-2';
+            successToast.innerHTML = `
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-check-circle text-green-600"></i>
+                    </div>
+                    <div class="ml-3">
+                        <p class="text-sm font-medium">Settings saved successfully!</p>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(successToast);
             
-            if (startTimeMatch) {
-                day = startTimeMatch;
-                workingDays[day].startTime = e.target.value;
-            } else if (endTimeMatch) {
-                day = endTimeMatch;
-                workingDays[day].endTime = e.target.value;
-            } else if (jobsPerDayMatch) {
-                day = jobsPerDayMatch;
-                workingDays[day].jobsPerDay = parseInt(e.target.value);
-            } else if (cleaningDurationMatch) {
-                day = cleaningDurationMatch;
-                workingDays[day].cleaningDuration = parseInt(e.target.value);
-            } else if (breakTimeMatch) {
-                day = breakTimeMatch;
-                workingDays[day].breakTime = parseInt(e.target.value);
-            } else if (maxHoursMatch) {
-                day = maxHoursMatch;
-                workingDays[day].maxHours = parseInt(e.target.value);
-            }
+            // Show the toast with a slight delay
+            setTimeout(() => {
+                successToast.classList.remove('opacity-0', 'translate-y-2');
+            }, 100);
             
-            if (day) {
-                showSavingIndicator();
-                validateAndSaveSettings();
-            }
-        });
+            // Hide the saving indicator and toast
+            setTimeout(() => {
+                savingIndicator.classList.add('translate-y-10', 'opacity-0');
+                successToast.classList.add('opacity-0');
+                setTimeout(() => {
+                    successToast.remove();
+                }, 300);
+            }, 2000);
+        } else {
+            savingIndicator.innerHTML = '<i class="fas fa-times mr-2"></i> Error saving!';
+            setTimeout(() => {
+                savingIndicator.classList.add('translate-y-10', 'opacity-0');
+            }, 3000);
+        }
     }
-
-    // Initialize time settings listeners
-    addTimeSettingsListeners();
 }); 

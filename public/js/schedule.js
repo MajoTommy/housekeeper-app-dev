@@ -249,6 +249,11 @@ async function loadUserSchedule(showLoadingIndicator = true) {
         
         console.log('Final calculated time slots:', settings.calculatedTimeSlots);
 
+        // Before using calculatedTimeSlots
+        if (settings.calculatedTimeSlots) {
+          debugTimeSlotData(settings.calculatedTimeSlots, 'Before Processing');
+        }
+
         // Generate the schedule with the settings
         console.log('Calling generateSchedule with settings:', settings);
         generateSchedule(settings);
@@ -611,11 +616,48 @@ function generateSchedule(settings) {
     const workingDaysForSchedule = settings.workingDaysCompat || settings.workingDays;
     console.log('Working days configuration for schedule:', workingDaysForSchedule);
     
+    // Add detailed debug for all working days configuration formats
+    console.log('DETAILED WORKING DAYS DEBUG:');
+    console.log('workingDays (object format):', settings.workingDays);
+    console.log('workingDaysCompat (numeric format):', settings.workingDaysCompat);
+    if (settings.workingDays && typeof settings.workingDays === 'object') {
+        if (settings.workingDays.wednesday) {
+            console.log('Wednesday detailed (object format):', settings.workingDays.wednesday);
+        }
+        // Check numeric representation
+        if (settings.workingDays['3']) {
+            console.log('Wednesday (numeric key 3):', settings.workingDays['3']);
+        }
+    }
+    
+    // Specific debug for Wednesday (day 3)
+    const wednesdayStatus = workingDaysForSchedule && workingDaysForSchedule['3'] !== undefined 
+        ? workingDaysForSchedule['3'] 
+        : 'undefined';
+    console.log('WEDNESDAY STATUS CHECK:', {
+        rawValue: wednesdayStatus,
+        typeOfValue: typeof wednesdayStatus,
+        asBool: !!wednesdayStatus,
+        asString: String(wednesdayStatus),
+        isExplicitlyFalse: wednesdayStatus === false
+    });
+    
     // Debug working days again right before generating schedule
     debugWorkingDays(settings);
     
     // Day names for better logging
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    
+    // Day mapping object for converting between numeric and named format
+    const dayMapping = {
+        0: 'sunday',
+        1: 'monday',
+        2: 'tuesday',
+        3: 'wednesday',
+        4: 'thursday',
+        5: 'friday',
+        6: 'saturday'
+    };
     
     // Check if we're on a mobile device
     const isMobile = isMobileDevice();
@@ -712,6 +754,12 @@ function generateSchedule(settings) {
             const timeToMinutes = (timeStr) => {
                 if (!timeStr) return 0;
                 
+                // Check if the time string is literally "Invalid Date"
+                if (timeStr === "Invalid Date") {
+                    console.warn('Received literal "Invalid Date" string, returning 0');
+                    return 0;
+                }
+                
                 // First normalize the time format
                 const normalizedTime = normalizeTimeFormat(timeStr);
                 
@@ -725,6 +773,12 @@ function generateSchedule(settings) {
                 let hours = parseInt(match[1]);
                 const minutes = parseInt(match[2]);
                 const period = match[3].toUpperCase();
+                
+                // Validate the parsed values
+                if (isNaN(hours) || isNaN(minutes)) {
+                    console.warn(`Invalid hours or minutes in: ${timeStr}`);
+                    return 0;
+                }
                 
                 // Convert to 24-hour format
                 if (period === 'PM' && hours < 12) hours += 12;
@@ -763,11 +817,27 @@ function generateSchedule(settings) {
                 isWorkingDay = workingDaysForSchedule && 
                     workingDaysForSchedule[dayOfWeek] !== false;
             } else {
-                // On desktop, use the standard check
-                isWorkingDay = workingDaysForSchedule && 
-                    (workingDaysForSchedule[dayOfWeek] == true || 
-                     (typeof workingDaysForSchedule[dayOfWeek] === 'string' && 
-                      workingDaysForSchedule[dayOfWeek].toLowerCase() === 'true'));
+                // On desktop, make sure we strictly check for false values
+                // First check if the value exists
+                if (workingDaysForSchedule && workingDaysForSchedule[dayOfWeek] !== undefined) {
+                    // If it's a boolean, use it directly
+                    if (typeof workingDaysForSchedule[dayOfWeek] === 'boolean') {
+                        isWorkingDay = workingDaysForSchedule[dayOfWeek];
+                    }
+                    // If it's a string, check if it's "true"
+                    else if (typeof workingDaysForSchedule[dayOfWeek] === 'string') {
+                        isWorkingDay = workingDaysForSchedule[dayOfWeek].toLowerCase() === 'true';
+                    }
+                    // For object format, check isWorking property
+                    else if (typeof workingDaysForSchedule[dayOfWeek] === 'object' && 
+                             workingDaysForSchedule[dayOfWeek] !== null) {
+                        isWorkingDay = !!workingDaysForSchedule[dayOfWeek].isWorking;
+                    }
+                    // For anything else, use simple truthy check (but not for explicit false)
+                    else if (workingDaysForSchedule[dayOfWeek] !== false) {
+                        isWorkingDay = !!workingDaysForSchedule[dayOfWeek];
+                    }
+                }
             }
             
             console.log(`Day ${dayOfWeek} (${dayNames[dayOfWeek]}, ${date.toDateString()}) working status:`, {
@@ -777,6 +847,23 @@ function generateSchedule(settings) {
                 workingDays: workingDaysForSchedule,
                 dateString: date.toDateString()
             });
+            
+            // Add specific detailed working status check for all days
+            const dayDetails = {
+                dayNumber: dayOfWeek,
+                dayName: dayNames[dayOfWeek],
+                date: date.toDateString(),
+                rawValue: workingDaysForSchedule?.[dayOfWeek],
+                valueType: typeof workingDaysForSchedule?.[dayOfWeek],
+                finalIsWorkingDay: isWorkingDay,
+                valueFromCompat: settings.workingDaysCompat?.[dayOfWeek],
+                valueFromWorkingDays: settings.workingDays?.[dayOfWeek]
+            };
+            console.log(`DETAILED DAY STATUS: ${dayNames[dayOfWeek]}`, dayDetails);
+            
+            if (dayOfWeek === 3) {  // Wednesday
+                console.log('📢 WEDNESDAY FINAL DECISION:', isWorkingDay ? 'IS WORKING' : 'NOT WORKING');
+            }
             
             if (isWorkingDay) {
                 // Check if we have day-specific time slots
@@ -803,6 +890,20 @@ function generateSchedule(settings) {
                 if (daySpecificSlots && daySpecificSlots.length > 0) {
                     // Use day-specific slots
                     timeSlots = daySpecificSlots;
+                    
+                    // Verify that the number of slots matches the jobsPerDay setting
+                    const dayName = dayMapping[dayOfWeek];
+                    const expectedJobCount = settings.workingDays && 
+                                            settings.workingDays[dayName] && 
+                                            settings.workingDays[dayName].jobsPerDay ? 
+                                            settings.workingDays[dayName].jobsPerDay : 2;
+                    
+                    console.log(`Using ${timeSlots.length} day-specific slots for ${dayNames[dayOfWeek]}. Expected: ${expectedJobCount}`);
+                    
+                    // Verify the expected count against actual slots
+                    if (timeSlots.length !== expectedJobCount) {
+                        console.warn(`⚠️ Slot count mismatch for ${dayNames[dayOfWeek]}: Found ${timeSlots.length} slots but expected ${expectedJobCount} based on settings.`);
+                    }
                     console.log(`Using ${timeSlots.length} day-specific slots for ${dayNames[dayOfWeek]}`);
                 } else if (Array.isArray(settings.calculatedTimeSlots) && !settings.calculatedTimeSlots.some(item => item.day !== undefined)) {
                     // Old format - flat array of slots
@@ -1540,21 +1641,21 @@ async function saveBooking() {
                 .collection('clients').doc(currentBookingData.client.id).get();
             
             if (clientDoc.exists) {
-                const clientData = clientDoc.data();
+                const userData = clientDoc.data();
                 // Enhanced client details with consistent field structure
                 clientDetails = {
                     clientId: currentBookingData.client.id,
-                    clientFirstName: clientData.firstName || '',
-                    clientLastName: clientData.lastName || '',
-                    clientAddress: clientData.address || 
-                        `${clientData.street || ''}, ${clientData.city || ''}, ${clientData.state || ''} ${clientData.zip || ''}`.trim().replace(/^,\s*/, '').replace(/,\s*$/, ''),
-                    clientPhone: clientData.phone || '',
-                    clientEmail: clientData.email || '',
-                    accessInfo: clientData.accessInfo || clientData.notes || '',
-                    propertyDetails: clientData.propertyDetails || '',
-                    specialInstructions: clientData.specialInstructions || clientData.notes || '',
-                    frequency: clientData.frequency || currentBookingData.frequency || 'one-time',
-                    price: clientData.price || null
+                    clientFirstName: userData.firstName || '',
+                    clientLastName: userData.lastName || '',
+                    clientAddress: userData.address || 
+                        `${userData.street || ''}, ${userData.city || ''}, ${userData.state || ''} ${userData.zip || ''}`.trim().replace(/^,\s*/, '').replace(/,\s*$/, ''),
+                    clientPhone: userData.phone || '',
+                    clientEmail: userData.email || '',
+                    accessInfo: userData.accessInfo || userData.notes || '',
+                    propertyDetails: userData.propertyDetails || '',
+                    specialInstructions: userData.specialInstructions || userData.notes || '',
+                    frequency: userData.frequency || currentBookingData.frequency || 'one-time',
+                    price: userData.price || null
                 };
                 console.log('Retrieved client details:', clientDetails);
             } else {
@@ -3238,34 +3339,54 @@ document.getElementById('emergencyButton').addEventListener('click', async funct
 function normalizeTimeFormat(timeStr) {
     if (!timeStr) return timeStr;
     
+    // Handle "Invalid Date" strings
+    if (timeStr === "Invalid Date") {
+        console.warn('Normalizing "Invalid Date" string to default time');
+        return "09:00 AM"; // Return a default valid time
+    }
+    
     // Handle various time formats including "8:00 a.m." format with periods
     // This regex matches: 
     // - Hours (one or two digits)
     // - Minutes (two digits)
     // - AM/PM indicator in various formats (AM, PM, a.m., p.m.)
     const match = timeStr.match(/(\d+):(\d+)\s*(a\.m\.|p\.m\.|AM|PM|am|pm)/i);
-    if (!match) return timeStr; // Return as is if no match
-    
-    const hours = parseInt(match[1]);
-    const minutes = match[2];
-    
-    // Normalize the period to uppercase AM/PM without periods
-    let period = match[3].toUpperCase().replace(/\./g, '');
-    if (period === 'AM' || period === 'PM') {
-        // Already in the right format
-    } else if (period === 'AM') {
-        period = 'AM';
-    } else if (period === 'PM') {
-        period = 'PM';
+    if (!match) {
+        console.warn(`Could not match time format in string: ${timeStr}`);
+        return timeStr; // Return as is if no match
     }
     
-    // Ensure hours is in 12-hour format and has leading zero if needed
-    const formattedHours = hours === 0 ? '12' : 
-                          hours > 12 ? (hours - 12).toString() : 
-                          hours.toString();
-    
-    // Return in the exact format expected: "HH:MM AM/PM"
-    return `${formattedHours.padStart(2, '0')}:${minutes} ${period}`;
+    try {
+        const hours = parseInt(match[1]);
+        const minutes = match[2];
+        
+        // Validate parsed values
+        if (isNaN(hours) || hours < 0 || hours > 23) {
+            console.warn(`Invalid hours in time string: ${timeStr}`);
+            return "09:00 AM"; // Return a default valid time
+        }
+        
+        // Normalize the period to uppercase AM/PM without periods
+        let period = match[3].toUpperCase().replace(/\./g, '');
+        if (period === 'AM' || period === 'PM') {
+            // Already in the right format
+        } else if (period === 'AM') {
+            period = 'AM';
+        } else if (period === 'PM') {
+            period = 'PM';
+        }
+        
+        // Ensure hours is in 12-hour format and has leading zero if needed
+        const formattedHours = hours === 0 ? '12' : 
+                            hours > 12 ? (hours - 12).toString() : 
+                            hours.toString();
+        
+        // Return in the exact format expected: "HH:MM AM/PM"
+        return `${formattedHours.padStart(2, '0')}:${minutes} ${period}`;
+    } catch (error) {
+        console.error(`Error normalizing time format for ${timeStr}:`, error);
+        return "09:00 AM"; // Return a default valid time
+    }
 }
 
 // Function to clean up all backdrops and reset body scrolling
@@ -3487,4 +3608,105 @@ async function updateBookingStatus(bookingId, newStatus) {
             console.error('Error getting current booking status:', err);
         }
     }
+}
+
+// Add these debug functions at the appropriate location in schedule.js
+
+function debugTimeSlotData(timeSlots, label) {
+  console.log(`DEBUG [${label}] - Time slot data inspection:`);
+  if (!timeSlots) {
+    console.log(`  Time slots is ${timeSlots} (type: ${typeof timeSlots})`);
+    return;
+  }
+  
+  console.log(`  Time slots array length: ${timeSlots.length}`);
+  timeSlots.forEach((slot, index) => {
+    console.log(`  Slot ${index}:`, {
+      startTime: slot.startTime,
+      startTimeType: typeof slot.startTime,
+      endTime: slot.endTime,
+      endTimeType: typeof slot.endTime,
+      day: slot.day,
+      raw: slot
+    });
+  });
+}
+
+function debugUserSettings(settings, label) {
+  console.log(`DEBUG [${label}] - User settings inspection:`);
+  console.log(`  Working hours:`, settings.workingHours);
+  
+  if (settings.calculatedTimeSlots) {
+    console.log(`  Calculated time slots (count: ${settings.calculatedTimeSlots.length}):`);
+    settings.calculatedTimeSlots.forEach((slot, index) => {
+      console.log(`    Slot ${index}:`, {
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        day: slot.day || 'not specified'
+      });
+    });
+  }
+  
+  // Log working days structure in detail
+  console.log(`  Working days detailed structure:`);
+  for (const [key, value] of Object.entries(settings.workingDays)) {
+    const valueType = typeof value;
+    const valueDetails = valueType === 'object' ? JSON.stringify(value) : value;
+    console.log(`    Day ${key} (${typeof key}): ${valueDetails} (${valueType})`);
+  }
+}
+
+function enhancedTimeToMinutes(timeString, callerInfo) {
+  console.log(`DEBUG [timeToMinutes] - Called from ${callerInfo}`);
+  console.log(`  Input: "${timeString}" (type: ${typeof timeString})`);
+  
+  if (!timeString) {
+    console.log(`  ERROR: Empty or null time string`);
+    return 0; // Return default instead of proceeding with invalid input
+  }
+  
+  // Try to normalize and see what happens
+  try {
+    const normalized = normalizeTimeString(timeString);
+    console.log(`  Normalized to: "${normalized}"`);
+    
+    // Test parsing with different methods to see what works
+    const date1 = new Date(`2000-01-01 ${normalized}`);
+    const date2 = new Date(`2000-01-01T${normalized}`);
+    
+    console.log(`  Parse test 1: ${date1} (valid: ${!isNaN(date1.getTime())})`);
+    console.log(`  Parse test 2: ${date2} (valid: ${!isNaN(date2.getTime())})`);
+    
+    // Continue with original function logic
+    // ...
+  } catch (err) {
+    console.log(`  ERROR during time parsing: ${err.message}`);
+    return 0; // Default fallback
+  }
+}
+
+// Also add this to inspect when the settings are loaded from Firestore
+function inspectFirestoreData(userData, rawData) {
+  console.log(`DEBUG [Firestore] - Inspecting raw Firestore data:`);
+  console.log(`  Raw data keys: ${Object.keys(rawData).join(', ')}`);
+  
+  if (rawData.workingHours) {
+    console.log(`  Working hours from Firestore:`, rawData.workingHours);
+  }
+  
+  if (rawData.calculatedTimeSlots) {
+    console.log(`  Raw calculated time slots:`, rawData.calculatedTimeSlots);
+    
+    // Check each slot's data types and values
+    rawData.calculatedTimeSlots.forEach((slot, index) => {
+      console.log(`  Slot ${index} raw data:`, {
+        startTime: slot.startTime,
+        startTimeType: typeof slot.startTime,
+        startTimeValue: JSON.stringify(slot.startTime),
+        endTime: slot.endTime,
+        endTimeType: typeof slot.endTime,
+        endTimeValue: JSON.stringify(slot.endTime)
+      });
+    });
+  }
 }

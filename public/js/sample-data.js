@@ -407,7 +407,7 @@ async function addSampleSettings() {
             sunday: { isWorking: false },
             monday: { 
                 isWorking: true,
-                startTime: "08:00 AM",
+                startTime: "09:00 AM",
                 endTime: "05:00 PM",
                 jobsPerDay: 2,
                 cleaningDuration: 180,
@@ -416,7 +416,7 @@ async function addSampleSettings() {
             },
             tuesday: { 
                 isWorking: true,
-                startTime: "08:00 AM",
+                startTime: "09:00 AM",
                 endTime: "05:00 PM",
                 jobsPerDay: 2,
                 cleaningDuration: 180,
@@ -425,7 +425,7 @@ async function addSampleSettings() {
             },
             wednesday: { 
                 isWorking: true,
-                startTime: "08:00 AM",
+                startTime: "09:00 AM",
                 endTime: "05:00 PM",
                 jobsPerDay: 2,
                 cleaningDuration: 180,
@@ -434,7 +434,7 @@ async function addSampleSettings() {
             },
             thursday: { 
                 isWorking: true,
-                startTime: "08:00 AM",
+                startTime: "09:00 AM",
                 endTime: "05:00 PM",
                 jobsPerDay: 2,
                 cleaningDuration: 180,
@@ -443,7 +443,7 @@ async function addSampleSettings() {
             },
             friday: { 
                 isWorking: true,
-                startTime: "08:00 AM",
+                startTime: "09:00 AM",
                 endTime: "05:00 PM",
                 jobsPerDay: 2,
                 cleaningDuration: 180,
@@ -475,6 +475,52 @@ async function addSampleSettings() {
             'saturday': 6
         };
         
+        // Helper function to safely parse time strings
+        function safeParseTime(timeString) {
+            try {
+                if (!timeString) {
+                    console.error('Empty time string provided');
+                    return null;
+                }
+                
+                // Ensure the time string is properly formatted
+                const timeRegex = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i;
+                if (!timeRegex.test(timeString)) {
+                    console.error('Invalid time format:', timeString);
+                    return null;
+                }
+                
+                // Parse with a reliable date string format
+                const date = new Date(`2000-01-01T${timeString.replace(/\s/g, '')}`);
+                
+                // Check if the date is valid
+                if (isNaN(date.getTime())) {
+                    console.error('Failed to parse time:', timeString);
+                    return null;
+                }
+                
+                return date;
+            } catch (error) {
+                console.error('Error parsing time:', timeString, error);
+                return null;
+            }
+        }
+        
+        // Helper function to safely format time to string
+        function safeFormatTime(date) {
+            try {
+                if (!date || isNaN(date.getTime())) {
+                    console.error('Invalid date object for formatting');
+                    return "09:00 AM"; // Default fallback
+                }
+                
+                return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+            } catch (error) {
+                console.error('Error formatting time:', error);
+                return "09:00 AM"; // Default fallback
+            }
+        }
+        
         // Calculate time slots for each day
         const formattedTimeSlots = [];
         
@@ -482,7 +528,15 @@ async function addSampleSettings() {
             if (!settings.isWorking) return;
             
             const daySlots = [];
-            const startTime = new Date('2000-01-01 ' + settings.startTime);
+            // Use the safe parse function
+            const startTime = safeParseTime(settings.startTime);
+            
+            // If we couldn't parse the start time, skip this day
+            if (!startTime) {
+                console.error(`Skipping time slots for ${dayName} due to invalid start time`);
+                return;
+            }
+            
             const cleaningsPerDay = settings.jobsPerDay || 2;
             const cleaningDuration = settings.cleaningDuration || 180;
             const breakTime = settings.breakTime || 90;
@@ -492,12 +546,18 @@ async function addSampleSettings() {
             for (let i = 0; i < cleaningsPerDay; i++) {
                 // Add the cleaning slot
                 const slotEnd = new Date(currentTime.getTime() + cleaningDuration * 60000);
+                
+                // Use safe format function
+                const startTimeStr = safeFormatTime(currentTime);
+                const endTimeStr = safeFormatTime(slotEnd);
+                
                 const slotObj = {
-                    start: currentTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }),
-                    end: slotEnd.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }),
+                    start: startTimeStr,
+                    end: endTimeStr,
                     durationMinutes: cleaningDuration
                 };
                 
+                console.log(`Created time slot for ${dayName}: ${startTimeStr} - ${endTimeStr}`);
                 daySlots.push(slotObj);
                 
                 // Add break time if not the last cleaning
@@ -511,13 +571,13 @@ async function addSampleSettings() {
                     day: dayMapping[dayName],
                     slots: daySlots
                 });
+                console.log(`Added ${daySlots.length} slots for day ${dayMapping[dayName]} (${dayName})`);
             }
         });
         
         // Create settings object
         const settings = {
-            workingDays: workingDays,
-            workingDaysCompat: compatWorkingDays,
+            workingDays: compatWorkingDays, // Use the simpler format directly
             workingHours: {
                 start: workingDays.monday.startTime,
                 end: workingDays.monday.endTime
@@ -532,8 +592,10 @@ async function addSampleSettings() {
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
         
+        console.log('Saving settings with calculatedTimeSlots:', formattedTimeSlots);
+        
         // Save to Firestore
-        await userRef.set({ settings }, { merge: true });
+        await userRef.set(settings, { merge: true });
         console.log('Successfully added sample settings!');
         
     } catch (error) {
@@ -573,6 +635,10 @@ async function resetAndPopulateDatabase() {
             console.log(`Deleted all documents in ${collectionName}`);
         });
         
+        // Also clear any settings directly on the user document
+        await db.collection('users').doc(user.uid).set({}, { merge: false });
+        console.log('Cleared user document settings');
+        
         await Promise.all(deletePromises);
         
         // Create new clients with timestamps
@@ -604,6 +670,10 @@ async function resetAndPopulateDatabase() {
             defaultCleaningDuration: 120, // 2 hours in minutes
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
+        
+        // Call addSampleSettings to create properly formatted time slots directly on the user document
+        await addSampleSettings();
+        console.log('Added sample settings with properly formatted time slots');
         
         console.log('Database reset and populated successfully');
         return true;
