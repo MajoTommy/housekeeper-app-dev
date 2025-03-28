@@ -35,23 +35,23 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize default working days
     const workingDays = {
-        monday: { 
-            isWorking: true, 
+        monday: {
+            isWorking: true,
             startTime: '8:00 AM', 
             jobsPerDay: 2, 
             breakTime: 90, // Legacy - kept for backward compatibility
             breakDurations: [90],  // New array to store individual break durations
             jobDurations: [DEFAULT_JOB_DURATION, DEFAULT_JOB_DURATION]
         },
-        tuesday: { 
-            isWorking: true, 
+        tuesday: {
+            isWorking: true,
             startTime: '8:00 AM', 
             jobsPerDay: 2, 
             breakTime: 90,
             breakDurations: [90],
             jobDurations: [DEFAULT_JOB_DURATION, DEFAULT_JOB_DURATION]
         },
-        wednesday: { 
+        wednesday: {
             isWorking: false, 
             startTime: '8:00 AM', 
             jobsPerDay: 2, 
@@ -59,32 +59,32 @@ document.addEventListener('DOMContentLoaded', function() {
             breakDurations: [90],
             jobDurations: [DEFAULT_JOB_DURATION, DEFAULT_JOB_DURATION]
         },
-        thursday: { 
-            isWorking: true, 
+        thursday: {
+            isWorking: true,
             startTime: '8:00 AM', 
             jobsPerDay: 2, 
             breakTime: 90,
             breakDurations: [90],
             jobDurations: [DEFAULT_JOB_DURATION, DEFAULT_JOB_DURATION]
         },
-        friday: { 
-            isWorking: true, 
+        friday: {
+            isWorking: true,
             startTime: '8:00 AM', 
             jobsPerDay: 2, 
             breakTime: 90,
             breakDurations: [90],
             jobDurations: [DEFAULT_JOB_DURATION, DEFAULT_JOB_DURATION]
         },
-        saturday: { 
-            isWorking: false, 
+        saturday: {
+            isWorking: false,
             startTime: '8:00 AM', 
             jobsPerDay: 2, 
             breakTime: 90,
             breakDurations: [90],
             jobDurations: [DEFAULT_JOB_DURATION, DEFAULT_JOB_DURATION]
         },
-        sunday: { 
-            isWorking: false, 
+        sunday: {
+            isWorking: false,
             startTime: '8:00 AM', 
             jobsPerDay: 2, 
             breakTime: 90,
@@ -420,13 +420,13 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <!-- Job header with title -->
                                 <div class="px-3 py-2 font-medium text-blue-800 border-b border-blue-200">
                                     Job ${item.index}
-                                </div>
+                        </div>
                                 
                                 <!-- Duration controls in a separate row -->
                                 <div class="px-3 py-3 bg-blue-50 flex items-center justify-between">
                                     <div class="text-blue-700 font-medium">
                                         ${item.durationText}
-                        </div>
+                </div>
                                     <div class="flex items-center space-x-4">
                                         <button type="button" class="h-10 w-10 rounded-full bg-white border border-blue-300 flex items-center justify-center text-blue-800 shadow-sm" data-job-decrease="${day}-${item.index - 1}" ${hours <= 1 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
                                             <i class="fas fa-minus text-lg"></i>
@@ -434,11 +434,11 @@ document.addEventListener('DOMContentLoaded', function() {
                                         <button type="button" class="h-10 w-10 rounded-full bg-white border border-blue-300 flex items-center justify-center text-blue-800 shadow-sm" data-job-increase="${day}-${item.index - 1}" ${hours >= 5 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
                                             <i class="fas fa-plus text-lg"></i>
                                         </button>
-                </div>
                     </div>
                     </div>
                 </div>
                     </div>
+                        </div>
                 `;
             } else if (item.type === 'break') {
                 timelineHTML += `
@@ -455,7 +455,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <div class="px-3 py-3 bg-gray-50 flex items-center justify-between">
                                     <div class="text-gray-600 font-medium">
                                         ${item.durationText}
-                        </div>
+                    </div>
                                     <div class="flex items-center space-x-4">
                                         <button type="button" class="h-9 w-9 rounded-full bg-white border border-gray-300 flex items-center justify-center text-gray-600 shadow-sm" data-break-decrease="${day}-${item.index}" ${item.duration <= 30 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
                                             <i class="fas fa-minus"></i>
@@ -464,11 +464,11 @@ document.addEventListener('DOMContentLoaded', function() {
                                             <i class="fas fa-plus"></i>
                                         </button>
                     </div>
-                    </div>
                 </div>
                         </div>
                 </div>
-                `;
+                </div>
+            `;
             } else if (item.type === 'end') {
                 timelineHTML += `
                     <div class="flex items-center text-sm mt-4">
@@ -495,8 +495,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (currentDuration > 60) {
                         workingDays[day].jobDurations[index] = currentDuration - 30;
                         updateDayVisualIndicators(day);
-                showSavingIndicator();
-                validateAndSaveSettings();
+                    showSavingIndicator();
+                    validateAndSaveSettings();
                     }
                 });
             }
@@ -528,8 +528,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (currentBreakTime > 30) {
                         workingDays[day].breakDurations[breakIndex] = currentBreakTime - 30;
                         updateDayVisualIndicators(day);
-                        showSavingIndicator();
-                        validateAndSaveSettings();
+                showSavingIndicator();
+                validateAndSaveSettings();
                     }
                 });
             }
@@ -541,8 +541,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (currentBreakTime < 180) {
                         workingDays[day].breakDurations[breakIndex] = currentBreakTime + 30;
                         updateDayVisualIndicators(day);
-                        showSavingIndicator();
-                        validateAndSaveSettings();
+                showSavingIndicator();
+                validateAndSaveSettings();
                     }
                 });
             }
@@ -713,7 +713,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 
                                 endTime = new Date(2000, 0, 1);
                                 endTime.setHours(hours, minutes, 0, 0);
-                            } else {
+        } else {
                                 warningMessages.push(`${dayName}: Invalid end time format`);
                                 throw new Error("Invalid end time format");
                             }
