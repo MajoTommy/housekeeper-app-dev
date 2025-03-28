@@ -74,14 +74,10 @@
                     <div class="border-2 border-blue-200 rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow mb-8">
                         <div class="px-5 py-5 flex items-center justify-between bg-blue-50 border-l-8 border-blue-500">
                             <div class="flex items-center">
-                                <div class="h-12 w-12 rounded-full bg-blue-600 flex items-center justify-center text-white text-xl font-bold mr-4 shadow-md">
-                                    <i class="fas fa-moon mr-1"></i>
-                                    M
-                                </div>
                                 <span class="font-bold text-lg text-blue-800">Monday</span>
                             </div>
                             <label class="inline-flex items-center cursor-pointer bg-white py-2 px-4 rounded-full shadow-sm">
-                                <span class="mr-3 text-base font-medium text-gray-700">I work this day</span>
+                                <span class="mr-3 text-base font-medium text-gray-700">I work</span>
                                 <div class="relative">
                                     <input type="checkbox" value="" class="sr-only peer day-toggle" data-day-toggle="monday" checked>
                                     <div class="w-14 h-7 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-green-500"></div>
@@ -89,10 +85,9 @@
                             </label>
                         </div>
                         
-                        <div class="px-5 py-6 border-t bg-white" data-day-settings="monday">
+                        <div class="px-4 py-6 border-t bg-white" data-day-settings="monday">
                             <div class="mb-6">
                                 <label class="block text-lg font-medium text-gray-800 mb-3">
-                                    <i class="fas fa-clock text-blue-500 mr-2"></i>
                                     Start time
                                 </label>
                                 <div class="relative" onclick="document.querySelector('[data-start-time=\'monday\']').focus()">
@@ -100,39 +95,35 @@
                                         <div class="flex-grow flex items-center min-h-[60px]">
                                             <input type="time" class="block w-full border-none text-2xl py-2 pl-3 pr-10 focus:outline-none" data-start-time="monday" value="08:00" step="300">
                                         </div>
-                                        <div class="flex items-center pr-4 text-blue-500">
-                                            <i class="fas fa-clock text-2xl"></i>
-                                        </div>
                                     </div>
                                     <p class="text-base text-gray-600 mt-2">Tap to set when your first job starts</p>
                                 </div>
                             </div>
-                            
+
                             <div class="mb-6">
                                 <label class="block text-lg font-medium text-gray-800 mb-3">
-                                    <i class="fas fa-briefcase text-blue-500 mr-2"></i>
                                     Number of jobs
                                 </label>
                                 <div class="flex space-x-2">
                                     <label class="border-2 border-blue-500 bg-white rounded-lg p-3 flex flex-col items-center justify-center cursor-pointer hover:bg-blue-50 w-1/3" data-job-option="1">
                                         <input type="radio" name="monday-jobs" value="1" class="sr-only" data-jobs-input="monday">
-                                        <div class="w-14 h-14 rounded-full bg-white flex items-center justify-center text-blue-500 text-3xl font-bold mb-2 border-2 border-blue-500">1</div>
+                                        <div class="w-12 h-12 rounded-full bg-white flex items-center justify-center text-blue-500 text-2xl font-bold mb-2 border-2 border-blue-500">1</div>
                                         <div class="text-center">
-                                            <span class="block text-base font-medium text-blue-700">1 job</span>
+                                            <span class="block text-sm font-medium text-blue-700">1 job</span>
                                         </div>
                                     </label>
                                     <label class="border-2 border-blue-500 bg-blue-500 rounded-lg p-3 flex flex-col items-center justify-center cursor-pointer hover:bg-blue-600 w-1/3" data-job-option="2">
                                         <input type="radio" name="monday-jobs" value="2" class="sr-only" data-jobs-input="monday" checked>
-                                        <div class="w-14 h-14 rounded-full bg-white flex items-center justify-center text-blue-600 text-3xl font-bold mb-2 border-2 border-white">2</div>
+                                        <div class="w-12 h-12 rounded-full bg-white flex items-center justify-center text-blue-600 text-2xl font-bold mb-2 border-2 border-white">2</div>
                                         <div class="text-center">
-                                            <span class="block text-base font-bold text-white">2 jobs</span>
+                                            <span class="block text-sm font-bold text-white">2 jobs</span>
                                         </div>
                                     </label>
                                     <label class="border-2 border-blue-500 bg-white rounded-lg p-3 flex flex-col items-center justify-center cursor-pointer hover:bg-blue-50 w-1/3" data-job-option="3">
                                         <input type="radio" name="monday-jobs" value="3" class="sr-only" data-jobs-input="monday">
-                                        <div class="w-14 h-14 rounded-full bg-white flex items-center justify-center text-blue-500 text-3xl font-bold mb-2 border-2 border-blue-500">3</div>
+                                        <div class="w-12 h-12 rounded-full bg-white flex items-center justify-center text-blue-500 text-2xl font-bold mb-2 border-2 border-blue-500">3</div>
                                         <div class="text-center">
-                                            <span class="block text-base font-medium text-blue-700">3 jobs</span>
+                                            <span class="block text-sm font-medium text-blue-700">3 jobs</span>
                                         </div>
                                     </label>
                                 </div>
@@ -141,65 +132,61 @@
                             <!-- Visual Schedule Preview -->
                             <div class="mb-6">
                                 <label class="block text-lg font-medium text-gray-800 mb-3">
-                                    <i class="fas fa-calendar-day text-blue-500 mr-2"></i>
-                                    Your Monday Schedule
+                                    Your Schedule
                                 </label>
-                                <div class="bg-white p-5 rounded-xl border-2 border-blue-200 shadow-sm">
+                                <div class="bg-white p-4 rounded-xl border-2 border-blue-200 shadow-sm">
                                     <!-- First job -->
-                                    <div class="flex items-center mb-8">
-                                        <div class="w-24 text-base font-medium text-blue-600">8:00 AM</div>
-                                        <div class="flex-1 py-4 px-4 bg-blue-100 rounded-lg flex items-center text-blue-800 font-medium border-l-4 border-blue-500 shadow-sm">
-                                            <i class="fas fa-home text-2xl mr-3"></i>
+                                    <div class="flex items-center mb-6">
+                                        <div class="w-20 text-base font-medium text-blue-600">8:00 AM</div>
+                                        <div class="flex-1 py-3 px-3 bg-blue-100 rounded-lg flex items-center text-blue-800 font-medium border-l-4 border-blue-500 shadow-sm">
                                             <div class="flex-1">
-                                                <div class="text-lg">First Cleaning Job</div>
-                                                <div class="text-base font-normal text-blue-700">3 hours</div>
+                                                <div class="text-base">First Job</div>
+                                                <div class="text-sm font-normal text-blue-700">3 hours</div>
                                             </div>
-                                            <div class="flex items-center space-x-3">
-                                                <button class="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-blue-50 border border-blue-200" data-action="decrease-time" data-target="monday-job-1">
-                                                    <i class="fas fa-minus text-blue-500"></i>
+                                            <div class="flex items-center space-x-2">
+                                                <button class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-blue-50 border border-blue-200" data-action="decrease-time" data-target="monday-job-1">
+                                                    <span class="text-blue-500 font-medium">-</span>
                                                 </button>
-                                                <button class="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-blue-50 border border-blue-200" data-action="increase-time" data-target="monday-job-1">
-                                                    <i class="fas fa-plus text-blue-500"></i>
+                                                <button class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-blue-50 border border-blue-200" data-action="increase-time" data-target="monday-job-1">
+                                                    <span class="text-blue-500 font-medium">+</span>
                                                 </button>
                                             </div>
                                         </div>
                                     </div>
                                     
                                     <!-- Break time -->
-                                    <div class="flex items-center mb-8 pl-6">
-                                        <div class="w-24 text-base font-medium text-blue-600">11:00 AM</div>
-                                        <div class="flex-1 py-3 px-4 bg-gray-100 rounded-lg flex items-center text-gray-700 shadow-sm">
-                                            <i class="fas fa-coffee text-xl mr-3"></i>
+                                    <div class="flex items-center mb-6 pl-4">
+                                        <div class="w-20 text-base font-medium text-blue-600">11:00 AM</div>
+                                        <div class="flex-1 py-3 px-3 bg-gray-100 rounded-lg flex items-center text-gray-700 shadow-sm">
                                             <div class="flex-1">
-                                                <div class="text-base">Break Time</div>
+                                                <div class="text-base">Break</div>
                                                 <div class="text-sm font-normal">1.5 hours</div>
                                             </div>
-                                            <div class="flex items-center space-x-3">
-                                                <button class="w-9 h-9 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-gray-50 border border-gray-200" data-action="decrease-time" data-target="monday-break-1">
-                                                    <i class="fas fa-minus text-gray-500"></i>
+                                            <div class="flex items-center space-x-2">
+                                                <button class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-gray-50 border border-gray-200" data-action="decrease-time" data-target="monday-break-1">
+                                                    <span class="text-gray-500 font-medium">-</span>
                                                 </button>
-                                                <button class="w-9 h-9 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-gray-50 border border-gray-200" data-action="increase-time" data-target="monday-break-1">
-                                                    <i class="fas fa-plus text-gray-500"></i>
+                                                <button class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-gray-50 border border-gray-200" data-action="increase-time" data-target="monday-break-1">
+                                                    <span class="text-gray-500 font-medium">+</span>
                                                 </button>
                                             </div>
                                         </div>
                                     </div>
-                                    
+
                                     <!-- Second job -->
-                                    <div class="flex items-center mb-8">
-                                        <div class="w-24 text-base font-medium text-blue-600">12:30 PM</div>
-                                        <div class="flex-1 py-4 px-4 bg-blue-100 rounded-lg flex items-center text-blue-800 font-medium border-l-4 border-blue-500 shadow-sm">
-                                            <i class="fas fa-home text-2xl mr-3"></i>
+                                    <div class="flex items-center mb-6">
+                                        <div class="w-20 text-base font-medium text-blue-600">12:30 PM</div>
+                                        <div class="flex-1 py-3 px-3 bg-blue-100 rounded-lg flex items-center text-blue-800 font-medium border-l-4 border-blue-500 shadow-sm">
                                             <div class="flex-1">
-                                                <div class="text-lg">Second Cleaning Job</div>
-                                                <div class="text-base font-normal text-blue-700">3 hours</div>
+                                                <div class="text-base">Second Job</div>
+                                                <div class="text-sm font-normal text-blue-700">3 hours</div>
                                             </div>
-                                            <div class="flex items-center space-x-3">
-                                                <button class="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-blue-50 border border-blue-200" data-action="decrease-time" data-target="monday-job-2">
-                                                    <i class="fas fa-minus text-blue-500"></i>
+                                            <div class="flex items-center space-x-2">
+                                                <button class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-blue-50 border border-blue-200" data-action="decrease-time" data-target="monday-job-2">
+                                                    <span class="text-blue-500 font-medium">-</span>
                                                 </button>
-                                                <button class="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-blue-50 border border-blue-200" data-action="increase-time" data-target="monday-job-2">
-                                                    <i class="fas fa-plus text-blue-500"></i>
+                                                <button class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-blue-50 border border-blue-200" data-action="increase-time" data-target="monday-job-2">
+                                                    <span class="text-blue-500 font-medium">+</span>
                                                 </button>
                                             </div>
                                         </div>
@@ -207,16 +194,14 @@
                                     
                                     <!-- Done for the day -->
                                     <div class="flex items-center">
-                                        <div class="w-24 text-base font-medium text-blue-600">3:30 PM</div>
-                                        <div class="flex-1 py-4 px-4 bg-green-100 rounded-lg flex items-center text-green-700 border-l-4 border-green-500 shadow-sm">
-                                            <i class="fas fa-check-circle text-xl mr-3"></i>
+                                        <div class="w-20 text-base font-medium text-blue-600">3:30 PM</div>
+                                        <div class="flex-1 py-3 px-3 bg-green-100 rounded-lg flex items-center text-green-700 border-l-4 border-green-500 shadow-sm">
                                             <div class="flex-1">
-                                                <div class="text-base">Done for the day</div>
+                                                <div class="text-base">Done</div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                                <p class="text-base text-blue-600 mt-4 bg-blue-50 p-4 rounded-lg"><i class="fas fa-info-circle mr-2"></i> Tap + or - to change job length</p>
                             </div>
                         </div>
                     </div>
@@ -247,7 +232,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Wednesday - Not Working Example -->
                     <div class="border-2 border-purple-200 rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow mb-8">
                         <div class="px-5 py-5 flex items-center justify-between bg-purple-50 border-l-8 border-purple-500">
@@ -274,7 +259,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Remaining days simplified -->
                     <div class="border rounded-lg overflow-hidden shadow-sm hover:shadow transition-shadow">
                         <div class="px-4 py-4 flex items-center justify-between bg-white">
@@ -305,7 +290,7 @@
         <!-- Payment Settings -->
         <div class="bg-white rounded-lg p-4 shadow-sm">
             <h3 class="text-lg font-semibold text-gray-900 mb-4">Payment Settings</h3>
-                
+            
             <div class="flex items-center justify-between py-2">
                 <span class="text-gray-700">Auto-send Receipts</span>
                 <div class="relative inline-block w-12 h-6 transition duration-200 ease-in-out rounded-full">

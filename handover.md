@@ -1,5 +1,49 @@
 # Housekeeping App Development Handover
 
+## Recent Work: Settings Page Improvements (June 2024)
+
+We've made significant improvements to the settings page UI, focusing on usability for users with lower technical literacy and addressing some visual issues:
+
+### Issues Addressed
+
+1. **Job Selection Bug**: Fixed a visual bug where multiple job options appeared selected simultaneously when only one should be active.
+
+2. **Dense Schedule UI**: Simplified the schedule preview section which was too dense and potentially overwhelming for users with lower technical literacy.
+
+3. **Complexity Reduction**: Temporarily simplified Tuesday and Wednesday sections to focus on fixing Monday's functionality first.
+
+### Key Changes
+
+#### 1. Job Selection Handler Improvements
+- Fixed the event handler to ensure only one job option appears visually selected at a time
+- Properly toggle styling classes (adding/removing `bg-white`, `bg-blue-500`, etc.)
+- Ensured consistent behavior of the radio button inputs
+
+#### 2. Schedule UI Enhancements
+- Increased vertical spacing between items (from `mb-6` to `mb-8`)
+- Added indentation for break times (`pl-6` class) to show relationship to jobs
+- Widened time columns from `w-20` to `w-24` for better readability
+- Enlarged control buttons (plus/minus) for easier tapping
+- Increased icon sizes for better visibility
+- Added clear section comments in the HTML
+
+#### 3. Simplification Approach
+- Temporarily replaced detailed day settings for Tuesday and Wednesday with placeholder content
+- Focused the job selection handler code to only manage Monday's functionality
+- Ensured that dynamically generated schedule elements match the static design
+
+### Files Modified
+- `public/settings/settings.html`: Fixed job handler logic and simplified UI elements
+
+### Next Steps
+1. Re-implement the full functionality for Tuesday and Wednesday once Monday is stable
+2. Consider further UI simplifications for other sections
+3. Test with actual users of the target demographic
+
+---
+
+## Previous Work: Client Details Page Fix
+
 ## Overview
 
 This document provides a summary of the recent changes made to the client details page in the Housekeeping App. The main issue was an error message appearing on the client details page: "Cannot set properties of null (setting 'textContent')" at line 495:40 in `clients.js`. This error prevented the bottom sections of the client details page from loading properly.
