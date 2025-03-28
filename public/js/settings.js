@@ -573,12 +573,67 @@ document.addEventListener('DOMContentLoaded', function() {
                 const dayName = day.charAt(0).toUpperCase() + day.slice(1);
                 
                 try {
-            const startTime = new Date('2000-01-01 ' + settings.startTime);
-            const endTime = new Date('2000-01-01 ' + settings.endTime);
+                    // iOS-compatible time parsing
+                    let startTime, endTime;
                     
-                    if (isNaN(startTime) || isNaN(endTime)) {
+                    // Parse start time
+                    const startTimeStr = settings.startTime;
+                    if (startTimeStr.includes(':')) {
+                        const startMatch = startTimeStr.match(/(\d+):(\d+)\s*(AM|PM|am|pm)?/i);
+                        if (startMatch) {
+                            let hours = parseInt(startMatch[1]);
+                            const minutes = parseInt(startMatch[2]);
+                            const period = startMatch[3] ? startMatch[3].toUpperCase() : null;
+                            
+                            // Convert to 24-hour format if AM/PM is specified
+                            if (period === 'PM' && hours < 12) hours += 12;
+                            if (period === 'AM' && hours === 12) hours = 0;
+                            
+                            startTime = new Date(2000, 0, 1);
+                            startTime.setHours(hours, minutes, 0, 0);
+                        } else {
+                            warningMessages.push(`${dayName}: Invalid start time format`);
+                            throw new Error("Invalid start time format");
+                        }
+                    } else {
+                        warningMessages.push(`${dayName}: Invalid start time format`);
+                        throw new Error("Invalid start time format");
+                    }
+                    
+                    // Parse end time (if used)
+                    if (settings.endTime) {
+                        const endTimeStr = settings.endTime;
+                        if (endTimeStr.includes(':')) {
+                            const endMatch = endTimeStr.match(/(\d+):(\d+)\s*(AM|PM|am|pm)?/i);
+                            if (endMatch) {
+                                let hours = parseInt(endMatch[1]);
+                                const minutes = parseInt(endMatch[2]);
+                                const period = endMatch[3] ? endMatch[3].toUpperCase() : null;
+                                
+                                // Convert to 24-hour format if AM/PM is specified
+                                if (period === 'PM' && hours < 12) hours += 12;
+                                if (period === 'AM' && hours === 12) hours = 0;
+                                
+                                endTime = new Date(2000, 0, 1);
+                                endTime.setHours(hours, minutes, 0, 0);
+                            } else {
+                                warningMessages.push(`${dayName}: Invalid end time format`);
+                                throw new Error("Invalid end time format");
+                            }
+                        } else {
+                            warningMessages.push(`${dayName}: Invalid end time format`);
+                            throw new Error("Invalid end time format");
+                        }
+                    } else {
+                        // If no end time, calculate based on start time and job duration
+                        endTime = new Date(startTime.getTime());
+                        const totalMinutes = (settings.jobsPerDay || 2) * 180; // Default 3 hours per job
+                        endTime.setMinutes(endTime.getMinutes() + totalMinutes);
+                    }
+                    
+                    if (isNaN(startTime) || (endTime && isNaN(endTime))) {
                         warningMessages.push(`${dayName}: Invalid time format`);
-                    } else if (startTime >= endTime) {
+                    } else if (endTime && startTime >= endTime) {
                         warningMessages.push(`${dayName}: End time must be after start time`);
                     } else {
                         // Calculate time requirements
@@ -668,7 +723,34 @@ document.addEventListener('DOMContentLoaded', function() {
                 return true; // No need to validate non-working days
             }
             
-            const startTime = new Date(`2000-01-01 ${daySettings.startTime}`);
+            // iOS-compatible time parsing
+            let startTime;
+            const startTimeStr = daySettings.startTime;
+            
+            // Parse time string in a way that works across all devices
+            if (startTimeStr.includes(':')) {
+                const timeMatch = startTimeStr.match(/(\d+):(\d+)\s*(AM|PM|am|pm)?/i);
+                if (timeMatch) {
+                    let hours = parseInt(timeMatch[1]);
+                    const minutes = parseInt(timeMatch[2]);
+                    const period = timeMatch[3] ? timeMatch[3].toUpperCase() : null;
+                    
+                    // Convert to 24-hour format if AM/PM is specified
+                    if (period === 'PM' && hours < 12) hours += 12;
+                    if (period === 'AM' && hours === 12) hours = 0;
+                    
+                    // Create a new date object with the extracted time
+                    startTime = new Date(2000, 0, 1);
+                    startTime.setHours(hours, minutes, 0, 0);
+                } else {
+                    console.error(`Invalid time format in validateTimeSettings: ${startTimeStr}`);
+                    return false;
+                }
+            } else {
+                console.error(`Invalid time format in validateTimeSettings: ${startTimeStr}`);
+                return false;
+            }
+            
             const jobCount = daySettings.jobsPerDay || 2;
             const breakDuration = daySettings.breakTime || DEFAULT_BREAK_TIME;
             
@@ -1020,7 +1102,34 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             try {
-            const startTime = new Date('2000-01-01 ' + settings.startTime);
+                // iOS-compatible date parsing
+                const startTimeStr = settings.startTime;
+                let startTime;
+                
+                // Parse time string in a way that works across all devices including iOS
+                if (startTimeStr.includes(':')) {
+                    // Extract hours and minutes in a way that's compatible across browsers
+                    const timeMatch = startTimeStr.match(/(\d+):(\d+)\s*(AM|PM|am|pm)?/i);
+                    if (timeMatch) {
+                        let hours = parseInt(timeMatch[1]);
+                        const minutes = parseInt(timeMatch[2]);
+                        const period = timeMatch[3] ? timeMatch[3].toUpperCase() : null;
+                        
+                        // Convert to 24-hour format if AM/PM is specified
+                        if (period === 'PM' && hours < 12) hours += 12;
+                        if (period === 'AM' && hours === 12) hours = 0;
+                        
+                        // Create a new date object with the extracted time
+                        startTime = new Date(2000, 0, 1);
+                        startTime.setHours(hours, minutes, 0, 0);
+                    } else {
+                        console.error(`Could not parse time string: ${startTimeStr} for ${day}`);
+                        throw new Error(`Invalid time format for ${day}`);
+                    }
+                } else {
+                    console.error(`Invalid time format for ${day}: ${startTimeStr}`);
+                    throw new Error(`Invalid time format for ${day}`);
+                }
                 
                 // Validate date objects
                 if (isNaN(startTime.getTime())) {
@@ -1055,18 +1164,30 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Add the cleaning slot
                     const slotEnd = new Date(currentTime.getTime() + jobDuration * 60000);
                     
-                    // Format times using a reliable method
-                    const startTimeStr = currentTime.toLocaleTimeString('en-US', { 
-                        hour: 'numeric', 
-                        minute: '2-digit', 
-                        hour12: true 
-                    });
+                    // Format times in a way that works on all devices including iOS
+                    const formatTimeForAllDevices = (date) => {
+                        // First get formatted time
+                        let timeStr = date.toLocaleTimeString('en-US', { 
+                            hour: 'numeric', 
+                            minute: '2-digit', 
+                            hour12: true 
+                        });
+                        
+                        // Then make sure we have strict formatting
+                        const timeMatch = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+                        if (timeMatch) {
+                            const hours = parseInt(timeMatch[1]);
+                            const minutes = timeMatch[2];
+                            const period = timeMatch[3].toUpperCase();
+                            return `${hours}:${minutes} ${period}`;
+                        }
+                        
+                        // Fallback if the regex match fails
+                        return `${date.getHours() % 12 || 12}:${String(date.getMinutes()).padStart(2, '0')} ${date.getHours() >= 12 ? 'PM' : 'AM'}`;
+                    };
                     
-                    const endTimeStr = slotEnd.toLocaleTimeString('en-US', { 
-                        hour: 'numeric', 
-                        minute: '2-digit', 
-                        hour12: true 
-                    });
+                    const startTimeStr = formatTimeForAllDevices(currentTime);
+                    const endTimeStr = formatTimeForAllDevices(slotEnd);
                     
                 const slotObj = {
                         start: startTimeStr,
