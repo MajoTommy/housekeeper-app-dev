@@ -38,6 +38,63 @@ const firestoreService = {
         }
     },
 
+    // User Settings methods
+    async getUserSettings(userId) {
+        try {
+            console.log('Getting settings for user:', userId);
+            const doc = await db.collection('users').doc(userId).get();
+            
+            if (!doc.exists) {
+                console.log('No user document found');
+                return null;
+            }
+            
+            const userData = doc.data();
+            
+            // Check if settings are in a nested field or directly in the document
+            if (userData.settings) {
+                console.log('Found settings in nested field');
+                return userData.settings;
+            } else {
+                // For backward compatibility, return the parts of userData that would be settings
+                console.log('Using settings from main document for backward compatibility');
+                const settings = {
+                    workingDays: userData.workingDays || {},
+                    workingDaysCompat: userData.workingDaysCompat || {},
+                    calculatedTimeSlots: userData.calculatedTimeSlots || [],
+                    hourlyRate: userData.hourlyRate || 30,
+                    autoSendReceipts: userData.autoSendReceipts || false
+                };
+                return settings;
+            }
+        } catch (error) {
+            console.error('Error getting user settings:', error);
+            return null;
+        }
+    },
+    
+    async updateUserSettings(userId, settingsData) {
+        try {
+            console.log('Updating settings for user:', userId);
+            console.log('Settings data:', settingsData);
+            
+            // Include a timestamp
+            const dataToUpdate = {
+                settings: {
+                    ...settingsData,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                }
+            };
+            
+            await db.collection('users').doc(userId).update(dataToUpdate);
+            console.log('User settings updated successfully');
+            return true;
+        } catch (error) {
+            console.error('Error updating user settings:', error);
+            return false;
+        }
+    },
+
     // Client methods
     async createClient(userId, clientData) {
         try {

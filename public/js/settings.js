@@ -904,109 +904,201 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function saveSettings() {
-        const user = firebase.auth().currentUser;
+        // Show saving indicator
+        showSavingIndicator();
         
-        if (!user) {
-            console.error('User not logged in');
-            hideSavingIndicator(false);
-            return;
-        }
-        
-        const timeSlots = calculateTimeSlots();
-        console.log('Calculated time slots:', timeSlots);
-        
-        // Create compatibility layer for schedule.js
-        const compatWorkingDays = {
-            0: workingDays.sunday.isWorking,    // Sunday
-            1: workingDays.monday.isWorking,    // Monday
-            2: workingDays.tuesday.isWorking,   // Tuesday
-            3: workingDays.wednesday.isWorking, // Wednesday
-            4: workingDays.thursday.isWorking,  // Thursday
-            5: workingDays.friday.isWorking,    // Friday
-            6: workingDays.saturday.isWorking   // Saturday
-        };
-        
-        // Add debug logging to ensure the conversion is correct
-        console.log('CONVERSION TO COMPAT FORMAT:', {
-            original: {
-                sunday: workingDays.sunday.isWorking,
-                monday: workingDays.monday.isWorking,
-                tuesday: workingDays.tuesday.isWorking,
-                wednesday: workingDays.wednesday.isWorking,
-                thursday: workingDays.thursday.isWorking,
-                friday: workingDays.friday.isWorking,
-                saturday: workingDays.saturday.isWorking
-            },
-            compat: compatWorkingDays,
-            wednesdayDetailCheck: {
-                isWorking: workingDays.wednesday.isWorking,
-                value: compatWorkingDays[3],
-                typeBeforeConvert: typeof workingDays.wednesday.isWorking,
-                typeAfterConvert: typeof compatWorkingDays[3],
-                explicitlyFalse: workingDays.wednesday.isWorking === false
+        try {
+            // Get current user
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                console.error('No user logged in');
+                hideSavingIndicator(false);
+                return;
             }
-        });
-        
-        // Convert time slots from object format to array format for schedule.js
-        const dayMapping = {
-            'sunday': 0,
-            'monday': 1,
-            'tuesday': 2,
-            'wednesday': 3,
-            'thursday': 4,
-            'friday': 5,
-            'saturday': 6
-        };
-        
-        const formattedTimeSlots = [];
-        Object.entries(timeSlots).forEach(([dayName, slots]) => {
-            if (slots.length > 0) {
-                formattedTimeSlots.push({
-                    day: dayMapping[dayName],
-                    slots: slots
-                });
-            }
-        });
-        
-        console.log('Formatted time slots for schedule:', formattedTimeSlots);
-        
-        // Create settings object
-        const settings = {
-            workingDays: workingDays,
-            // Compatibility properties for schedule.js
-            workingDaysCompat: compatWorkingDays,
-            workingHours: {
-                start: workingDays.monday.startTime,
-                end: workingDays.monday.endTime
-            },
-            cleaningsPerDay: parseInt(document.getElementById('cleanings-per-day').value),
-            breakTime: parseInt(document.getElementById('break-time').value),
-            autoSendReceipts: autoSendReceiptsToggle.checked,
-            calculatedTimeSlots: formattedTimeSlots,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        };
-        
-        console.log('Saving settings:', settings);
-        
-        // Save to Firestore
-        firebase.firestore().collection('users').doc(user.uid)
-            .set({ settings }, { merge: true })
+            
+            // Format settings for Firebase
+            const formattedSettings = {
+                workingDays: {},
+                workingDaysCompat: {},
+                calculatedTimeSlots: [],
+                hourlyRate: document.getElementById('hourly-rate') ? parseInt(document.getElementById('hourly-rate').value) : 30,
+                autoSendReceipts: document.getElementById('auto-send-receipts') ? document.getElementById('auto-send-receipts').checked : false,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            
+            // Convert working days to the expected format
+            ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].forEach((day, index) => {
+                // Add to workingDaysCompat (for backward compatibility)
+                formattedSettings.workingDaysCompat[index] = workingDays[day].isWorking;
+                
+                // Add to workingDays (primary structure)
+                formattedSettings.workingDays[day] = {
+                    isWorking: workingDays[day].isWorking
+                };
+                
+                // Add additional details for working days
+                if (workingDays[day].isWorking) {
+                    formattedSettings.workingDays[day] = {
+                        ...formattedSettings.workingDays[day],
+                        startTime: workingDays[day].startTime,
+                        endTime: calculateEndTime(day),
+                        jobsPerDay: workingDays[day].jobsPerDay,
+                        cleaningDuration: workingDays[day].jobDurations && workingDays[day].jobDurations.length > 0 
+                            ? workingDays[day].jobDurations[0] : DEFAULT_JOB_DURATION,
+                        breakTime: workingDays[day].breakTime || DEFAULT_BREAK_TIME,
+                        maxHours: 10 * 60 // 10 hours in minutes
+                    };
+                    
+                    // Add day-specific time slots
+                    const timeSlots = calculateTimeSlotsForDay(day);
+                    if (timeSlots.length > 0) {
+                        formattedSettings.calculatedTimeSlots.push({
+                            day: index,
+                            slots: timeSlots
+                        });
+                    }
+                }
+            });
+            
+            console.log('Saving formatted settings:', formattedSettings);
+            
+            // Save to Firestore
+            const db = firebase.firestore();
+            
+            // Save the formatted settings to the user's settings document
+            db.collection('users').doc(user.uid).set({
+                settings: formattedSettings
+            }, { merge: true })
             .then(() => {
                 console.log('Settings saved successfully');
                 hideSavingIndicator(true);
-                
-                // Force reload the schedule to show the new time slots
-                if (window.location.pathname.includes('index.html') || window.location.pathname === '/') {
-                    console.log('Reloading schedule with new settings...');
-                    if (typeof loadUserSchedule === 'function') {
-                        loadUserSchedule();
-                    }
-                }
             })
             .catch(error => {
                 console.error('Error saving settings:', error);
                 hideSavingIndicator(false);
             });
+        } catch (error) {
+            console.error('Error in saveSettings function:', error);
+            hideSavingIndicator(false);
+        }
+    }
+    
+    // Helper function to calculate time slots for a specific day
+    function calculateTimeSlotsForDay(day) {
+        const slots = [];
+        const daySettings = workingDays[day];
+        
+        if (!daySettings || !daySettings.isWorking) {
+            return slots;
+        }
+        
+        // Get start time
+        let startMinutes = convertTimeToMinutes(daySettings.startTime);
+        let currentMinutes = startMinutes;
+        
+        // Process each job and break
+        for (let i = 0; i < daySettings.jobsPerDay; i++) {
+            // Get job duration
+            const jobDuration = daySettings.jobDurations && daySettings.jobDurations[i] 
+                ? daySettings.jobDurations[i] 
+                : DEFAULT_JOB_DURATION;
+            
+            // Add job slot
+            const jobStart = currentMinutes;
+            const jobEnd = jobStart + jobDuration;
+            
+            slots.push({
+                start: formatMinutesToTimeString(jobStart),
+                end: formatMinutesToTimeString(jobEnd),
+                durationMinutes: jobDuration
+            });
+            
+            currentMinutes = jobEnd;
+            
+            // Add break after job (if not the last job)
+            if (i < daySettings.jobsPerDay - 1) {
+                // Get break duration
+                const breakDuration = daySettings.breakDurations && daySettings.breakDurations[i] 
+                    ? daySettings.breakDurations[i] 
+                    : DEFAULT_BREAK_TIME;
+                
+                currentMinutes += breakDuration;
+            }
+        }
+        
+        return slots;
+    }
+    
+    // Helper to convert time string (e.g., "8:00 AM") to minutes since midnight
+    function convertTimeToMinutes(timeStr) {
+        // Handle different formats
+        let hours, minutes, isPM;
+        
+        if (timeStr.includes('AM') || timeStr.includes('PM')) {
+            // Format: "8:00 AM"
+            const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+            if (!match) return 0;
+            
+            hours = parseInt(match[1]);
+            minutes = parseInt(match[2]);
+            isPM = match[3].toUpperCase() === 'PM';
+            
+            // Convert to 24-hour format
+            if (isPM && hours < 12) hours += 12;
+            if (!isPM && hours === 12) hours = 0;
+        } else {
+            // Format: "08:00"
+            const parts = timeStr.split(':');
+            hours = parseInt(parts[0]);
+            minutes = parseInt(parts[1]);
+        }
+        
+        return hours * 60 + minutes;
+    }
+    
+    // Helper to format minutes since midnight to "H:MM AM/PM" for database
+    function formatMinutesToTimeString(totalMinutes) {
+        let hours = Math.floor(totalMinutes / 60);
+        let minutes = totalMinutes % 60;
+        
+        const period = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12 || 12;
+        
+        return `${hours}:${minutes.toString().padStart(2, '0')} ${period}`;
+    }
+    
+    // Helper to calculate end time for a day
+    function calculateEndTime(day) {
+        const daySettings = workingDays[day];
+        if (!daySettings || !daySettings.isWorking) {
+            return DEFAULT_END_TIME;
+        }
+        
+        // Get start time
+        let startMinutes = convertTimeToMinutes(daySettings.startTime);
+        let currentMinutes = startMinutes;
+        
+        // Add all job durations and breaks
+        for (let i = 0; i < daySettings.jobsPerDay; i++) {
+            // Get job duration
+            const jobDuration = daySettings.jobDurations && daySettings.jobDurations[i] 
+                ? daySettings.jobDurations[i] 
+                : DEFAULT_JOB_DURATION;
+            
+            currentMinutes += jobDuration;
+            
+            // Add break after job (if not the last job)
+            if (i < daySettings.jobsPerDay - 1) {
+                // Get break duration
+                const breakDuration = daySettings.breakDurations && daySettings.breakDurations[i] 
+                    ? daySettings.breakDurations[i] 
+                    : DEFAULT_BREAK_TIME;
+                
+                currentMinutes += breakDuration;
+            }
+        }
+        
+        return formatMinutesToTimeString(currentMinutes);
     }
     
     function loadSettings() {

@@ -6,6 +6,14 @@
     <title>Settings - Housekeeper App</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+    <!-- Firebase Config -->
+    <script src="../js/firebase-config.js"></script>
+    <!-- Firestore Service -->
+    <script src="../js/firestore-service.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -271,15 +279,65 @@
         </div>
     </div>
 
-    <!-- Add these scripts before the closing body tag -->
+    <!-- Save Button -->
+    <div class="fixed bottom-20 left-0 right-0 flex justify-center mb-4 z-10">
+        <button id="save-settings-btn" class="bg-primary text-white py-3 px-8 rounded-full shadow-lg flex items-center font-medium hover:bg-blue-600 transition-colors">
+            <i class="fas fa-save mr-2"></i> Save Settings
+        </button>
+    </div>
     
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <!-- Add event listener for save button -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const saveButton = document.getElementById('save-settings-btn');
+            if (saveButton) {
+                saveButton.addEventListener('click', function() {
+                    console.log('Save button clicked');
+                    // Check if firebase is loaded
+                    if (typeof firebase !== 'undefined' && firebase.auth) {
+                        const user = firebase.auth().currentUser;
+                        if (!user) {
+                            console.error('No user logged in');
+                            return;
+                        }
+                        
+                        // Show saving status
+                        saveButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Saving...';
+                        saveButton.disabled = true;
+                        
+                        // Use the settings.js saveSettings function
+                        if (typeof saveSettings === 'function') {
+                            saveSettings();
+                            
+                            // Reset button after 2 seconds
+                            setTimeout(function() {
+                                saveButton.innerHTML = '<i class="fas fa-save mr-2"></i> Save Settings';
+                                saveButton.disabled = false;
+                            }, 2000);
+                        } else {
+                            console.error('saveSettings function not found');
+                            saveButton.innerHTML = '<i class="fas fa-exclamation-triangle mr-2"></i> Error';
+                            
+                            // Reset button after 2 seconds
+                            setTimeout(function() {
+                                saveButton.innerHTML = '<i class="fas fa-save mr-2"></i> Save Settings';
+                                saveButton.disabled = false;
+                            }, 2000);
+                        }
+                    } else {
+                        console.error('Firebase not loaded');
+                    }
+                });
+            }
+        });
+    </script>
     
-    <!-- Firebase Config -->
-    <script src="../js/firebase-config.js"></script>
+    <!-- Notification toast -->
+    <div id="save-notification" class="fixed bottom-20 left-0 right-0 flex justify-center mb-4 z-10 opacity-0 transition-opacity duration-300">
+        <div class="bg-green-500 text-white py-3 px-6 rounded-full shadow-lg flex items-center font-medium">
+            <i class="fas fa-check-circle mr-2"></i> Settings saved
+        </div>
+    </div>
     
     <!-- Default Settings -->
     <script src="../js/defaults.js"></script>
@@ -287,665 +345,678 @@
     <!-- Settings JS -->
     <script src="../js/settings.js"></script>
     
-    <!-- Temporary script for direct interaction -->
+    <!-- Auto-save script -->
     <script>
-      document.addEventListener('DOMContentLoaded', function() {
-        const weekdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-        
-        // Function to create the day settings UI for a specific day
-        function createDayUI(day) {
-          // Get the day settings container
-          const daySettings = document.querySelector(`[data-day-settings="${day}"]`);
-          if (!daySettings) return;
-          
-          // Clear existing content
-          daySettings.innerHTML = '';
-          
-          // Create start time section
-          const startTimeSection = document.createElement('div');
-          startTimeSection.className = 'mb-6';
-          startTimeSection.innerHTML = `
-            <label class="block text-lg font-medium text-gray-800 mb-3">
-                Start time
-            </label>
-            <div class="relative" onclick="document.querySelector('[data-start-time=\\'${day}\\']').focus()">
-                <div class="flex overflow-hidden rounded-lg border-2 border-blue-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-300 p-3">
-                    <div class="flex-grow flex items-center min-h-[60px]">
-                        <input type="time" class="block w-full border-none text-2xl py-2 pl-3 pr-10 focus:outline-none" data-start-time="${day}" value="08:00" step="300">
-                    </div>
-                </div>
-                <p class="text-base text-gray-600 mt-2">Tap to set when your first job starts</p>
-            </div>
-          `;
-          daySettings.appendChild(startTimeSection);
-          
-          // Create number of jobs section
-          const jobsSection = document.createElement('div');
-          jobsSection.className = 'mb-6';
-          jobsSection.innerHTML = `
-            <h3 class="text-lg font-medium text-gray-900 mb-3">Number of jobs</h3>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Variables for auto-save
+            let saveTimeout = null;
+            const SAVE_DELAY = 1500; // 1.5 seconds
             
-            <div class="flex space-x-4">
-                <!-- 1 job button -->
-                <button class="flex-1 py-4 border rounded-lg flex flex-col items-center justify-center transition-all hover:bg-blue-50" data-jobs="1" data-day="${day}">
-                    <span class="text-2xl font-bold text-blue-600">1</span>
-                    <span class="text-sm text-gray-600 mt-1">job</span>
-                </button>
+            // Function to show notification
+            function showNotification(success = true) {
+                const notification = document.getElementById('save-notification');
+                if (!notification) return;
                 
-                <!-- 2 jobs button -->
-                <button class="flex-1 py-4 border rounded-lg flex flex-col items-center justify-center transition-all bg-blue-100 border-blue-400" data-jobs="2" data-day="${day}">
-                    <span class="text-2xl font-bold text-blue-600">2</span>
-                    <span class="text-sm text-gray-600 mt-1">jobs</span>
-                </button>
-                
-                <!-- 3 jobs button -->
-                <button class="flex-1 py-4 border rounded-lg flex flex-col items-center justify-center transition-all hover:bg-blue-50" data-jobs="3" data-day="${day}">
-                    <span class="text-2xl font-bold text-blue-600">3</span>
-                    <span class="text-sm text-gray-600 mt-1">jobs</span>
-                </button>
-            </div>
-          `;
-          daySettings.appendChild(jobsSection);
-          
-          // Create schedule preview section
-          const scheduleSection = document.createElement('div');
-          scheduleSection.className = 'mb-6';
-          scheduleSection.innerHTML = `
-            <label class="block text-lg font-medium text-gray-800 mb-3">
-                Your Schedule
-            </label>
-            <div class="bg-white p-4 rounded-xl border-2 border-blue-200 shadow-sm">
-                <!-- Schedule items will be dynamically generated by JavaScript -->
-                <div id="${day}-schedule-preview">
-                    <!-- Schedule will be populated by JavaScript -->
-                </div>
-            </div>
-          `;
-          daySettings.appendChild(scheduleSection);
-          
-          // Initialize the job count to 2 and update schedule preview
-          updateSchedulePreview(day, 2);
-          
-          // Update the start time input with the initial value
-          const startTimeInput = daySettings.querySelector(`[data-start-time="${day}"]`);
-          if (startTimeInput) {
-            startTimeInput.value = "08:00";
-            startTimeInput.addEventListener('change', () => recalculateScheduleTimes(day));
-          }
-          
-          // Attach job count button handlers
-          const jobButtons = daySettings.querySelectorAll(`[data-jobs][data-day="${day}"]`);
-          jobButtons.forEach(button => {
-            button.addEventListener('click', function() {
-              const jobCount = parseInt(this.getAttribute('data-jobs'));
-              
-              // Update UI - highlight selected button
-              jobButtons.forEach(btn => {
-                btn.classList.remove('bg-blue-100', 'border-blue-400');
-                btn.classList.add('hover:bg-blue-50');
-              });
-              this.classList.add('bg-blue-100', 'border-blue-400');
-              this.classList.remove('hover:bg-blue-50');
-              
-              // Update schedule preview based on job count
-              updateSchedulePreview(day, jobCount);
-            });
-          });
-        }
-        
-        // Initialize all days
-        weekdays.forEach(day => {
-          // Check if the day toggle is already set
-          const dayToggle = document.querySelector(`[data-day-toggle="${day}"]`);
-          if (dayToggle && dayToggle.checked) {
-            createDayUI(day);
-          }
-          
-          // Add event listener to toggle button
-          if (dayToggle) {
-            dayToggle.addEventListener('change', function() {
-              const daySettings = document.querySelector(`[data-day-settings="${day}"]`);
-              if (daySettings) {
-                if (this.checked) {
-                  daySettings.classList.remove('hidden');
-                  createDayUI(day); // Create UI when day is enabled
-                  recalculateScheduleTimes(day);
+                if (success) {
+                    notification.innerHTML = `
+                        <div class="bg-green-500 text-white py-3 px-6 rounded-full shadow-lg flex items-center font-medium">
+                            <i class="fas fa-check-circle mr-2"></i> Settings saved
+                        </div>
+                    `;
                 } else {
-                  daySettings.classList.add('hidden');
+                    notification.innerHTML = `
+                        <div class="bg-red-500 text-white py-3 px-6 rounded-full shadow-lg flex items-center font-medium">
+                            <i class="fas fa-exclamation-circle mr-2"></i> Error saving settings
+                        </div>
+                    `;
                 }
-              }
-            });
-          }
-        });
-        
-        // Initialize schedule times for each day that's visible
-        document.querySelectorAll('[data-day-settings]').forEach(daySettings => {
-          if (!daySettings.classList.contains('hidden')) {
-            const day = daySettings.getAttribute('data-day-settings');
-            recalculateScheduleTimes(day);
-          }
-        });
-
-        // Simple day card toggling
-        document.querySelectorAll('.day-toggle').forEach(toggle => {
-          toggle.addEventListener('change', function() {
-            const day = this.getAttribute('data-day-toggle');
-            const settingsPanel = document.querySelector(`[data-day-settings="${day}"]`);
-            
-            if (settingsPanel) {
-              if (this.checked) {
-                settingsPanel.classList.remove('hidden');
-                createDayUI(day); // Create UI when day is shown
-                recalculateScheduleTimes(day);
-              } else {
-                settingsPanel.classList.add('hidden');
-              }
-            }
-            
-            // Update card appearance
-            const dayCard = this.closest('.rounded-lg');
-            const dayIcon = dayCard.querySelector('.rounded-full');
-            
-            if (this.checked) {
-              dayIcon.classList.remove('bg-gray-300');
-              dayIcon.classList.add('bg-primary');
-            } else {
-              dayIcon.classList.remove('bg-primary');
-              dayIcon.classList.add('bg-gray-300');
-            }
-          });
-        });
-        
-        // Day card header click to expand/collapse
-        document.querySelectorAll('.rounded-lg > div:first-child').forEach(header => {
-          header.addEventListener('click', function(e) {
-            if (e.target.closest('.inline-flex') || e.target.closest('input')) return;
-            
-            const card = this.closest('.rounded-lg');
-            const day = card.querySelector('.day-toggle').getAttribute('data-day-toggle');
-            const settingsPanel = document.querySelector(`[data-day-settings="${day}"]`);
-            
-            if (settingsPanel) {
-              settingsPanel.classList.toggle('hidden');
-              if (!settingsPanel.classList.contains('hidden')) {
-                const dayToggle = card.querySelector('.day-toggle');
-                if (dayToggle && !dayToggle.checked) {
-                  dayToggle.checked = true;
-                }
-                createDayUI(day); // Create UI when panel is expanded
-                recalculateScheduleTimes(day);
-              }
-            }
-          });
-        });
-
-        // Time adjustment handler
-        function handleTimeAdjustment(e) {
-          e.preventDefault();
-          e.stopPropagation();
-          
-          const button = e.currentTarget;
-          const action = button.getAttribute('data-action');
-          const target = button.getAttribute('data-target');
-          const isIncrease = action === 'increase-time';
-          
-          const container = button.closest('.flex-1');
-          // Find the duration element - could be either blue (job) or gray (break)
-          const durationEl = container.querySelector('.text-blue-700') || 
-                           container.querySelector('.text-sm.font-normal');
-          
-          if (!durationEl) {
-            console.error('Could not find duration element');
-            return;
-          }
-          
-          // Extract the numeric value from text like "2.5 hours"
-          let timeText = durationEl.textContent;
-          let durationMatch = timeText.match(/(\d+(\.\d+)?)/);
-          
-          if (!durationMatch) {
-            console.error('Could not parse duration:', timeText);
-            return;
-          }
-          
-          let hours = parseFloat(durationMatch[0]);
-          console.log('Current duration:', hours);
-          
-          if (isIncrease && hours < 5) {
-            hours += 0.5;
-          } else if (!isIncrease && hours > 0.5) {
-            hours -= 0.5;
-          }
-          
-          console.log('New duration:', hours);
-          durationEl.textContent = hours + (hours === 1 ? " hour" : " hours");
-          
-          // Update the visual duration indicator
-          const maxHours = 5; // Maximum possible duration
-          const progressBar = container.querySelector('.bg-blue-500, .bg-gray-500');
-          if (progressBar) {
-            progressBar.style.width = `${(hours/maxHours)*100}%`;
-          }
-          
-          const day = target.split('-')[0];
-          
-          // Recalculate all times in the schedule
-          recalculateScheduleTimes(day);
-        }
-
-        // Core time calculation function
-        function recalculateScheduleTimes(day) {
-          const schedulePreview = document.querySelector(`[data-day-settings="${day}"] .bg-white.rounded-xl`);
-          if (!schedulePreview) {
-            console.error(`Schedule preview not found for ${day}`);
-            const daySettings = document.querySelector(`[data-day-settings="${day}"]`);
-            if (daySettings) {
-              const scheduleContainer = daySettings.querySelector(`.bg-white.p-4.rounded-xl`);
-              if (scheduleContainer) {
-                schedulePreview = scheduleContainer;
-              } else {
-                return; // Can't find the schedule container
-              }
-            } else {
-              return; // Can't find day settings
-            }
-          }
-          
-          console.log('Recalculating schedule times for', day);
-          
-          const startTimeInput = document.querySelector(`[data-start-time="${day}"]`);
-          const startTime = startTimeInput ? startTimeInput.value : "08:00";
-          console.log('Start time:', startTime);
-          
-          let [hours, minutes] = startTime.split(':').map(Number);
-          let currentMinutes = hours * 60 + minutes;
-          const startMinutes = currentMinutes; // Save initial time for total calculation
-          
-          // Track total working hours (excluding breaks)
-          let totalWorkingHours = 0;
-          
-          // Use more specific selector to only get the direct children schedule items
-          const scheduleItems = Array.from(document.querySelectorAll(`#${day}-schedule-preview > .flex.items-center`));
-          console.log(`Found ${scheduleItems.length} schedule items for ${day}`);
-          
-          if (scheduleItems.length === 0) {
-            console.warn(`No schedule items found for ${day}, trying alternative selector`);
-            // Fallback selector if the ID-based selector doesn't work
-            const fallbackItems = Array.from(schedulePreview.children).filter(el => 
-              el.classList.contains('flex') && el.classList.contains('items-center'));
-            
-            if (fallbackItems.length > 0) {
-              console.log('Found', fallbackItems.length, 'items with fallback selector');
-              processScheduleItems(fallbackItems, currentMinutes);
-            } else {
-              console.error(`Could not find any schedule items for ${day}`);
-            }
-          } else {
-            processScheduleItems(scheduleItems, currentMinutes);
-          }
-          
-          function processScheduleItems(items, startMinutes) {
-            let currentMinutes = startMinutes;
-            let localTotalWorkingHours = 0; // Local variable to track working hours
-            
-            // Set start time for first item
-            if (items[0]) {
-              const timeDisplay = items[0].querySelector('.w-20');
-              if (timeDisplay) {
-                timeDisplay.textContent = formatTime(currentMinutes);
-                console.log(`Set first item time for ${day} to ${timeDisplay.textContent}`);
-              }
-            }
-            
-            // Process each item sequentially
-            for (let i = 0; i < items.length - 1; i++) {
-              const currentItem = items[i];
-              const nextItem = items[i + 1];
-              
-              // Get duration from current item - could be job or break
-              const durationEl = currentItem.querySelector('.text-blue-700') || 
-                                currentItem.querySelector('.text-sm.font-normal:not(.text-blue-700)');
-              
-              if (!durationEl || !nextItem) {
-                console.log(`Missing duration element or next item for index ${i} on ${day}`);
-                continue;
-              }
-              
-              // Parse duration (e.g., "3 hours" -> 3)
-              const durationText = durationEl.textContent;
-              const durationMatch = durationText.match(/(\d+(\.\d+)?)/);
-              
-              if (!durationMatch) {
-                console.log(`Could not parse duration from ${durationText} on ${day}`);
-                continue;
-              }
-              
-              const durationHours = parseFloat(durationMatch[0]);
-              console.log(`Item ${i} duration on ${day}:`, durationHours, 'hours');
-              
-              // Track total working hours (jobs only, not breaks)
-              if (currentItem.querySelector('.bg-blue-100')) {
-                localTotalWorkingHours += durationHours;
-              }
-              
-              // Add duration to current time
-              currentMinutes += durationHours * 60;
-              
-              // Update next item's start time
-              const nextTimeDisplay = nextItem.querySelector('.w-20');
-              if (nextTimeDisplay) {
-                const newTime = formatTime(currentMinutes);
-                nextTimeDisplay.textContent = newTime;
-                console.log(`Next item (${i+1}) time for ${day} set to:`, newTime);
-              }
-            }
-            
-            // After updating all items, calculate and update total hours
-            const totalDurationMinutes = currentMinutes - startMinutes;
-            const totalHours = totalDurationMinutes / 60;
-            console.log(`Total duration for ${day}:`, totalHours.toFixed(1), 'hours');
-            console.log(`Total working hours for ${day}:`, localTotalWorkingHours.toFixed(1), 'hours');
-            
-            // Remove any existing total hours summary
-            const existingSummary = document.querySelector(`#${day}-total-hours`);
-            if (existingSummary) {
-              existingSummary.remove();
-            }
-            
-            // Create a new total hours summary
-            const summaryEl = document.createElement('div');
-            summaryEl.id = `${day}-total-hours`;
-            summaryEl.className = 'flex items-center mt-4';
-            
-            // Determine workload category
-            let workloadClass = 'text-yellow-600';
-            let workloadText = 'Medium workday';
-            let workloadIcon = 'fa-briefcase';
-            
-            if (totalHours <= 6) {
-              workloadClass = 'text-green-600';
-              workloadText = 'Light workday';
-              workloadIcon = 'fa-leaf';
-            } else if (totalHours >= 9) {
-              workloadClass = 'text-red-600';
-              workloadText = 'Heavy workday';
-              workloadIcon = 'fa-dumbbell';
-            }
-            
-            summaryEl.innerHTML = `
-              <div class="w-20"></div>
-              <div class="flex-1 py-4 px-4 bg-blue-50 rounded-lg border border-blue-200 shadow-sm">
-                <div class="flex items-center justify-between">
-                  <div>
-                    <div class="text-base font-medium text-blue-900">Total Working Hours</div>
-                    <div class="text-sm text-blue-700 mt-1">${localTotalWorkingHours.toFixed(1)} hours of cleaning work</div>
-                  </div>
-                  <div class="text-xl font-bold ${workloadClass} flex items-center">
-                    <i class="fas ${workloadIcon} mr-2"></i>
-                    ${totalHours.toFixed(1)} hrs
-                  </div>
-                </div>
-                <div class="mt-3 bg-blue-100 rounded-full h-3 overflow-hidden">
-                  <div class="bg-blue-500 h-full rounded-full" style="width: ${Math.min(totalHours/12 * 100, 100)}%"></div>
-                </div>
-                <div class="mt-2 text-xs text-blue-600">${workloadText}</div>
-              </div>
-            `;
-            
-            schedulePreview.appendChild(summaryEl);
-          }
-        }
-
-        // Format minutes to "H:MM AM/PM"
-        function formatTime(totalMinutes) {
-          let hours = Math.floor(totalMinutes / 60);
-          let minutes = totalMinutes % 60;
-          
-          const period = hours >= 12 ? 'PM' : 'AM';
-          hours = hours % 12 || 12;
-          
-          return `${hours}:${minutes.toString().padStart(2, '0')} ${period}`;
-        }
-
-        // Attach handlers and initialize
-        const buttons = document.querySelectorAll('[data-action="increase-time"], [data-action="decrease-time"]');
-        buttons.forEach(button => {
-          button.removeEventListener('click', handleTimeAdjustment);
-          button.addEventListener('click', handleTimeAdjustment);
-        });
-
-        // Set initial start time and calculate schedule
-        const startTimeInput = document.querySelector('[data-start-time="monday"]');
-        if (startTimeInput) {
-          startTimeInput.value = "08:00";
-          startTimeInput.addEventListener('change', () => recalculateScheduleTimes('monday'));
-        }
-        
-        // Initial calculation
-        recalculateScheduleTimes('monday');
-
-        // Handle job count selection
-        document.querySelectorAll('[data-jobs]').forEach(button => {
-            button.addEventListener('click', function() {
-                const jobCount = parseInt(this.getAttribute('data-jobs'));
-                const day = this.getAttribute('data-day');
                 
-                // Update UI - highlight selected button
-                const jobButtons = document.querySelectorAll(`[data-jobs][data-day="${day}"]`);
-                jobButtons.forEach(btn => {
-                    btn.classList.remove('bg-blue-100', 'border-blue-400');
-                    btn.classList.add('hover:bg-blue-50');
+                // Show notification
+                notification.classList.remove('opacity-0');
+                notification.classList.add('opacity-100');
+                
+                // Hide notification after 3 seconds
+                setTimeout(() => {
+                    notification.classList.remove('opacity-100');
+                    notification.classList.add('opacity-0');
+                }, 3000);
+            }
+            
+            // Function to trigger save with delay
+            function triggerDelayedSave() {
+                // Clear any existing timeout
+                if (saveTimeout) {
+                    clearTimeout(saveTimeout);
+                }
+                
+                // Set new timeout to save after delay
+                saveTimeout = setTimeout(() => {
+                    if (typeof saveSettings === 'function') {
+                        console.log('Auto-saving settings after user changes...');
+                        saveSettings();
+                        showNotification(true);
+                    } else if (typeof firebase !== 'undefined' && firebase.auth) {
+                        // Fallback if saveSettings isn't available
+                        console.log('Using fallback save method');
+                        const user = firebase.auth().currentUser;
+                        if (user) {
+                            // Collect settings and save them
+                            // This is a simplified version
+                            firebase.firestore().collection('users').doc(user.uid)
+                                .set({ settings: { autoSaved: true }}, { merge: true })
+                                .then(() => {
+                                    console.log('Settings saved via fallback');
+                                    showNotification(true);
+                                })
+                                .catch(error => {
+                                    console.error('Error saving settings:', error);
+                                    showNotification(false);
+                                });
+                        }
+                    } else {
+                        console.error('No save method available');
+                        showNotification(false);
+                    }
+                }, SAVE_DELAY);
+            }
+            
+            // Hide the save button since we're using auto-save
+            const saveButton = document.getElementById('save-settings-btn');
+            if (saveButton) {
+                saveButton.style.display = 'none';
+            }
+            
+            // Attach auto-save to all input change events
+            
+            // Day toggles
+            document.querySelectorAll('.day-toggle').forEach(toggle => {
+                toggle.addEventListener('change', triggerDelayedSave);
+            });
+            
+            // Start time inputs
+            document.querySelectorAll('[data-start-time]').forEach(input => {
+                input.addEventListener('change', triggerDelayedSave);
+            });
+            
+            // Job selection buttons
+            document.querySelectorAll('[data-jobs]').forEach(button => {
+                button.addEventListener('click', triggerDelayedSave);
+            });
+            
+            // Time adjustment buttons
+            document.querySelectorAll('[data-action="increase-time"], [data-action="decrease-time"]').forEach(button => {
+                button.addEventListener('click', triggerDelayedSave);
+            });
+            
+            // Auto-send receipts toggle
+            const autoSendReceipts = document.getElementById('auto-send-receipts');
+            if (autoSendReceipts) {
+                autoSendReceipts.addEventListener('change', triggerDelayedSave);
+            }
+        });
+    </script>
+    
+    <!-- Create Day UI Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const weekdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+            
+            // Function to create the day settings UI for a specific day
+            function createDayUI(day) {
+                // Get the day settings container
+                const daySettings = document.querySelector(`[data-day-settings="${day}"]`);
+                if (!daySettings) return;
+                
+                // Clear existing content
+                daySettings.innerHTML = '';
+                
+                // Create start time section
+                const startTimeSection = document.createElement('div');
+                startTimeSection.className = 'mb-6';
+                startTimeSection.innerHTML = `
+                    <label class="block text-lg font-medium text-gray-800 mb-3">
+                        Start time
+                    </label>
+                    <div class="relative" onclick="document.querySelector('[data-start-time=\\'${day}\\']').focus()">
+                        <div class="flex overflow-hidden rounded-lg border-2 border-blue-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-300 p-3">
+                            <div class="flex-grow flex items-center min-h-[60px]">
+                                <input type="time" class="block w-full border-none text-2xl py-2 pl-3 pr-10 focus:outline-none" data-start-time="${day}" value="08:00" step="300">
+                            </div>
+                        </div>
+                        <p class="text-base text-gray-600 mt-2">Tap to set when your first job starts</p>
+                    </div>
+                `;
+                daySettings.appendChild(startTimeSection);
+                
+                // Create number of jobs section
+                const jobsSection = document.createElement('div');
+                jobsSection.className = 'mb-6';
+                jobsSection.innerHTML = `
+                    <h3 class="text-lg font-medium text-gray-900 mb-3">Number of jobs</h3>
+                    
+                    <div class="flex space-x-4">
+                        <!-- 1 job button -->
+                        <button class="flex-1 py-4 border rounded-lg flex flex-col items-center justify-center transition-all hover:bg-blue-50" data-jobs="1" data-day="${day}">
+                            <span class="text-2xl font-bold text-blue-600">1</span>
+                            <span class="text-sm text-gray-600 mt-1">job</span>
+                        </button>
+                        
+                        <!-- 2 jobs button -->
+                        <button class="flex-1 py-4 border rounded-lg flex flex-col items-center justify-center transition-all bg-blue-100 border-blue-400" data-jobs="2" data-day="${day}">
+                            <span class="text-2xl font-bold text-blue-600">2</span>
+                            <span class="text-sm text-gray-600 mt-1">jobs</span>
+                        </button>
+                        
+                        <!-- 3 jobs button -->
+                        <button class="flex-1 py-4 border rounded-lg flex flex-col items-center justify-center transition-all hover:bg-blue-50" data-jobs="3" data-day="${day}">
+                            <span class="text-2xl font-bold text-blue-600">3</span>
+                            <span class="text-sm text-gray-600 mt-1">jobs</span>
+                        </button>
+                    </div>
+                `;
+                daySettings.appendChild(jobsSection);
+                
+                // Create schedule preview section
+                const scheduleSection = document.createElement('div');
+                scheduleSection.className = 'mb-6';
+                scheduleSection.innerHTML = `
+                    <label class="block text-lg font-medium text-gray-800 mb-3">
+                        Your Schedule
+                    </label>
+                    <div class="bg-white p-4 rounded-xl border-2 border-blue-200 shadow-sm">
+                        <!-- Schedule items will be dynamically generated by JavaScript -->
+                        <div id="${day}-schedule-preview">
+                            <!-- Schedule will be populated by JavaScript -->
+                        </div>
+                    </div>
+                `;
+                daySettings.appendChild(scheduleSection);
+                
+                // Initialize the job count to 2 and update schedule preview
+                updateSchedulePreview(day, 2);
+                
+                // Update the start time input with the initial value
+                const startTimeInput = daySettings.querySelector(`[data-start-time="${day}"]`);
+                if (startTimeInput) {
+                    startTimeInput.value = "08:00";
+                    startTimeInput.addEventListener('change', () => recalculateScheduleTimes(day));
+                }
+                
+                // Attach job count button handlers
+                const jobButtons = daySettings.querySelectorAll(`[data-jobs][data-day="${day}"]`);
+                jobButtons.forEach(button => {
+                    button.addEventListener('click', function() {
+                        const jobCount = parseInt(this.getAttribute('data-jobs'));
+                        
+                        // Update UI - highlight selected button
+                        jobButtons.forEach(btn => {
+                            btn.classList.remove('bg-blue-100', 'border-blue-400');
+                            btn.classList.add('hover:bg-blue-50');
+                        });
+                        this.classList.add('bg-blue-100', 'border-blue-400');
+                        this.classList.remove('hover:bg-blue-50');
+                        
+                        // Update schedule preview based on job count
+                        updateSchedulePreview(day, jobCount);
+                    });
                 });
-                this.classList.add('bg-blue-100', 'border-blue-400');
-                this.classList.remove('hover:bg-blue-50');
+            }
+            
+            // Initialize all days that are checked (working days)
+            weekdays.forEach(day => {
+                const dayToggle = document.querySelector(`[data-day-toggle="${day}"]`);
+                if (dayToggle && dayToggle.checked) {
+                    createDayUI(day);
+                }
                 
-                // Update schedule preview based on job count
-                updateSchedulePreview(day, jobCount);
+                // Add event listener to toggle button
+                if (dayToggle) {
+                    dayToggle.addEventListener('change', function() {
+                        const daySettings = document.querySelector(`[data-day-settings="${day}"]`);
+                        if (daySettings) {
+                            if (this.checked) {
+                                daySettings.classList.remove('hidden');
+                                createDayUI(day); // Create UI when day is enabled
+                                recalculateScheduleTimes(day);
+                            } else {
+                                daySettings.classList.add('hidden');
+                            }
+                        }
+                    });
+                }
             });
+            
+            // Time adjustment handler
+            function handleTimeAdjustment(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const button = e.currentTarget;
+                const action = button.getAttribute('data-action');
+                const target = button.getAttribute('data-target');
+                const isIncrease = action === 'increase-time';
+                
+                const container = button.closest('.flex-1');
+                // Find the duration element - could be either blue (job) or gray (break)
+                const durationEl = container.querySelector('.text-blue-700') || 
+                                container.querySelector('.text-sm.font-normal');
+                
+                if (!durationEl) {
+                    console.error('Could not find duration element');
+                    return;
+                }
+                
+                // Extract the numeric value from text like "2.5 hours"
+                let timeText = durationEl.textContent;
+                let durationMatch = timeText.match(/(\d+(\.\d+)?)/);
+                
+                if (!durationMatch) {
+                    console.error('Could not parse duration:', timeText);
+                    return;
+                }
+                
+                let hours = parseFloat(durationMatch[0]);
+                console.log('Current duration:', hours);
+                
+                if (isIncrease && hours < 5) {
+                    hours += 0.5;
+                } else if (!isIncrease && hours > 0.5) {
+                    hours -= 0.5;
+                }
+                
+                console.log('New duration:', hours);
+                durationEl.textContent = hours + (hours === 1 ? " hour" : " hours");
+                
+                // Update the visual duration indicator
+                const maxHours = 5; // Maximum possible duration
+                const progressBar = container.querySelector('.bg-blue-500, .bg-gray-500');
+                if (progressBar) {
+                    progressBar.style.width = `${(hours/maxHours)*100}%`;
+                }
+                
+                const day = target.split('-')[0];
+                
+                // Recalculate all times in the schedule
+                recalculateScheduleTimes(day);
+            }
+            
+            // Function to update schedule preview based on job count
+            function updateSchedulePreview(day, jobCount) {
+                const schedulePreview = document.querySelector(`#${day}-schedule-preview`);
+                if (!schedulePreview) return;
+                
+                console.log(`Updating schedule for ${day} with ${jobCount} jobs`);
+                
+                // Get the current start time
+                const startTimeInput = document.querySelector(`[data-start-time="${day}"]`);
+                const startTime = startTimeInput ? startTimeInput.value : "08:00";
+                let [hours, minutes] = startTime.split(':').map(Number);
+                let currentMinutes = hours * 60 + minutes;
+                let startMinutes = currentMinutes; // Save start time for total hours calculation
+                
+                // Clear existing schedule
+                schedulePreview.innerHTML = '';
+                
+                // For calculating proportional width of duration bars
+                const maxHours = 5; // Maximum possible hours for a job
+                
+                // Track total working hours (excluding breaks)
+                let totalWorkingHours = 0;
+                
+                // Generate HTML for schedule based on job count
+                let html = '';
+                
+                // First job (always present)
+                const firstJobHours = 3.5;
+                totalWorkingHours += firstJobHours;
+                
+                html += `
+                    <div class="flex items-center mb-6">
+                        <div class="w-20 text-base font-medium text-blue-600">${formatTime(currentMinutes)}</div>
+                        <div class="flex-1 py-3 px-3 bg-blue-100 rounded-lg flex items-center text-blue-800 font-medium border-l-4 border-blue-500 shadow-sm">
+                            <div class="flex-1">
+                                <div class="text-base">First Job</div>
+                                <div class="text-sm font-normal text-blue-700">${firstJobHours} hours</div>
+                                <div class="mt-2 bg-blue-200 rounded-full h-2.5 overflow-hidden">
+                                    <div class="bg-blue-500 h-full rounded-full" style="width: ${(firstJobHours/maxHours)*100}%"></div>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <button class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-blue-50 border border-blue-200" data-action="decrease-time" data-target="${day}-job-1">
+                                    <span class="text-blue-500 font-medium">-</span>
+                                </button>
+                                <button class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-blue-50 border border-blue-200" data-action="increase-time" data-target="${day}-job-1">
+                                    <span class="text-blue-500 font-medium">+</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Update current time
+                currentMinutes += firstJobHours * 60;
+                
+                // Add breaks and jobs based on job count
+                if (jobCount >= 2) {
+                    // Add break after first job
+                    const breakHours = 1;
+                    html += `
+                        <div class="flex items-center mb-6">
+                            <div class="w-20 text-base font-medium text-blue-600">${formatTime(currentMinutes)}</div>
+                            <div class="flex-1 py-3 px-3 bg-gray-100 rounded-lg flex items-center text-gray-700 border-l-4 border-gray-400 shadow-sm">
+                                <div class="flex-1">
+                                    <div class="text-base">Break</div>
+                                    <div class="text-sm font-normal">${breakHours} hours</div>
+                                    <div class="mt-2 bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="bg-gray-500 h-full rounded-full" style="width: ${(breakHours/maxHours)*100}%"></div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <button class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-gray-50 border border-gray-200" data-action="decrease-time" data-target="${day}-break-1">
+                                        <span class="text-gray-500 font-medium">-</span>
+                                    </button>
+                                    <button class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-gray-50 border border-gray-200" data-action="increase-time" data-target="${day}-break-1">
+                                        <span class="text-gray-500 font-medium">+</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Update current time
+                    currentMinutes += breakHours * 60;
+                    
+                    // Add second job
+                    const secondJobHours = 3.5;
+                    totalWorkingHours += secondJobHours;
+                    
+                    html += `
+                        <div class="flex items-center mb-6">
+                            <div class="w-20 text-base font-medium text-blue-600">${formatTime(currentMinutes)}</div>
+                            <div class="flex-1 py-3 px-3 bg-blue-100 rounded-lg flex items-center text-blue-800 font-medium border-l-4 border-blue-500 shadow-sm">
+                                <div class="flex-1">
+                                    <div class="text-base">Second Job</div>
+                                    <div class="text-sm font-normal text-blue-700">${secondJobHours} hours</div>
+                                    <div class="mt-2 bg-blue-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="bg-blue-500 h-full rounded-full" style="width: ${(secondJobHours/maxHours)*100}%"></div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <button class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-blue-50 border border-blue-200" data-action="decrease-time" data-target="${day}-job-2">
+                                        <span class="text-blue-500 font-medium">-</span>
+                                    </button>
+                                    <button class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-blue-50 border border-blue-200" data-action="increase-time" data-target="${day}-job-2">
+                                        <span class="text-blue-500 font-medium">+</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Update current time
+                    currentMinutes += secondJobHours * 60;
+                }
+                
+                if (jobCount >= 3) {
+                    // Add break after second job
+                    const breakHours = 1;
+                    html += `
+                        <div class="flex items-center mb-6">
+                            <div class="w-20 text-base font-medium text-blue-600">${formatTime(currentMinutes)}</div>
+                            <div class="flex-1 py-3 px-3 bg-gray-100 rounded-lg flex items-center text-gray-700 border-l-4 border-gray-400 shadow-sm">
+                                <div class="flex-1">
+                                    <div class="text-base">Break</div>
+                                    <div class="text-sm font-normal">${breakHours} hours</div>
+                                    <div class="mt-2 bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="bg-gray-500 h-full rounded-full" style="width: ${(breakHours/maxHours)*100}%"></div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <button class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-gray-50 border border-gray-200" data-action="decrease-time" data-target="${day}-break-2">
+                                        <span class="text-gray-500 font-medium">-</span>
+                                    </button>
+                                    <button class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-gray-50 border border-gray-200" data-action="increase-time" data-target="${day}-break-2">
+                                        <span class="text-gray-500 font-medium">+</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Update current time
+                    currentMinutes += breakHours * 60;
+                    
+                    // Add third job
+                    const thirdJobHours = 3.5;
+                    totalWorkingHours += thirdJobHours;
+                    
+                    html += `
+                        <div class="flex items-center mb-6">
+                            <div class="w-20 text-base font-medium text-blue-600">${formatTime(currentMinutes)}</div>
+                            <div class="flex-1 py-3 px-3 bg-blue-100 rounded-lg flex items-center text-blue-800 font-medium border-l-4 border-blue-500 shadow-sm">
+                                <div class="flex-1">
+                                    <div class="text-base">Third Job</div>
+                                    <div class="text-sm font-normal text-blue-700">${thirdJobHours} hours</div>
+                                    <div class="mt-2 bg-blue-200 rounded-full h-2.5 overflow-hidden">
+                                        <div class="bg-blue-500 h-full rounded-full" style="width: ${(thirdJobHours/maxHours)*100}%"></div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <button class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-blue-50 border border-blue-200" data-action="decrease-time" data-target="${day}-job-3">
+                                        <span class="text-blue-500 font-medium">-</span>
+                                    </button>
+                                    <button class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-blue-50 border border-blue-200" data-action="increase-time" data-target="${day}-job-3">
+                                        <span class="text-blue-500 font-medium">+</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Update current time
+                    currentMinutes += thirdJobHours * 60;
+                }
+                
+                // Add "Done" at the end
+                html += `
+                    <div class="flex items-center mb-6">
+                        <div class="w-20 text-base font-medium text-blue-600">${formatTime(currentMinutes)}</div>
+                        <div class="flex-1 py-3 px-3 bg-green-100 rounded-lg flex items-center text-green-700 border-l-4 border-green-500 shadow-sm">
+                            <div class="flex-1">
+                                <div class="text-base">Done</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Update the schedule preview
+                schedulePreview.innerHTML = html;
+                
+                // Reattach time adjustment handlers to the new buttons
+                const buttons = document.querySelectorAll('[data-action="increase-time"], [data-action="decrease-time"]');
+                buttons.forEach(button => {
+                    button.removeEventListener('click', handleTimeAdjustment);
+                    button.addEventListener('click', handleTimeAdjustment);
+                });
+                
+                // Recalculate times to ensure the total hours summary is created/updated
+                recalculateScheduleTimes(day);
+            }
+            
+            // Core time calculation function
+            function recalculateScheduleTimes(day) {
+                const schedulePreview = document.querySelector(`[data-day-settings="${day}"] .bg-white.rounded-xl`);
+                if (!schedulePreview) {
+                    console.error(`Schedule preview not found for ${day}`);
+                    const daySettings = document.querySelector(`[data-day-settings="${day}"]`);
+                    if (daySettings) {
+                        const scheduleContainer = daySettings.querySelector(`.bg-white.p-4.rounded-xl`);
+                        if (scheduleContainer) {
+                            schedulePreview = scheduleContainer;
+                        } else {
+                            return; // Can't find the schedule container
+                        }
+                    } else {
+                        return; // Can't find day settings
+                    }
+                }
+                
+                console.log('Recalculating schedule times for', day);
+                
+                const startTimeInput = document.querySelector(`[data-start-time="${day}"]`);
+                const startTime = startTimeInput ? startTimeInput.value : "08:00";
+                console.log('Start time:', startTime);
+                
+                let [hours, minutes] = startTime.split(':').map(Number);
+                let currentMinutes = hours * 60 + minutes;
+                const startMinutes = currentMinutes; // Save initial time for total calculation
+                
+                // Track total working hours (excluding breaks)
+                let totalWorkingHours = 0;
+                
+                // Use more specific selector to only get the direct children schedule items
+                const scheduleItems = Array.from(document.querySelectorAll(`#${day}-schedule-preview > .flex.items-center`));
+                console.log(`Found ${scheduleItems.length} schedule items for ${day}`);
+                
+                if (scheduleItems.length === 0) {
+                    console.warn(`No schedule items found for ${day}, trying alternative selector`);
+                    // Fallback selector if the ID-based selector doesn't work
+                    const fallbackItems = Array.from(schedulePreview.children).filter(el => 
+                        el.classList.contains('flex') && el.classList.contains('items-center'));
+                    
+                    if (fallbackItems.length > 0) {
+                        console.log('Found', fallbackItems.length, 'items with fallback selector');
+                        processScheduleItems(fallbackItems, currentMinutes);
+                    } else {
+                        console.error(`Could not find any schedule items for ${day}`);
+                    }
+                } else {
+                    processScheduleItems(scheduleItems, currentMinutes);
+                }
+                
+                function processScheduleItems(items, startMinutes) {
+                    let currentMinutes = startMinutes;
+                    let localTotalWorkingHours = 0; // Local variable to track working hours
+                    
+                    // Set start time for first item
+                    if (items[0]) {
+                        const timeDisplay = items[0].querySelector('.w-20');
+                        if (timeDisplay) {
+                            timeDisplay.textContent = formatTime(currentMinutes);
+                            console.log(`Set first item time for ${day} to ${timeDisplay.textContent}`);
+                        }
+                    }
+                    
+                    // Process each item sequentially
+                    for (let i = 0; i < items.length - 1; i++) {
+                        const currentItem = items[i];
+                        const nextItem = items[i + 1];
+                        
+                        // Get duration from current item - could be job or break
+                        const durationEl = currentItem.querySelector('.text-blue-700') || 
+                                          currentItem.querySelector('.text-sm.font-normal:not(.text-blue-700)');
+                        
+                        if (!durationEl || !nextItem) {
+                            console.log(`Missing duration element or next item for index ${i} on ${day}`);
+                            continue;
+                        }
+                        
+                        // Parse duration (e.g., "3 hours" -> 3)
+                        const durationText = durationEl.textContent;
+                        const durationMatch = durationText.match(/(\d+(\.\d+)?)/);
+                        
+                        if (!durationMatch) {
+                            console.log(`Could not parse duration from ${durationText} on ${day}`);
+                            continue;
+                        }
+                        
+                        const durationHours = parseFloat(durationMatch[0]);
+                        console.log(`Item ${i} duration on ${day}:`, durationHours, 'hours');
+                        
+                        // Track total working hours (jobs only, not breaks)
+                        if (currentItem.querySelector('.bg-blue-100')) {
+                            localTotalWorkingHours += durationHours;
+                        }
+                        
+                        // Add duration to current time
+                        currentMinutes += durationHours * 60;
+                        
+                        // Update next item's start time
+                        const nextTimeDisplay = nextItem.querySelector('.w-20');
+                        if (nextTimeDisplay) {
+                            const newTime = formatTime(currentMinutes);
+                            nextTimeDisplay.textContent = newTime;
+                            console.log(`Next item (${i+1}) time for ${day} set to:`, newTime);
+                        }
+                    }
+                    
+                    // After updating all items, calculate and update total hours
+                    const totalDurationMinutes = currentMinutes - startMinutes;
+                    const totalHours = totalDurationMinutes / 60;
+                    console.log(`Total duration for ${day}:`, totalHours.toFixed(1), 'hours');
+                    console.log(`Total working hours for ${day}:`, localTotalWorkingHours.toFixed(1), 'hours');
+                    
+                    // Remove any existing total hours summary
+                    const existingSummary = document.querySelector(`#${day}-total-hours`);
+                    if (existingSummary) {
+                        existingSummary.remove();
+                    }
+                    
+                    // Create a new total hours summary
+                    const summaryEl = document.createElement('div');
+                    summaryEl.id = `${day}-total-hours`;
+                    summaryEl.className = 'flex items-center mt-4';
+                    
+                    // Determine workload category
+                    let workloadClass = 'text-yellow-600';
+                    let workloadText = 'Medium workday';
+                    let workloadIcon = 'fa-briefcase';
+                    
+                    if (totalHours <= 6) {
+                        workloadClass = 'text-green-600';
+                        workloadText = 'Light workday';
+                        workloadIcon = 'fa-leaf';
+                    } else if (totalHours >= 9) {
+                        workloadClass = 'text-red-600';
+                        workloadText = 'Heavy workday';
+                        workloadIcon = 'fa-dumbbell';
+                    }
+                    
+                    summaryEl.innerHTML = `
+                        <div class="w-20"></div>
+                        <div class="flex-1 py-4 px-4 bg-blue-50 rounded-lg border border-blue-200 shadow-sm">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <div class="text-base font-medium text-blue-900">Total Working Hours</div>
+                                    <div class="text-sm text-blue-700 mt-1">${localTotalWorkingHours.toFixed(1)} hours of cleaning work</div>
+                                </div>
+                                <div class="text-xl font-bold ${workloadClass} flex items-center">
+                                    <i class="fas ${workloadIcon} mr-2"></i>
+                                    ${totalHours.toFixed(1)} hrs
+                                </div>
+                            </div>
+                            <div class="mt-3 bg-blue-100 rounded-full h-3 overflow-hidden">
+                                <div class="bg-blue-500 h-full rounded-full" style="width: ${Math.min(totalHours/12 * 100, 100)}%"></div>
+                            </div>
+                            <div class="mt-2 text-xs text-blue-600">${workloadText}</div>
+                        </div>
+                    `;
+                    
+                    schedulePreview.appendChild(summaryEl);
+                }
+            }
+            
+            // Format minutes to "H:MM AM/PM"
+            function formatTime(totalMinutes) {
+                let hours = Math.floor(totalMinutes / 60);
+                let minutes = totalMinutes % 60;
+                
+                const period = hours >= 12 ? 'PM' : 'AM';
+                hours = hours % 12 || 12;
+                
+                return `${hours}:${minutes.toString().padStart(2, '0')} ${period}`;
+            }
         });
-        
-        function updateSchedulePreview(day, jobCount) {
-            const schedulePreview = document.querySelector(`#${day}-schedule-preview`);
-            if (!schedulePreview) return;
-            
-            console.log(`Updating schedule for ${day} with ${jobCount} jobs`);
-            
-            // Get the current start time
-            const startTimeInput = document.querySelector(`[data-start-time="${day}"]`);
-            const startTime = startTimeInput ? startTimeInput.value : "08:00";
-            let [hours, minutes] = startTime.split(':').map(Number);
-            let currentMinutes = hours * 60 + minutes;
-            let startMinutes = currentMinutes; // Save start time for total hours calculation
-            
-            // Clear existing schedule
-            schedulePreview.innerHTML = '';
-            
-            // For calculating proportional width of duration bars
-            const maxHours = 5; // Maximum possible hours for a job
-            
-            // Track total working hours (excluding breaks)
-            let totalWorkingHours = 0;
-            
-            // Generate HTML for schedule based on job count
-            let html = '';
-            
-            // First job (always present)
-            const firstJobHours = 3.5;
-            totalWorkingHours += firstJobHours;
-            
-            html += `
-                <div class="flex items-center mb-6">
-                    <div class="w-20 text-base font-medium text-blue-600">${formatTime(currentMinutes)}</div>
-                    <div class="flex-1 py-3 px-3 bg-blue-100 rounded-lg flex items-center text-blue-800 font-medium border-l-4 border-blue-500 shadow-sm">
-                        <div class="flex-1">
-                            <div class="text-base">First Job</div>
-                            <div class="text-sm font-normal text-blue-700">${firstJobHours} hours</div>
-                            <div class="mt-2 bg-blue-200 rounded-full h-2.5 overflow-hidden">
-                                <div class="bg-blue-500 h-full rounded-full" style="width: ${(firstJobHours/maxHours)*100}%"></div>
-                            </div>
-                        </div>
-                        <div class="flex items-center space-x-2">
-                            <button class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-blue-50 border border-blue-200" data-action="decrease-time" data-target="${day}-job-1">
-                                <span class="text-blue-500 font-medium">-</span>
-                            </button>
-                            <button class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-blue-50 border border-blue-200" data-action="increase-time" data-target="${day}-job-1">
-                                <span class="text-blue-500 font-medium">+</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            // Update current time
-            currentMinutes += firstJobHours * 60;
-            
-            // Add breaks and jobs based on job count
-            if (jobCount >= 2) {
-                // Add break after first job
-                const breakHours = 1;
-                html += `
-                    <div class="flex items-center mb-6">
-                        <div class="w-20 text-base font-medium text-blue-600">${formatTime(currentMinutes)}</div>
-                        <div class="flex-1 py-3 px-3 bg-gray-100 rounded-lg flex items-center text-gray-700 border-l-4 border-gray-400 shadow-sm">
-                            <div class="flex-1">
-                                <div class="text-base">Break</div>
-                                <div class="text-sm font-normal">${breakHours} hours</div>
-                                <div class="mt-2 bg-gray-200 rounded-full h-2.5 overflow-hidden">
-                                    <div class="bg-gray-500 h-full rounded-full" style="width: ${(breakHours/maxHours)*100}%"></div>
-                                </div>
-                            </div>
-                            <div class="flex items-center space-x-2">
-                                <button class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-gray-50 border border-gray-200" data-action="decrease-time" data-target="${day}-break-1">
-                                    <span class="text-gray-500 font-medium">-</span>
-                                </button>
-                                <button class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-gray-50 border border-gray-200" data-action="increase-time" data-target="${day}-break-1">
-                                    <span class="text-gray-500 font-medium">+</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                
-                // Update current time
-                currentMinutes += breakHours * 60;
-                
-                // Add second job
-                const secondJobHours = 3.5;
-                totalWorkingHours += secondJobHours;
-                
-                html += `
-                    <div class="flex items-center mb-6">
-                        <div class="w-20 text-base font-medium text-blue-600">${formatTime(currentMinutes)}</div>
-                        <div class="flex-1 py-3 px-3 bg-blue-100 rounded-lg flex items-center text-blue-800 font-medium border-l-4 border-blue-500 shadow-sm">
-                            <div class="flex-1">
-                                <div class="text-base">Second Job</div>
-                                <div class="text-sm font-normal text-blue-700">${secondJobHours} hours</div>
-                                <div class="mt-2 bg-blue-200 rounded-full h-2.5 overflow-hidden">
-                                    <div class="bg-blue-500 h-full rounded-full" style="width: ${(secondJobHours/maxHours)*100}%"></div>
-                                </div>
-                            </div>
-                            <div class="flex items-center space-x-2">
-                                <button class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-blue-50 border border-blue-200" data-action="decrease-time" data-target="${day}-job-2">
-                                    <span class="text-blue-500 font-medium">-</span>
-                                </button>
-                                <button class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-blue-50 border border-blue-200" data-action="increase-time" data-target="${day}-job-2">
-                                    <span class="text-blue-500 font-medium">+</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                
-                // Update current time
-                currentMinutes += secondJobHours * 60;
-            }
-            
-            if (jobCount >= 3) {
-                // Add break after second job
-                const breakHours = 1;
-                html += `
-                    <div class="flex items-center mb-6">
-                        <div class="w-20 text-base font-medium text-blue-600">${formatTime(currentMinutes)}</div>
-                        <div class="flex-1 py-3 px-3 bg-gray-100 rounded-lg flex items-center text-gray-700 border-l-4 border-gray-400 shadow-sm">
-                            <div class="flex-1">
-                                <div class="text-base">Break</div>
-                                <div class="text-sm font-normal">${breakHours} hours</div>
-                                <div class="mt-2 bg-gray-200 rounded-full h-2.5 overflow-hidden">
-                                    <div class="bg-gray-500 h-full rounded-full" style="width: ${(breakHours/maxHours)*100}%"></div>
-                                </div>
-                            </div>
-                            <div class="flex items-center space-x-2">
-                                <button class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-gray-50 border border-gray-200" data-action="decrease-time" data-target="${day}-break-2">
-                                    <span class="text-gray-500 font-medium">-</span>
-                                </button>
-                                <button class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-gray-50 border border-gray-200" data-action="increase-time" data-target="${day}-break-2">
-                                    <span class="text-gray-500 font-medium">+</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                
-                // Update current time
-                currentMinutes += breakHours * 60;
-                
-                // Add third job
-                const thirdJobHours = 3.5;
-                totalWorkingHours += thirdJobHours;
-                
-                html += `
-                    <div class="flex items-center mb-6">
-                        <div class="w-20 text-base font-medium text-blue-600">${formatTime(currentMinutes)}</div>
-                        <div class="flex-1 py-3 px-3 bg-blue-100 rounded-lg flex items-center text-blue-800 font-medium border-l-4 border-blue-500 shadow-sm">
-                            <div class="flex-1">
-                                <div class="text-base">Third Job</div>
-                                <div class="text-sm font-normal text-blue-700">${thirdJobHours} hours</div>
-                                <div class="mt-2 bg-blue-200 rounded-full h-2.5 overflow-hidden">
-                                    <div class="bg-blue-500 h-full rounded-full" style="width: ${(thirdJobHours/maxHours)*100}%"></div>
-                                </div>
-                            </div>
-                            <div class="flex items-center space-x-2">
-                                <button class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-blue-50 border border-blue-200" data-action="decrease-time" data-target="${day}-job-3">
-                                    <span class="text-blue-500 font-medium">-</span>
-                                </button>
-                                <button class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-blue-50 border border-blue-200" data-action="increase-time" data-target="${day}-job-3">
-                                    <span class="text-blue-500 font-medium">+</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                
-                // Update current time
-                currentMinutes += thirdJobHours * 60;
-            }
-            
-            // Add "Done" at the end
-            html += `
-                <div class="flex items-center mb-6">
-                    <div class="w-20 text-base font-medium text-blue-600">${formatTime(currentMinutes)}</div>
-                    <div class="flex-1 py-3 px-3 bg-green-100 rounded-lg flex items-center text-green-700 border-l-4 border-green-500 shadow-sm">
-                        <div class="flex-1">
-                            <div class="text-base">Done</div>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            // Update the schedule preview
-            schedulePreview.innerHTML = html;
-            
-            // Reattach time adjustment handlers to the new buttons
-            const buttons = document.querySelectorAll('[data-action="increase-time"], [data-action="decrease-time"]');
-            buttons.forEach(button => {
-                button.removeEventListener('click', handleTimeAdjustment);
-                button.addEventListener('click', handleTimeAdjustment);
-            });
-            
-            // Recalculate times to ensure the total hours summary is created/updated
-            recalculateScheduleTimes(day);
-        }
-      });
     </script>
 </body>
 </html> 
