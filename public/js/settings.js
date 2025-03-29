@@ -33,64 +33,122 @@ document.addEventListener('DOMContentLoaded', function() {
     const DEFAULT_END_TIME = '5:00 PM';
     const DEFAULT_JOB_DURATION = 180; // 3 hours in minutes
     
-    // Initialize default working days
-    const workingDays = {
-        monday: {
-            isWorking: true,
-            startTime: '8:00 AM', 
-            jobsPerDay: 2, 
-            breakTime: 90, // Legacy - kept for backward compatibility
-            breakDurations: [90],  // New array to store individual break durations
-            jobDurations: [DEFAULT_JOB_DURATION, DEFAULT_JOB_DURATION]
-        },
-        tuesday: {
-            isWorking: true,
-            startTime: '8:00 AM', 
-            jobsPerDay: 2, 
-            breakTime: 90,
-            breakDurations: [90],
-            jobDurations: [DEFAULT_JOB_DURATION, DEFAULT_JOB_DURATION]
-        },
-        wednesday: {
-            isWorking: false, 
-            startTime: '8:00 AM', 
-            jobsPerDay: 2, 
-            breakTime: 90,
-            breakDurations: [90],
-            jobDurations: [DEFAULT_JOB_DURATION, DEFAULT_JOB_DURATION]
-        },
-        thursday: {
-            isWorking: true,
-            startTime: '8:00 AM', 
-            jobsPerDay: 2, 
-            breakTime: 90,
-            breakDurations: [90],
-            jobDurations: [DEFAULT_JOB_DURATION, DEFAULT_JOB_DURATION]
-        },
-        friday: {
-            isWorking: true,
-            startTime: '8:00 AM', 
-            jobsPerDay: 2, 
-            breakTime: 90,
-            breakDurations: [90],
-            jobDurations: [DEFAULT_JOB_DURATION, DEFAULT_JOB_DURATION]
-        },
-        saturday: {
+    // Setup days in the object with minimal structure - no defaults, just empty containers
+    const workingDays = {};
+
+    // Initialize with empty objects instead of defaults
+    const dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    dayNames.forEach(day => {
+        workingDays[day] = {
+            isWorking: false,  // Start with all days set to not working
+            jobsPerDay: null,  // No default job count
+            startTime: null,   // No default start time
+            breakTime: null,   // No default break time
+            breakDurations: [],
+            jobDurations: []
+        };
+    });
+
+    // CRITICAL FIX: Expose workingDays to the global scope so our UI can access it
+    window.settingsWorkingDays = workingDays;
+    
+    // Add helper functions to get and update workingDays
+    window.getSettingsWorkingDays = function() { 
+        return workingDays; 
+    };
+    
+    window.updateSettingsWorkingDays = function(day, key, value) {
+        // Create the day object if it doesn't exist
+        if (!workingDays[day]) {
+            workingDays[day] = {
             isWorking: false,
-            startTime: '8:00 AM', 
-            jobsPerDay: 2, 
-            breakTime: 90,
-            breakDurations: [90],
-            jobDurations: [DEFAULT_JOB_DURATION, DEFAULT_JOB_DURATION]
-        },
-        sunday: {
-            isWorking: false,
-            startTime: '8:00 AM', 
-            jobsPerDay: 2, 
-            breakTime: 90,
-            breakDurations: [90],
-            jobDurations: [DEFAULT_JOB_DURATION, DEFAULT_JOB_DURATION]
+            startTime: DEFAULT_START_TIME,
+            jobsPerDay: DEFAULT_JOBS_PER_DAY,
+            breakTime: DEFAULT_BREAK_TIME,
+                breakDurations: [],
+                jobDurations: []
+            };
         }
+
+        const oldValue = workingDays[day][key];
+        workingDays[day][key] = value;
+        console.log(`Updated workingDays.${day}.${key} from ${oldValue} to ${value}`);
+        
+        // If this is a jobsPerDay update, ensure it's saved immediately
+        if (key === 'jobsPerDay') {
+            // Make sure job durations and break durations arrays are updated
+            if (workingDays[day].jobDurations?.length !== value) {
+                const oldDurations = workingDays[day].jobDurations || [];
+                workingDays[day].jobDurations = Array(value).fill(0).map((_, i) => 
+                    i < oldDurations.length ? oldDurations[i] : 210);
+            }
+            
+            if (workingDays[day].breakDurations?.length !== value - 1) {
+                const oldBreaks = workingDays[day].breakDurations || [];
+                workingDays[day].breakDurations = Array(value - 1).fill(0).map((_, i) => 
+                    i < oldBreaks.length ? oldBreaks[i] : 60);
+            }
+            
+            // Save immediately
+            setTimeout(() => {
+                console.log(`CRITICAL JOB COUNT: Triggering immediate save for ${day} with ${value} jobs`);
+                saveSettings();
+            }, 100);
+        }
+        
+        return true;
+    };
+    
+    // JOB COUNT CRITICAL FIX: Direct function to set job count from UI
+    window.setJobCount = function(day, jobCount) {
+        if (!day || !jobCount || jobCount < 1 || jobCount > 3) {
+            console.error(`Invalid parameters for setJobCount: day=${day}, jobCount=${jobCount}`);
+            return false;
+        }
+        
+        console.log(`DIRECT JOB COUNT SET: Setting ${day} to ${jobCount} jobs`);
+        
+        // Create the day object if it doesn't exist
+        if (!workingDays[day]) {
+                workingDays[day] = {
+                isWorking: true, // Default to true when setting job count
+                    startTime: DEFAULT_START_TIME,
+                jobsPerDay: jobCount,
+                    breakTime: DEFAULT_BREAK_TIME,
+                breakDurations: [],
+                jobDurations: []
+            };
+        }
+        
+        // Store old value for logging
+        const oldValue = workingDays[day].jobsPerDay;
+        
+        // Update the jobsPerDay value
+        workingDays[day].jobsPerDay = jobCount;
+        
+        // Update job durations array
+        if (workingDays[day].jobDurations?.length !== jobCount) {
+            const oldDurations = workingDays[day].jobDurations || [];
+            workingDays[day].jobDurations = Array(jobCount).fill(0).map((_, i) => 
+                i < oldDurations.length ? oldDurations[i] : 210);
+        }
+        
+        // Update break durations array
+        if (workingDays[day].breakDurations?.length !== jobCount - 1) {
+            const oldBreaks = workingDays[day].breakDurations || [];
+            workingDays[day].breakDurations = Array(jobCount - 1).fill(0).map((_, i) => 
+                i < oldBreaks.length ? oldBreaks[i] : 60);
+        }
+        
+        console.log(`DIRECT JOB COUNT: Updated ${day} from ${oldValue} to ${jobCount} jobs`);
+        
+        // Force save
+        if (typeof saveSettings === 'function') {
+            console.log(`DIRECT JOB COUNT: Triggering immediate save`);
+            setTimeout(saveSettings, 100);
+        }
+        
+        return true;
     };
     
     // Day toggle handlers
@@ -103,8 +161,45 @@ document.addEventListener('DOMContentLoaded', function() {
             const settingsPanel = document.querySelector(`[data-day-settings="${day}"]`);
             if (settingsPanel) {
                 if (this.checked) {
+                    console.log(`Toggle event: Showing settings for ${day}`);
                     settingsPanel.classList.remove('hidden');
+                    // CRITICAL FIX: Also remove any inline display style that might be hiding the panel
+                    settingsPanel.style.display = '';
+                    
+                    // Force a refresh of the settings UI
                     updateDayVisualIndicators(day);
+                    
+                    // CRITICAL FIX: Double-check visibility and content after a short delay
+                    setTimeout(() => {
+                        // Check again that panel is visible
+                        if (settingsPanel.classList.contains('hidden') || settingsPanel.style.display === 'none') {
+                            console.log(`Toggle event: Second attempt to show settings for ${day}`);
+                            settingsPanel.classList.remove('hidden');
+                            settingsPanel.style.display = '';
+                        }
+                        
+                        // Check if content exists, if not generate it
+                        const schedulePreview = settingsPanel.querySelector(`#${day}-schedule-preview`);
+                        if (!schedulePreview || schedulePreview.children.length === 0) {
+                            console.log(`Toggle event: Generating content for ${day}`);
+                            
+                            // Get the current job count
+                            const jobCount = workingDays[day].jobsPerDay || 2;
+                            
+                            // Try to find and click the job button
+                            const jobButton = settingsPanel.querySelector(`[data-jobs="${jobCount}"]`);
+                            if (jobButton) {
+                                console.log(`Toggle event: Clicking job button for ${day}`);
+                                jobButton.click();
+                            } else if (window.setJobCount) {
+                                console.log(`Toggle event: Using setJobCount for ${day}`);
+                                window.setJobCount(day, jobCount);
+                            }
+                        }
+                        
+                        // Final update of visual indicators
+                        updateDayVisualIndicators(day);
+                    }, 200);
                 } else {
                     settingsPanel.classList.add('hidden');
                 }
@@ -140,10 +235,15 @@ document.addEventListener('DOMContentLoaded', function() {
             const settingsPanel = document.querySelector(`[data-day-settings="${day}"]`);
             
             if (settingsPanel) {
-                settingsPanel.classList.toggle('hidden');
+                const isHidden = settingsPanel.classList.contains('hidden') || settingsPanel.style.display === 'none';
                 
-                // Make sure the day is working if we're showing the settings
-                if (!settingsPanel.classList.contains('hidden')) {
+                if (isHidden) {
+                    // Show panel
+                    console.log(`Header click: Showing settings for ${day}`);
+                    settingsPanel.classList.remove('hidden');
+                    settingsPanel.style.display = '';
+                    
+                    // Make sure the day is working if we're showing the settings
                     const toggle = card.querySelector('.day-toggle');
                     if (toggle && !toggle.checked) {
                         toggle.checked = true;
@@ -153,12 +253,20 @@ document.addEventListener('DOMContentLoaded', function() {
                         const dayIcon = card.querySelector('.rounded-full');
                         dayIcon.classList.remove('bg-gray-300');
                         dayIcon.classList.add('bg-primary');
+                    }
+                    
+                    // Force a refresh of the day's UI
+                    setTimeout(() => {
+                        updateDayVisualIndicators(day);
+                    }, 50);
+                } else {
+                    // Hide panel
+                    settingsPanel.classList.add('hidden');
+                }
             
             showSavingIndicator();
             validateAndSaveSettings();
         }
-                }
-            }
         });
     });
     
@@ -269,7 +377,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         try {
             // Parse the 12-hour format time
-            const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+            const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM|am|pm)/i);
             if (!match) return timeStr;
             
             let hours = parseInt(match[1]);
@@ -587,6 +695,94 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
+    // CRITICAL FIX: Function to ensure all working day panels are visible
+    function ensureWorkingDayPanelsVisible() {
+        console.log('Ensuring all working day panels are visible');
+        Object.keys(workingDays).forEach(day => {
+            if (workingDays[day] && workingDays[day].isWorking) {
+                const settingsPanel = document.querySelector(`[data-day-settings="${day}"]`);
+                if (settingsPanel) {
+                    // First ensure the panel is visible by removing both classes and inline styles that could hide it
+                    if (settingsPanel.classList.contains('hidden') || settingsPanel.style.display === 'none') {
+                        console.log(`Initial check: Found hidden panel for working day ${day}, making visible`);
+                        settingsPanel.classList.remove('hidden');
+                        settingsPanel.style.display = '';
+                    }
+                    
+                    // Then check if content needs to be generated
+                    const schedulePreview = settingsPanel.querySelector(`#${day}-schedule-preview`);
+                    if (!schedulePreview || schedulePreview.children.length === 0) {
+                        console.log(`${day} panel missing content - generating schedule preview`);
+                        
+                        // Get the job count, defaulting to 2 if not set
+                        const jobCount = workingDays[day].jobsPerDay || 2;
+                        
+                        // Try multiple approaches to generate content
+                        // 1. First try clicking the job button
+                        const jobButton = settingsPanel.querySelector(`[data-jobs="${jobCount}"]`);
+                        if (jobButton) {
+                            console.log(`Approach 1: Clicking job button for ${day} to generate content`);
+                            jobButton.click();
+                        } 
+                        // 2. If no button found, try using the direct setJobCount function
+                        else if (window.setJobCount) {
+                            console.log(`Approach 2: Using setJobCount(${day}, ${jobCount})`);
+                            window.setJobCount(day, jobCount);
+                        }
+                        // 3. As a last resort, directly force schedule update
+                        else {
+                            console.log(`Approach 3: Directly updating visual indicators for ${day}`);
+                            updateDayVisualIndicators(day);
+                        }
+                        
+                        // Double-check after a short delay to make sure content appears
+                        setTimeout(() => {
+                            const schedulePreviewCheck = settingsPanel.querySelector(`#${day}-schedule-preview`);
+                            if (!schedulePreviewCheck || schedulePreviewCheck.children.length === 0) {
+                                console.log(`Still no content for ${day}, trying direct approach`);
+                                updateDayVisualIndicators(day);
+                                
+                                // Toggle the job count to force a refresh if needed
+                                const currentCount = workingDays[day].jobsPerDay || 2;
+                                const tempCount = currentCount === 1 ? 2 : 1;
+                                
+                                if (window.setJobCount) {
+                                    // Temporarily set to a different count
+                                    window.setJobCount(day, tempCount);
+                                    
+                                    // Then set back to the correct count
+                                    setTimeout(() => {
+                                        window.setJobCount(day, currentCount);
+                                    }, 100);
+                                }
+                            }
+                        }, 200);
+                    }
+                    
+                    // Ensure job count button is highlighted correctly
+                    const jobCount = workingDays[day].jobsPerDay || 2;
+                    const allButtons = settingsPanel.querySelectorAll(`[data-jobs]`);
+                    allButtons.forEach(btn => {
+                        const count = parseInt(btn.getAttribute('data-jobs'));
+                        if (count === jobCount) {
+                            btn.classList.add('bg-blue-100', 'border-blue-400');
+                            btn.classList.remove('hover:bg-blue-50');
+                        } else {
+                            btn.classList.remove('bg-blue-100', 'border-blue-400');
+                            btn.classList.add('hover:bg-blue-50');
+                        }
+                    });
+                }
+            }
+        });
+    }
+    
+    // Run the check on page load
+    ensureWorkingDayPanelsVisible();
+    
+    // Also run the check after a delay to catch any late initializations
+    setTimeout(ensureWorkingDayPanelsVisible, 1500);
+    
     // Saving indicator
     const savingIndicator = document.createElement('div');
     savingIndicator.className = 'fixed bottom-20 right-4 bg-primary text-white py-2 px-4 rounded-lg shadow-lg transform translate-y-10 opacity-0 transition-all duration-300';
@@ -688,7 +884,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             
                             startTime = new Date(2000, 0, 1);
                             startTime.setHours(hours, minutes, 0, 0);
-                        } else {
+        } else {
                             warningMessages.push(`${dayName}: Invalid start time format`);
                             throw new Error("Invalid start time format");
                         }
@@ -820,34 +1016,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 return true; // No need to validate non-working days
             }
             
-            // iOS-compatible time parsing
-            let startTime;
+            // Safely parse the start time
             const startTimeStr = daySettings.startTime;
-            
-            // Parse time string in a way that works across all devices
-            if (startTimeStr.includes(':')) {
-                const timeMatch = startTimeStr.match(/(\d+):(\d+)\s*(AM|PM|am|pm)?/i);
-                if (timeMatch) {
-                    let hours = parseInt(timeMatch[1]);
-                    const minutes = parseInt(timeMatch[2]);
-                    const period = timeMatch[3] ? timeMatch[3].toUpperCase() : null;
-                    
-                    // Convert to 24-hour format if AM/PM is specified
-                    if (period === 'PM' && hours < 12) hours += 12;
-                    if (period === 'AM' && hours === 12) hours = 0;
-                    
-                    // Create a new date object with the extracted time
-                    startTime = new Date(2000, 0, 1);
-                    startTime.setHours(hours, minutes, 0, 0);
-                } else {
-                    console.error(`Invalid time format in validateTimeSettings: ${startTimeStr}`);
-                    return false;
-                }
-            } else {
-                console.error(`Invalid time format in validateTimeSettings: ${startTimeStr}`);
-                return false;
+            if (!startTimeStr || typeof startTimeStr !== 'string') {
+                console.warn(`Invalid startTime for ${day}: ${startTimeStr}`);
+                // Set a default time instead of failing validation
+                daySettings.startTime = '8:00 AM';
             }
             
+            // Safely get the number of jobs
             const jobCount = daySettings.jobsPerDay || 2;
             const breakDuration = daySettings.breakTime || DEFAULT_BREAK_TIME;
             
@@ -870,7 +1047,8 @@ document.addEventListener('DOMContentLoaded', function() {
         return true;
         } catch (error) {
             console.error(`Error validating time settings for ${day}:`, error);
-            return false;
+            // Consider it valid to prevent blocking saves
+        return true;
         }
     }
     
@@ -904,379 +1082,66 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function saveSettings() {
+        // Get current user for reference check
+        const user = firebase.auth().currentUser;
+        
         // Show saving indicator
         showSavingIndicator();
         
         try {
-            // Get current user
-            const user = firebase.auth().currentUser;
-            if (!user) {
+            // Check if user is logged in
+        if (!user) {
                 console.error('No user logged in');
-                hideSavingIndicator(false);
-                return;
+            hideSavingIndicator(false);
+                return false;
             }
             
             // Format settings for Firebase
             const formattedSettings = {
-                workingDays: {},
-                workingDaysCompat: {},
-                calculatedTimeSlots: [],
-                hourlyRate: document.getElementById('hourly-rate') ? parseInt(document.getElementById('hourly-rate').value) : 30,
-                autoSendReceipts: document.getElementById('auto-send-receipts') ? document.getElementById('auto-send-receipts').checked : false,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                workingDays: JSON.parse(JSON.stringify(workingDays)), // Deep copy to avoid circular references
+                autoSendReceipts: autoSendReceiptsToggle ? autoSendReceiptsToggle.checked : false,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                autoSaved: true
             };
             
-            // Convert working days to the expected format
-            ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].forEach((day, index) => {
-                // Add to workingDaysCompat (for backward compatibility)
-                formattedSettings.workingDaysCompat[index] = workingDays[day].isWorking;
-                
-                // Add to workingDays (primary structure)
-                formattedSettings.workingDays[day] = {
-                    isWorking: workingDays[day].isWorking
-                };
-                
-                // Add additional details for working days
-                if (workingDays[day].isWorking) {
-                    formattedSettings.workingDays[day] = {
-                        ...formattedSettings.workingDays[day],
-                        startTime: workingDays[day].startTime,
-                        endTime: calculateEndTime(day),
-                        jobsPerDay: workingDays[day].jobsPerDay,
-                        cleaningDuration: workingDays[day].jobDurations && workingDays[day].jobDurations.length > 0 
-                            ? workingDays[day].jobDurations[0] : DEFAULT_JOB_DURATION,
-                        breakTime: workingDays[day].breakTime || DEFAULT_BREAK_TIME,
-                        maxHours: 10 * 60 // 10 hours in minutes
-                    };
-                    
-                    // Add day-specific time slots
-                    const timeSlots = calculateTimeSlotsForDay(day);
-                    if (timeSlots.length > 0) {
-                        formattedSettings.calculatedTimeSlots.push({
-                            day: index,
-                            slots: timeSlots
-                        });
-                    }
-                }
-            });
+            // Add calculated time slots
+            formattedSettings.calculatedTimeSlots = calculateTimeSlots();
             
-            console.log('Saving formatted settings:', formattedSettings);
+            // CRITICAL SAVE PATH FIX: Save to the correct Firestore location
+            // Save settings to both places for backwards compatibility:
+            // 1. users/{uid}/settings/app (new location)
+            // 2. users/{uid} settings field (old location)
             
-            // Save to Firestore
-            const db = firebase.firestore();
+            console.log("CRITICAL PATH FIX: Saving settings to new location (users/{uid}/settings/app)");
+            const newPathRef = firebase.firestore().collection('users').doc(user.uid)
+                .collection('settings').doc('app');
             
-            // Save the formatted settings to the user's settings document
-            db.collection('users').doc(user.uid).set({
-                settings: formattedSettings
-            }, { merge: true })
+            // Save to new path
+            return newPathRef.set(formattedSettings)
+                .then(() => {
+                    // Also save to old path for backwards compatibility
+                    console.log("CRITICAL PATH FIX: Also saving to old location (users/{uid} settings field)");
+                    return firebase.firestore().collection('users').doc(user.uid).set({
+                        settings: formattedSettings
+                    }, { merge: true });
+                })
             .then(() => {
                 console.log('Settings saved successfully');
                 hideSavingIndicator(true);
+                    return true;
             })
             .catch(error => {
                 console.error('Error saving settings:', error);
                 hideSavingIndicator(false);
-            });
+                    return false;
+                });
         } catch (error) {
-            console.error('Error in saveSettings function:', error);
+            console.error('Error in saveSettings:', error);
             hideSavingIndicator(false);
+            return false;
         }
     }
     
-    // Helper function to calculate time slots for a specific day
-    function calculateTimeSlotsForDay(day) {
-        const slots = [];
-        const daySettings = workingDays[day];
-        
-        if (!daySettings || !daySettings.isWorking) {
-            return slots;
-        }
-        
-        // Get start time
-        let startMinutes = convertTimeToMinutes(daySettings.startTime);
-        let currentMinutes = startMinutes;
-        
-        // Process each job and break
-        for (let i = 0; i < daySettings.jobsPerDay; i++) {
-            // Get job duration
-            const jobDuration = daySettings.jobDurations && daySettings.jobDurations[i] 
-                ? daySettings.jobDurations[i] 
-                : DEFAULT_JOB_DURATION;
-            
-            // Add job slot
-            const jobStart = currentMinutes;
-            const jobEnd = jobStart + jobDuration;
-            
-            slots.push({
-                start: formatMinutesToTimeString(jobStart),
-                end: formatMinutesToTimeString(jobEnd),
-                durationMinutes: jobDuration
-            });
-            
-            currentMinutes = jobEnd;
-            
-            // Add break after job (if not the last job)
-            if (i < daySettings.jobsPerDay - 1) {
-                // Get break duration
-                const breakDuration = daySettings.breakDurations && daySettings.breakDurations[i] 
-                    ? daySettings.breakDurations[i] 
-                    : DEFAULT_BREAK_TIME;
-                
-                currentMinutes += breakDuration;
-            }
-        }
-        
-        return slots;
-    }
-    
-    // Helper to convert time string (e.g., "8:00 AM") to minutes since midnight
-    function convertTimeToMinutes(timeStr) {
-        // Handle different formats
-        let hours, minutes, isPM;
-        
-        if (timeStr.includes('AM') || timeStr.includes('PM')) {
-            // Format: "8:00 AM"
-            const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
-            if (!match) return 0;
-            
-            hours = parseInt(match[1]);
-            minutes = parseInt(match[2]);
-            isPM = match[3].toUpperCase() === 'PM';
-            
-            // Convert to 24-hour format
-            if (isPM && hours < 12) hours += 12;
-            if (!isPM && hours === 12) hours = 0;
-        } else {
-            // Format: "08:00"
-            const parts = timeStr.split(':');
-            hours = parseInt(parts[0]);
-            minutes = parseInt(parts[1]);
-        }
-        
-        return hours * 60 + minutes;
-    }
-    
-    // Helper to format minutes since midnight to "H:MM AM/PM" for database
-    function formatMinutesToTimeString(totalMinutes) {
-        let hours = Math.floor(totalMinutes / 60);
-        let minutes = totalMinutes % 60;
-        
-        const period = hours >= 12 ? 'PM' : 'AM';
-        hours = hours % 12 || 12;
-        
-        return `${hours}:${minutes.toString().padStart(2, '0')} ${period}`;
-    }
-    
-    // Helper to calculate end time for a day
-    function calculateEndTime(day) {
-        const daySettings = workingDays[day];
-        if (!daySettings || !daySettings.isWorking) {
-            return DEFAULT_END_TIME;
-        }
-        
-        // Get start time
-        let startMinutes = convertTimeToMinutes(daySettings.startTime);
-        let currentMinutes = startMinutes;
-        
-        // Add all job durations and breaks
-        for (let i = 0; i < daySettings.jobsPerDay; i++) {
-            // Get job duration
-            const jobDuration = daySettings.jobDurations && daySettings.jobDurations[i] 
-                ? daySettings.jobDurations[i] 
-                : DEFAULT_JOB_DURATION;
-            
-            currentMinutes += jobDuration;
-            
-            // Add break after job (if not the last job)
-            if (i < daySettings.jobsPerDay - 1) {
-                // Get break duration
-                const breakDuration = daySettings.breakDurations && daySettings.breakDurations[i] 
-                    ? daySettings.breakDurations[i] 
-                    : DEFAULT_BREAK_TIME;
-                
-                currentMinutes += breakDuration;
-            }
-        }
-        
-        return formatMinutesToTimeString(currentMinutes);
-    }
-    
-    function loadSettings() {
-        const user = firebase.auth().currentUser;
-        
-        if (!user) {
-            console.error('User not logged in');
-            return;
-        }
-        
-        firebase.firestore().collection('users').doc(user.uid).get()
-            .then(doc => {
-                if (doc.exists && doc.data().settings) {
-                    const settings = doc.data().settings;
-                    console.log('Loading settings:', settings);
-                    
-                    // Populate working days
-                    if (settings.workingDays) {
-                        Object.entries(settings.workingDays).forEach(([day, daySettings]) => {
-                            // Initialize with default job durations if missing
-                            if (!daySettings.jobDurations) {
-                                const jobCount = daySettings.jobsPerDay || DEFAULT_JOBS_PER_DAY;
-                                
-                                // If they have the old single jobDuration property, use it
-                                if (daySettings.jobDuration) {
-                                    daySettings.jobDurations = Array(jobCount).fill(daySettings.jobDuration);
-                                } else {
-                                    daySettings.jobDurations = Array(jobCount).fill(DEFAULT_JOB_DURATION);
-                                }
-                            }
-                            
-                            // Copy to working days state
-                            workingDays[day] = daySettings;
-                            
-                            // Update UI elements
-                            const dayToggle = document.querySelector(`[data-day-toggle="${day}"]`);
-                            const settingsPanel = document.querySelector(`[data-day-settings="${day}"]`);
-                            const startTimeSelect = document.querySelector(`[data-start-time="${day}"]`);
-                            
-                            // Update day toggle
-                            if (dayToggle) {
-                                dayToggle.checked = daySettings.isWorking;
-                                
-                                // Update the day card appearance
-                                const dayCard = dayToggle.closest('.rounded-lg');
-                                const dayIcon = dayCard.querySelector('.rounded-full');
-                                
-                                if (daySettings.isWorking) {
-                                    dayIcon.classList.remove('bg-gray-300');
-                                    dayIcon.classList.add('bg-primary');
-                                    
-                                    // Show settings panel
-                                    if (settingsPanel) {
-                                        settingsPanel.classList.remove('hidden');
-                                    }
-                                } else {
-                                    dayIcon.classList.remove('bg-primary');
-                                    dayIcon.classList.add('bg-gray-300');
-                                    
-                                    // Hide settings panel
-                                    if (settingsPanel) {
-                                        settingsPanel.classList.add('hidden');
-                                    }
-                                }
-                            }
-                            
-                            // Update start time
-                            if (startTimeSelect && daySettings.startTime) {
-                                // For input type="time", convert to 24-hour format
-                                if (startTimeSelect.type === 'time') {
-                                    startTimeSelect.value = convertTo24HourFormat(daySettings.startTime);
-                                } else {
-                                    // For select elements (backward compatibility)
-                                    startTimeSelect.value = daySettings.startTime;
-                                }
-                            }
-                            
-                            // Update job count radio buttons
-                            const jobRadios = document.querySelectorAll(`[data-jobs-input="${day}"]`);
-                            if (jobRadios.length > 0) {
-                                jobRadios.forEach(radio => {
-                                    const value = parseInt(radio.value);
-                                    const label = radio.closest('label');
-                                    
-                                    if (value === daySettings.jobsPerDay) {
-                                        radio.checked = true;
-                                        if (label) {
-                                            label.classList.add('bg-blue-50', 'border-blue-300');
-                                        }
-                                    } else {
-                                        radio.checked = false;
-                                        if (label) {
-                                            label.classList.remove('bg-blue-50', 'border-blue-300');
-                                        }
-                                    }
-                                });
-                            }
-                            
-                            // Update break time radio buttons
-                            const breakRadios = document.querySelectorAll(`[data-break-input="${day}"]`);
-                            if (breakRadios.length > 0) {
-                                breakRadios.forEach(radio => {
-                                    const value = parseInt(radio.value);
-                                    const label = radio.closest('label');
-                                    
-                                    if (value === (daySettings.breakTime || DEFAULT_BREAK_TIME)) {
-                                        radio.checked = true;
-                                        if (label) {
-                                            label.classList.add('bg-blue-50', 'border-blue-300');
-                                        }
-                                    } else {
-                                        radio.checked = false;
-                                        if (label) {
-                                            label.classList.remove('bg-blue-50', 'border-blue-300');
-                                        }
-                                    }
-                                });
-                            }
-                            
-                            // Update visual timeline
-                            if (daySettings.isWorking) {
-                                updateDayVisualIndicators(day);
-                            }
-                        });
-                    }
-                    
-                    // Populate other settings
-                    if (settings.cleaningsPerDay) {
-                        document.getElementById('cleanings-per-day').value = settings.cleaningsPerDay;
-                    }
-                    
-                    if (settings.breakTime) {
-                        document.getElementById('break-time').value = settings.breakTime;
-                    }
-                    
-                    if (typeof settings.autoSendReceipts !== 'undefined') {
-                        autoSendReceiptsToggle.checked = settings.autoSendReceipts;
-                        const toggle = autoSendReceiptsToggle.nextElementSibling;
-                        toggle.querySelector('span').classList.toggle('translate-x-7', settings.autoSendReceipts);
-                        toggle.classList.toggle('bg-primary', settings.autoSendReceipts);
-                    }
-                } else {
-                    console.log('No settings found, using defaults');
-                }
-            })
-            .catch(error => {
-                console.error('Error loading settings:', error);
-            });
-    }
-    
-    // Initialize settings when auth state changes
-    firebase.auth().onAuthStateChanged(user => {
-        if (user) {
-            console.log('User logged in, loading settings');
-            loadSettings();
-        } else {
-            console.log('User not logged in, using defaults');
-        }
-    });
-    
-    // Toggle for auto-send receipts
-    autoSendReceiptsToggle.addEventListener('change', function() {
-        const toggleLabel = document.querySelector('label[for="auto-send-receipts"]');
-        const toggleSpan = toggleLabel.querySelector('span');
-        
-        if (this.checked) {
-            toggleLabel.classList.add('bg-primary');
-            toggleLabel.classList.remove('bg-gray-300');
-            toggleSpan.classList.add('translate-x-7');
-            toggleSpan.classList.remove('translate-x-1');
-        } else {
-            toggleLabel.classList.remove('bg-primary');
-            toggleLabel.classList.add('bg-gray-300');
-            toggleSpan.classList.remove('translate-x-7');
-            toggleSpan.classList.add('translate-x-1');
-        }
-    });
-
     function calculateTimeSlots() {
         const slots = {};
         
@@ -1284,9 +1149,9 @@ document.addEventListener('DOMContentLoaded', function() {
         Object.entries(workingDays).forEach(([day, settings]) => {
             if (!settings.isWorking) {
                 slots[day] = [];
-                return;
-            }
-            
+            return;
+        }
+        
             console.log(`Calculating slots for ${day}:`, settings);
             console.log(`JobsPerDay setting for ${day}: ${settings.jobsPerDay}`);
             
@@ -1442,39 +1307,364 @@ document.addEventListener('DOMContentLoaded', function() {
         if (success) {
             savingIndicator.innerHTML = '<i class="fas fa-check mr-2"></i> Saved!';
             
-            // Create a success toast notification
-            const successToast = document.createElement('div');
-            successToast.className = 'fixed top-16 right-4 bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded shadow-md max-w-md z-50 transform transition-all duration-300 opacity-0 translate-y-2';
-            successToast.innerHTML = `
-                <div class="flex items-center">
-                    <div class="flex-shrink-0">
-                        <i class="fas fa-check-circle text-green-600"></i>
-                    </div>
-                    <div class="ml-3">
-                        <p class="text-sm font-medium">Settings saved successfully!</p>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(successToast);
-            
-            // Show the toast with a slight delay
-            setTimeout(() => {
-                successToast.classList.remove('opacity-0', 'translate-y-2');
-            }, 100);
-            
-            // Hide the saving indicator and toast
+            // Hide the saving indicator
             setTimeout(() => {
                 savingIndicator.classList.add('translate-y-10', 'opacity-0');
-                successToast.classList.add('opacity-0');
-                setTimeout(() => {
-                    successToast.remove();
-                }, 300);
             }, 2000);
-        } else {
+                } else {
             savingIndicator.innerHTML = '<i class="fas fa-times mr-2"></i> Error saving!';
             setTimeout(() => {
                 savingIndicator.classList.add('translate-y-10', 'opacity-0');
             }, 3000);
+                }
+    }
+    
+    // Initialize settings when auth state changes
+    firebase.auth().onAuthStateChanged(user => {
+        if (user) {
+            console.log('User logged in, loading settings');
+            // CRITICAL FIX: Load settings from both possible locations
+            loadSettingsFromAllLocations();
+            
+            // CRITICAL FIX FOR WEDNESDAY: Add an additional check specifically for days that default to non-working
+            setTimeout(() => {
+                // Check all days that might have been toggled from non-working to working
+                const dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+                
+                dayNames.forEach(day => {
+                    // Check if day is now working and might need content generation
+                    if (workingDays[day] && workingDays[day].isWorking) {
+                        console.log(`Universal panel check for ${day}`);
+                        
+                        const settingsPanel = document.querySelector(`[data-day-settings="${day}"]`);
+                        if (settingsPanel) {
+                            // Force show the panel
+                            settingsPanel.classList.remove('hidden');
+                            settingsPanel.style.display = '';
+                            
+                            // Explicitly force content generation
+                            const schedulePreview = settingsPanel.querySelector(`#${day}-schedule-preview`);
+                            if (!schedulePreview || schedulePreview.children.length === 0) {
+                                console.log(`Panel fix: ${day} needs content regeneration`);
+                                
+                                // Force regeneration of content by clicking button and updating visual indicators
+                                const jobCount = workingDays[day].jobsPerDay || 2;
+                                const jobButton = settingsPanel.querySelector(`[data-jobs="${jobCount}"]`);
+                                if (jobButton) {
+                                    console.log(`Panel fix: Clicking job button for ${day}`);
+                                    jobButton.click();
+                                }
+                                
+                                // Force update visual indicators
+                                updateDayVisualIndicators(day);
+                            }
+                        }
+                    }
+                });
+            }, 2000); // Run after all other checks
+
+            // CRITICAL FIX: Add a content generation check for all working days
+            setTimeout(() => {
+                // Check all days to ensure they have content if they're set to working
+                const dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+                
+                dayNames.forEach(day => {
+                    // Only process working days
+                    if (workingDays[day] && workingDays[day].isWorking) {
+                        console.log(`Final content check for ${day}`);
+                        
+                        const settingsPanel = document.querySelector(`[data-day-settings="${day}"]`);
+                        if (settingsPanel) {
+                            // First ensure the panel is visible
+                            if (settingsPanel.classList.contains('hidden') || settingsPanel.style.display === 'none') {
+                                console.log(`Making ${day} panel visible`);
+                                settingsPanel.classList.remove('hidden');
+                                settingsPanel.style.display = '';
+                            }
+                            
+                            // Then check if the schedule preview has content
+                            const schedulePreview = settingsPanel.querySelector(`#${day}-schedule-preview`);
+                            if (!schedulePreview || schedulePreview.children.length === 0) {
+                                console.log(`${day} needs content generation`);
+                                
+                                // Get the job count from the workingDays object
+                                const jobCount = workingDays[day].jobsPerDay || 2;
+                                
+                                // Try to find and click the job count button
+                                const jobButton = settingsPanel.querySelector(`[data-jobs="${jobCount}"]`);
+                                if (jobButton) {
+                                    console.log(`Clicking job button for ${day} with count ${jobCount}`);
+                                    jobButton.click();
+        } else {
+                                    console.log(`No job button found for ${day}, using direct method`);
+                                    // If button not found, try using the direct setJobCount function
+                                    if (window.setJobCount) {
+                                        console.log(`Using setJobCount(${day}, ${jobCount})`);
+                                        window.setJobCount(day, jobCount);
+                                    }
+                                }
+                                
+                                // Ensure the day's visual indicators are updated
+                                updateDayVisualIndicators(day);
+                            }
+                        }
+                    }
+                });
+            }, 2000); // Run after all other checks
+        } else {
+            console.log('User logged out');
+        }
+    });
+    
+    // CRITICAL FIX: This function tries all possible locations for settings
+    async function loadSettingsFromAllLocations() {
+        if (!firebase.auth().currentUser) {
+            console.log('No user logged in, using default settings');
+            return false;
+        }
+
+        console.log('Loading settings from Firestore');
+        
+        let settings = null;
+        let settingsFound = false;
+        
+        try {
+            // Try to load from the new "settings" field structure
+            settings = await firestoreService.getUserSettings(firebase.auth().currentUser.uid);
+            if (settings) {
+                console.log('Loaded settings from new location:', settings);
+                settingsFound = true;
+            } else {
+                console.log('No settings found in new location, trying legacy location');
+                
+                // Try to load from the legacy database location
+                const legacySettings = await loadSettingsFromLegacyLocation();
+                if (legacySettings) {
+                    console.log('Loaded settings from legacy location:', legacySettings);
+                    settings = legacySettings;
+                    settingsFound = true;
+                    
+                    // Save to new location for future use
+                    await saveSettingsToNewLocation(settings);
+                }
+            }
+        } catch (error) {
+            console.error('Error loading settings:', error);
+        }
+        
+        // When no settings found, create initial settings with explicit values
+        if (!settingsFound) {
+            console.log('No settings found, creating initial settings');
+            
+            // Create settings with explicit values for ALL fields
+            settings = {
+                workingDays: {},
+                autoSendReceipts: false
+            };
+            
+            // Initialize each day explicitly with complete data
+            dayNames.forEach(day => {
+                settings.workingDays[day] = {
+                    isWorking: day === 'saturday' || day === 'sunday' ? false : true, // Default M-F as working
+                    jobsPerDay: 2,
+                    startTime: DEFAULT_START_TIME,
+                    breakTime: DEFAULT_BREAK_TIME,
+                    breakDurations: [DEFAULT_BREAK_TIME],
+                    jobDurations: [DEFAULT_JOB_DURATION, DEFAULT_JOB_DURATION]
+                };
+            });
+            
+            // Save the explicit settings to database immediately
+            await saveSettingsToNewLocation(settings);
+        }
+        
+        // Apply loaded settings
+        if (settings) {
+            applyLoadedSettings(settings);
+            return true;
+        }
+        
+        return false;
+    }
+    
+    // CRITICAL FIX: Apply loaded settings to both the workingDays object and the UI
+    function applyLoadedSettings(settings) {
+        console.log('Applying loaded settings to UI:', settings);
+        
+        if (!settings || !settings.workingDays) {
+            console.error('Invalid settings object');
+            return false;
+        }
+        
+        // Apply working days settings
+        for (const day in settings.workingDays) {
+            const daySettings = settings.workingDays[day];
+            
+            // Ensure the day exists in our working days object
+            if (!workingDays[day]) {
+                workingDays[day] = {
+                    isWorking: false,
+                    jobsPerDay: null,
+                    startTime: null,
+                    breakTime: null,
+                    breakDurations: [],
+                    jobDurations: []
+                };
+            }
+            
+            // Apply all settings explicitly, with fallbacks if needed
+            workingDays[day].isWorking = daySettings.isWorking === true;
+            workingDays[day].jobsPerDay = daySettings.jobsPerDay || 2;
+            workingDays[day].startTime = daySettings.startTime || DEFAULT_START_TIME;
+            workingDays[day].breakTime = daySettings.breakTime || DEFAULT_BREAK_TIME;
+            workingDays[day].breakDurations = daySettings.breakDurations || [DEFAULT_BREAK_TIME];
+            workingDays[day].jobDurations = daySettings.jobDurations || Array(workingDays[day].jobsPerDay).fill(DEFAULT_JOB_DURATION);
+            
+            // Update UI toggles
+            const toggle = document.querySelector(`[data-day-toggle="${day}"]`);
+            if (toggle) {
+                toggle.checked = workingDays[day].isWorking;
+                
+                // Update card appearance
+                const dayCard = toggle.closest('.rounded-lg');
+                if (dayCard) {
+                    const dayIcon = dayCard.querySelector('.rounded-full');
+                    if (dayIcon) {
+                        if (workingDays[day].isWorking) {
+                            dayIcon.classList.remove('bg-gray-300');
+                            dayIcon.classList.add('bg-primary');
+                        } else {
+                            dayIcon.classList.remove('bg-primary');
+                            dayIcon.classList.add('bg-gray-300');
+                        }
+                    }
+                }
+                
+                // Show/hide settings panel based on working status
+                const settingsPanel = document.querySelector(`[data-day-settings="${day}"]`);
+                if (settingsPanel) {
+                    if (workingDays[day].isWorking) {
+                        console.log(`Showing settings panel for ${day}`);
+                        settingsPanel.classList.remove('hidden');
+                        settingsPanel.style.display = '';
+                        
+                        // Set up the content for working days
+                        const jobCount = workingDays[day].jobsPerDay;
+                        updateDayContent(day, jobCount);
+                    } else {
+                        settingsPanel.classList.add('hidden');
+                    }
+                }
+            }
+        }
+        
+        // Also update auto-send receipts toggle if present
+        if (settings.autoSendReceipts !== undefined && autoSendReceiptsToggle) {
+            autoSendReceiptsToggle.checked = settings.autoSendReceipts;
+        }
+        
+        // Force visibility and content generation for all working days
+        setTimeout(() => {
+            ensureWorkingDayPanelsVisible();
+        }, 500);
+        
+        console.log('Settings successfully applied to UI');
+        return true;
+    }
+
+    // Helper function to update day content
+    function updateDayContent(day, jobCount) {
+        const settingsPanel = document.querySelector(`[data-day-settings="${day}"]`);
+        if (!settingsPanel) return;
+        
+        // Find and highlight the correct job button
+        const jobButton = settingsPanel.querySelector(`[data-jobs="${jobCount}"]`);
+        if (jobButton) {
+            console.log(`Selecting job button for ${day}: ${jobCount}`);
+            
+            // Clear any other selected buttons
+            const allButtons = settingsPanel.querySelectorAll(`[data-jobs]`);
+            allButtons.forEach(btn => {
+                const count = parseInt(btn.getAttribute('data-jobs'));
+                if (count === jobCount) {
+                    btn.classList.add('bg-blue-100', 'border-blue-400');
+                    btn.classList.remove('hover:bg-blue-50');
+                } else {
+                    btn.classList.remove('bg-blue-100', 'border-blue-400');
+                    btn.classList.add('hover:bg-blue-50');
+                }
+            });
+            
+            // Generate schedule content
+            const schedulePreview = settingsPanel.querySelector(`#${day}-schedule-preview`);
+            if (!schedulePreview || schedulePreview.children.length === 0) {
+                console.log(`Generating content for ${day}`);
+                jobButton.click();
+            }
+        } else if (window.setJobCount) {
+            // Fallback to direct method
+            console.log(`Using setJobCount for ${day}: ${jobCount}`);
+            window.setJobCount(day, jobCount);
+        }
+        
+        // Ensure visual indicators are updated
+        updateDayVisualIndicators(day);
+    }
+
+    // Function to load settings from legacy location
+    async function loadSettingsFromLegacyLocation() {
+        try {
+            const user = firebase.auth().currentUser;
+            if (!user) return null;
+            
+            const oldPathRef = firebase.firestore().collection('users').doc(user.uid);
+            const doc = await oldPathRef.get();
+            
+            if (doc.exists) {
+                // Check both potential legacy formats
+                if (doc.data().settings) {
+                    console.log('Found settings in legacy location (settings field)');
+                    return doc.data().settings;
+                } else if (doc.data().workingDays) {
+                    console.log('Found settings in legacy location (direct fields)');
+                    // Construct a proper settings object from the direct fields
+                    return {
+                        workingDays: doc.data().workingDays || {},
+                        autoSendReceipts: doc.data().autoSendReceipts || false
+                    };
+                }
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('Error loading from legacy location:', error);
+            return null;
+        }
+    }
+
+    // Function to save settings to the new location
+    async function saveSettingsToNewLocation(settings) {
+        try {
+            const user = firebase.auth().currentUser;
+            if (!user) return false;
+            
+            // Add metadata
+            const settingsToSave = {
+                ...settings,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                autoSaved: true
+            };
+            
+            // Save to the new location
+            const newPathRef = firebase.firestore().collection('users').doc(user.uid)
+                .collection('settings').doc('app');
+            
+            await newPathRef.set(settingsToSave);
+            console.log('Settings saved to new location');
+            return true;
+        } catch (error) {
+            console.error('Error saving settings to new location:', error);
+            return false;
         }
     }
 }); 

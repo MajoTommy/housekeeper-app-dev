@@ -397,58 +397,58 @@ async function addSampleSettings() {
         return;
     }
     
-    console.log('Adding sample settings for user:', user.uid);
+    console.log('Adding sample settings with null values for user:', user.uid);
     
     try {
         const userRef = firebase.firestore().collection('users').doc(user.uid);
         
-        // Create day-specific settings with properly formatted times
+        // Create minimal day settings with null values
         const workingDays = {
             sunday: { isWorking: false },
             monday: { 
                 isWorking: true,
-                startTime: "09:00 AM",
-                endTime: "05:00 PM",
-                jobsPerDay: 2,
-                cleaningDuration: 180,
-                breakTime: 90,
-                maxHours: 420
+                startTime: null,
+                endTime: null,
+                jobsPerDay: null,
+                cleaningDuration: null,
+                breakTime: null,
+                maxHours: null
             },
             tuesday: { 
                 isWorking: true,
-                startTime: "09:00 AM",
-                endTime: "05:00 PM",
-                jobsPerDay: 2,
-                cleaningDuration: 180,
-                breakTime: 90,
-                maxHours: 420
+                startTime: null,
+                endTime: null,
+                jobsPerDay: null,
+                cleaningDuration: null,
+                breakTime: null,
+                maxHours: null
             },
             wednesday: { 
-                isWorking: true,
-                startTime: "09:00 AM",
-                endTime: "05:00 PM",
-                jobsPerDay: 2,
-                cleaningDuration: 180,
-                breakTime: 90,
-                maxHours: 420
+                isWorking: false,
+                startTime: null,
+                endTime: null,
+                jobsPerDay: null,
+                cleaningDuration: null,
+                breakTime: null,
+                maxHours: null
             },
             thursday: { 
                 isWorking: true,
-                startTime: "09:00 AM",
-                endTime: "05:00 PM",
-                jobsPerDay: 2,
-                cleaningDuration: 180,
-                breakTime: 90,
-                maxHours: 420
+                startTime: null,
+                endTime: null,
+                jobsPerDay: null,
+                cleaningDuration: null,
+                breakTime: null,
+                maxHours: null
             },
             friday: { 
                 isWorking: true,
-                startTime: "09:00 AM",
-                endTime: "05:00 PM",
-                jobsPerDay: 2,
-                cleaningDuration: 180,
-                breakTime: 90,
-                maxHours: 420
+                startTime: null,
+                endTime: null,
+                jobsPerDay: null,
+                cleaningDuration: null,
+                breakTime: null,
+                maxHours: null
             },
             saturday: { isWorking: false }
         };
@@ -464,139 +464,30 @@ async function addSampleSettings() {
             6: workingDays.saturday.isWorking   // Saturday
         };
         
-        // Convert time slots from object format to array format for schedule.js
-        const dayMapping = {
-            'sunday': 0,
-            'monday': 1,
-            'tuesday': 2,
-            'wednesday': 3,
-            'thursday': 4,
-            'friday': 5,
-            'saturday': 6
-        };
-        
-        // Helper function to safely parse time strings
-        function safeParseTime(timeString) {
-            try {
-                if (!timeString) {
-                    console.error('Empty time string provided');
-                    return null;
-                }
-                
-                // Ensure the time string is properly formatted
-                const timeRegex = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i;
-                if (!timeRegex.test(timeString)) {
-                    console.error('Invalid time format:', timeString);
-                    return null;
-                }
-                
-                // Parse with a reliable date string format
-                const date = new Date(`2000-01-01T${timeString.replace(/\s/g, '')}`);
-                
-                // Check if the date is valid
-                if (isNaN(date.getTime())) {
-                    console.error('Failed to parse time:', timeString);
-                    return null;
-                }
-                
-                return date;
-            } catch (error) {
-                console.error('Error parsing time:', timeString, error);
-                return null;
-            }
-        }
-        
-        // Helper function to safely format time to string
-        function safeFormatTime(date) {
-            try {
-                if (!date || isNaN(date.getTime())) {
-                    console.error('Invalid date object for formatting');
-                    return "09:00 AM"; // Default fallback
-                }
-                
-                return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
-            } catch (error) {
-                console.error('Error formatting time:', error);
-                return "09:00 AM"; // Default fallback
-            }
-        }
-        
-        // Calculate time slots for each day
-        const formattedTimeSlots = [];
-        
-        Object.entries(workingDays).forEach(([dayName, settings]) => {
-            if (!settings.isWorking) return;
-            
-            const daySlots = [];
-            // Use the safe parse function
-            const startTime = safeParseTime(settings.startTime);
-            
-            // If we couldn't parse the start time, skip this day
-            if (!startTime) {
-                console.error(`Skipping time slots for ${dayName} due to invalid start time`);
-                return;
-            }
-            
-            const cleaningsPerDay = settings.jobsPerDay || 2;
-            const cleaningDuration = settings.cleaningDuration || 180;
-            const breakTime = settings.breakTime || 90;
-            
-            let currentTime = new Date(startTime);
-            
-            for (let i = 0; i < cleaningsPerDay; i++) {
-                // Add the cleaning slot
-                const slotEnd = new Date(currentTime.getTime() + cleaningDuration * 60000);
-                
-                // Use safe format function
-                const startTimeStr = safeFormatTime(currentTime);
-                const endTimeStr = safeFormatTime(slotEnd);
-                
-                const slotObj = {
-                    start: startTimeStr,
-                    end: endTimeStr,
-                    durationMinutes: cleaningDuration
-                };
-                
-                console.log(`Created time slot for ${dayName}: ${startTimeStr} - ${endTimeStr}`);
-                daySlots.push(slotObj);
-                
-                // Add break time if not the last cleaning
-                if (i < cleaningsPerDay - 1) {
-                    currentTime = new Date(slotEnd.getTime() + breakTime * 60000);
-                }
-            }
-            
-            if (daySlots.length > 0) {
-                formattedTimeSlots.push({
-                    day: dayMapping[dayName],
-                    slots: daySlots
-                });
-                console.log(`Added ${daySlots.length} slots for day ${dayMapping[dayName]} (${dayName})`);
-            }
-        });
-        
-        // Create settings object
+        // Create settings object with minimal data
         const settings = {
-            workingDays: compatWorkingDays, // Use the simpler format directly
-            workingHours: {
-                start: workingDays.monday.startTime,
-                end: workingDays.monday.endTime
-            },
-            cleaningsPerDay: 2,
-            breakTime: 90,
-            cleaningDuration: 180,
-            maxHours: 420,
-            hourlyRate: 30,
-            autoSendReceipts: true,
-            calculatedTimeSlots: formattedTimeSlots,
+            // Set only the working days status, let the app fill in defaults
+            workingDays: workingDays,
+            workingDaysCompat: compatWorkingDays,
+            autoSendReceipts: false,
+            calculatedTimeSlots: [], // Empty time slots, will be calculated by the app
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
         
-        console.log('Saving settings with calculatedTimeSlots:', formattedTimeSlots);
+        console.log('Saving settings with null/empty values:', settings);
         
         // Save to Firestore
-        await userRef.set(settings, { merge: true });
-        console.log('Successfully added sample settings!');
+        await userRef.set({ settings }, { merge: true });
+        
+        // Also save to new location
+        await userRef.collection('settings').doc('app').set(settings);
+        
+        console.log('Successfully added sample settings with null values!');
+        
+        // Force reload to apply the new settings
+        setTimeout(() => {
+            window.location.reload();
+        }, 1000);
         
     } catch (error) {
         console.error('Error adding sample settings:', error);
@@ -659,21 +550,9 @@ async function resetAndPopulateDatabase() {
         
         await Promise.all(clientPromises);
         
-        // Create default user settings if needed
-        const settingsRef = db.collection('users').doc(user.uid).collection('settings').doc('preferences');
-        await settingsRef.set({
-            workingDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
-            workingHours: {
-                start: '9:00 AM',
-                end: '5:00 PM'
-            },
-            defaultCleaningDuration: 120, // 2 hours in minutes
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        
-        // Call addSampleSettings to create properly formatted time slots directly on the user document
+        // Call addSampleSettings to create properly formatted settings with null values
         await addSampleSettings();
-        console.log('Added sample settings with properly formatted time slots');
+        console.log('Added sample settings with null values');
         
         console.log('Database reset and populated successfully');
         return true;
