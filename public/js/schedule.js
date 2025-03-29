@@ -181,10 +181,40 @@ async function loadUserSchedule(showLoadingIndicator = true) {
                 // Settings are in a nested 'settings' field
                 settings = { ...DEFAULT_SETTINGS, ...userData.settings };
                 console.log('Using nested settings from Firestore');
-        } else {
+            } else {
                 // Settings might be directly in the document (old format)
                 settings = { ...DEFAULT_SETTINGS, ...userData };
                 console.log('Using direct settings from Firestore');
+            }
+            
+            // IMPORTANT FIX: Use the compatibility layer if available
+            if (settings.workingDaysCompat) {
+                console.log('Using workingDaysCompat for schedule:', settings.workingDaysCompat);
+                // Keep the original workingDays for reference
+                settings.originalWorkingDays = settings.workingDays;
+                settings.workingDays = settings.workingDaysCompat;
+            } 
+            // Fallback if compatibility layer isn't available
+            else if (settings.workingDays && typeof settings.workingDays === 'object') {
+                // Check if we have named days format (like {monday: {isWorking: true}})
+                if (settings.workingDays.monday || settings.workingDays.saturday) {
+                    console.log('Converting named days format to numeric format');
+                    
+                    // Create compatibility layer
+                    settings.workingDaysCompat = {
+                        0: settings.workingDays.sunday?.isWorking === true,
+                        1: settings.workingDays.monday?.isWorking === true,
+                        2: settings.workingDays.tuesday?.isWorking === true, 
+                        3: settings.workingDays.wednesday?.isWorking === true,
+                        4: settings.workingDays.thursday?.isWorking === true,
+                        5: settings.workingDays.friday?.isWorking === true,
+                        6: settings.workingDays.saturday?.isWorking === true
+                    };
+                    
+                    // Keep the original but use the compatible version
+                    settings.originalWorkingDays = settings.workingDays;
+                    settings.workingDays = settings.workingDaysCompat;
+                }
             }
             
             // Ensure workingDays is properly formatted

@@ -1068,9 +1068,9 @@ document.addEventListener('DOMContentLoaded', function() {
                             card.classList.remove('border-red-300', 'bg-red-50');
                         }, 3000);
                     }
+                    }
                 }
-            }
-        });
+            });
         
         // Even if we have invalid settings, still save the current state
         if (hasInvalidSettings) {
@@ -1090,9 +1090,9 @@ document.addEventListener('DOMContentLoaded', function() {
         
         try {
             // Check if user is logged in
-        if (!user) {
+            if (!user) {
                 console.error('No user logged in');
-            hideSavingIndicator(false);
+                hideSavingIndicator(false);
                 return false;
             }
             
@@ -1103,6 +1103,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 autoSaved: true
             };
+            
+            // Add compatibility layer for the schedule.js page
+            formattedSettings.workingDaysCompat = {
+                0: workingDays.sunday?.isWorking === true,
+                1: workingDays.monday?.isWorking === true,
+                2: workingDays.tuesday?.isWorking === true, 
+                3: workingDays.wednesday?.isWorking === true,
+                4: workingDays.thursday?.isWorking === true,
+                5: workingDays.friday?.isWorking === true,
+                6: workingDays.saturday?.isWorking === true
+            };
+            
+            console.log('Adding workingDaysCompat for schedule.js compatibility:', formattedSettings.workingDaysCompat);
             
             // Add calculated time slots
             formattedSettings.calculatedTimeSlots = calculateTimeSlots();
@@ -1302,7 +1315,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         return slots;
     }
-
+    
     function hideSavingIndicator(success = true) {
         if (success) {
             savingIndicator.innerHTML = '<i class="fas fa-check mr-2"></i> Saved!';
@@ -1311,12 +1324,12 @@ document.addEventListener('DOMContentLoaded', function() {
             setTimeout(() => {
                 savingIndicator.classList.add('translate-y-10', 'opacity-0');
             }, 2000);
-                } else {
+        } else {
             savingIndicator.innerHTML = '<i class="fas fa-times mr-2"></i> Error saving!';
             setTimeout(() => {
                 savingIndicator.classList.add('translate-y-10', 'opacity-0');
             }, 3000);
-                }
+        }
     }
     
     // Initialize settings when auth state changes
@@ -1420,9 +1433,9 @@ document.addEventListener('DOMContentLoaded', function() {
     async function loadSettingsFromAllLocations() {
         if (!firebase.auth().currentUser) {
             console.log('No user logged in, using default settings');
-            return false;
-        }
-
+                return false;
+            }
+            
         console.log('Loading settings from Firestore');
         
         let settings = null;
@@ -1484,8 +1497,8 @@ document.addEventListener('DOMContentLoaded', function() {
             return true;
         }
         
-        return false;
-    }
+                return false;
+            }
     
     // CRITICAL FIX: Apply loaded settings to both the workingDays object and the UI
     function applyLoadedSettings(settings) {
@@ -1645,7 +1658,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Function to save settings to the new location
     async function saveSettingsToNewLocation(settings) {
         try {
-            const user = firebase.auth().currentUser;
+        const user = firebase.auth().currentUser;
             if (!user) return false;
             
             // Add metadata
@@ -1667,4 +1680,584 @@ document.addEventListener('DOMContentLoaded', function() {
             return false;
         }
     }
+
+    // Function to prioritize database values over hardcoded defaults
+    function getSettingFromDatabase(dayName, settingName, fallbackValue) {
+        if (!workingDays[dayName]) {
+            return fallbackValue;
+        }
+        
+        const value = workingDays[dayName][settingName];
+        
+        // Only use fallback if value is null, undefined, or empty string
+        if (value === null || value === undefined || value === '') {
+            return fallbackValue;
+        }
+        
+        return value;
+    }
+
+    // A more robust day panel visibility handler that works separately from content generation
+    function fixDayPanelVisibility() {
+        console.log('Applying robust day panel visibility fix');
+        
+        // IMPORTANT: Ensure we're using the database state, not just the toggle state
+        // Check workingDays object directly to ensure we're using database values
+        Object.entries(workingDays).forEach(([dayName, settings]) => {
+            const isWorking = settings.isWorking === true;
+            const dayPanel = document.querySelector(`[data-day-settings="${dayName}"]`);
+            const toggle = document.querySelector(`.day-toggle[data-day="${dayName}"]`);
+            
+            // Make sure toggle reflects the database state
+            if (toggle && toggle.checked !== isWorking) {
+                console.log(`Sync issue: toggle for ${dayName} doesn't match database state. Updating.`);
+                toggle.checked = isWorking;
+            }
+            
+            if (!dayPanel) {
+                console.log(`Could not find panel for ${dayName}`);
+            return;
+        }
+        
+            if (isWorking) {
+                console.log(`DATABASE SAYS: ${dayName} should be visible (isWorking: ${isWorking})`);
+                
+                // Force panel to be visible using multiple methods
+                dayPanel.classList.remove('hidden');
+                dayPanel.style.display = '';
+                dayPanel.style.visibility = 'visible';
+                dayPanel.style.height = '';
+                dayPanel.style.overflow = '';
+                
+                // Force a reflow to ensure changes are applied immediately
+                void dayPanel.offsetWidth;
+                
+                // Check if the panel is visible
+                const isVisible = !(
+                    dayPanel.classList.contains('hidden') || 
+                    dayPanel.style.display === 'none' || 
+                    dayPanel.style.visibility === 'hidden' ||
+                    dayPanel.offsetHeight === 0
+                );
+                
+                console.log(`Panel for ${dayName} visibility state after fix: ${isVisible ? 'VISIBLE' : 'HIDDEN'}`);
+                
+                // If content is missing, force a job count update using the value from the database
+                setTimeout(() => {
+                    const schedulePreview = dayPanel.querySelector('.schedule-preview') || 
+                                          dayPanel.querySelector(`#${dayName}-schedule-preview`);
+                    
+                    if (!schedulePreview || schedulePreview.children.length === 0) {
+                        console.log(`No content in ${dayName} panel, applying content fix`);
+                        
+                        // Get job count from database if available, or use a reasonable default
+                        const jobCount = settings.jobsPerDay || 2;
+                        console.log(`Using database job count for ${dayName}: ${jobCount}`);
+                        
+                        // Use direct job count setting if function exists
+                        if (typeof window.setJobCount === 'function') {
+                            console.log(`Using window.setJobCount(${dayName}, ${jobCount})`);
+                            window.setJobCount(dayName, jobCount);
+                        } else if (typeof setJobCount === 'function') {
+                            console.log(`Using setJobCount(${dayName}, ${jobCount})`);
+                            setJobCount(dayName, jobCount);
+                        } else {
+                            // Last resort: locate and click the right job count button directly
+                            const jobButtons = dayPanel.querySelectorAll('[data-jobs]');
+                            for (const btn of jobButtons) {
+                                if (parseInt(btn.getAttribute('data-jobs')) === jobCount) {
+                                    console.log(`Found and clicking job button for ${dayName}`);
+                                    btn.click();
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        // Backup approach: try to force UI update
+                        updateDayVisualIndicators(dayName);
+                    }
+                }, 100);
+            } else {
+                // Only hide if supposed to be hidden
+                console.log(`Ensuring panel for ${dayName} is hidden (isWorking: ${isWorking})`);
+                dayPanel.classList.add('hidden');
+                            }
+                        });
+                    }
+                    
+    // Enhance the existing ensureWorkingDayPanelsVisible function
+    const originalEnsureFunction = ensureWorkingDayPanelsVisible;
+    
+    // Replace with enhanced version that also uses our more robust fix
+    ensureWorkingDayPanelsVisible = function() {
+        // Call the original function first
+        originalEnsureFunction();
+        
+        // Then apply our more robust fix
+        fixDayPanelVisibility();
+    };
+    
+    // Special function to run after database settings are loaded
+    // Hook into the applyLoadedSettings function to ensure our fixes run after settings load
+    const originalApplyLoadedSettings = applyLoadedSettings;
+    applyLoadedSettings = function(settings) {
+        // Call the original function first
+        originalApplyLoadedSettings(settings);
+        
+        console.log('Database settings loaded, applying panel visibility fix');
+        
+        // Give the DOM time to update after settings are applied
+        setTimeout(fixDayPanelVisibility, 100);
+        setTimeout(fixDayPanelVisibility, 500);
+        setTimeout(fixDayPanelVisibility, 1000);
+        
+        // Create a special universal panel check function
+        function universalPanelCheck() {
+            Object.entries(workingDays).forEach(([dayName, settings]) => {
+                if (settings.isWorking) {
+                    console.log(`Universal panel check for ${dayName}`);
+                    const dayPanel = document.querySelector(`[data-day-settings="${dayName}"]`);
+                    if (!dayPanel) return;
+                    
+                    const schedulePreview = dayPanel.querySelector('.schedule-preview') || 
+                                           dayPanel.querySelector(`#${dayName}-schedule-preview`);
+                    
+                    if (dayPanel.classList.contains('hidden') || 
+                        dayPanel.style.display === 'none' || 
+                        !schedulePreview || 
+                        schedulePreview.children.length === 0) {
+                        console.log(`Panel fix: ${dayName} needs content regeneration`);
+                        dayPanel.classList.remove('hidden');
+                        dayPanel.style.display = '';
+                    }
+                }
+            });
+        }
+        
+        // Run the universal check after a longer delay
+        setTimeout(universalPanelCheck, 1500);
+        
+        // Final detailed check with content generation
+        setTimeout(() => {
+            Object.entries(workingDays).forEach(([dayName, settings]) => {
+                if (settings.isWorking) {
+                    console.log(`Final content check for ${dayName}`);
+                    const dayPanel = document.querySelector(`[data-day-settings="${dayName}"]`);
+                    if (!dayPanel) return;
+                    
+                    const schedulePreview = dayPanel.querySelector('.schedule-preview') || 
+                                           dayPanel.querySelector(`#${dayName}-schedule-preview`);
+                    
+                    if (!schedulePreview || schedulePreview.children.length === 0) {
+                        console.log(`${dayName} needs content generation`);
+                        
+                        // Try to find and click job count button
+                        const jobButtons = dayPanel.querySelectorAll('[data-jobs]');
+                        const jobCount = settings.jobsPerDay || 2;
+                        let buttonFound = false;
+                        
+                        for (const btn of jobButtons) {
+                            if (parseInt(btn.getAttribute('data-jobs')) === jobCount) {
+                                console.log(`Found and clicking job button for ${dayName}`);
+                                btn.click();
+                                buttonFound = true;
+                                break;
+                            }
+                        }
+                        
+                        if (!buttonFound) {
+                            console.log(`No job button found for ${dayName}, using direct method`);
+                            if (typeof setJobCount === 'function') {
+                                console.log(`Using setJobCount(${dayName}, ${jobCount})`);
+                                setJobCount(dayName, jobCount);
+                            }
+                        }
+                    }
+                }
+            });
+        }, 2000);
+        
+        return true;
+    };
+    
+    // Apply the fix immediately
+    fixDayPanelVisibility();
+    
+    // Re-apply the fix after a delay (for after settings load)
+    setTimeout(fixDayPanelVisibility, 1000);
+    setTimeout(fixDayPanelVisibility, 2000);
+    
+    // CRITICAL: Listen for page visibility changes to handle returning to the page
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden) {
+            console.log('Page became visible, applying panel fixes...');
+            setTimeout(fixDayPanelVisibility, 100);
+            setTimeout(fixDayPanelVisibility, 500);
+        }
+    });
+    
+    // Also listen for toggle changes to ensure visibility updates correctly for all days
+    dayToggles.forEach(toggle => {
+        toggle.addEventListener('change', function() {
+            const day = this.getAttribute('data-day-toggle');
+            console.log(`Toggle changed for ${day}, applying visibility fix to all panels`);
+            
+            // Allow time for the database and UI to sync first
+            setTimeout(fixAllDayPanelsVisibility, 100);
+            setTimeout(fixAllDayPanelsVisibility, 500);
+        });
+    });
+
+    /**
+     * Database-driven page initialization - establishes single source of truth pattern
+     * This ensures the UI always reflects the database state when the page is loaded or revisited
+     */
+    function initializeFromDatabase() {
+        console.log('ARCHITECTURE: Initializing settings page directly from database (single source of truth)');
+        
+        const user = firebase.auth().currentUser;
+        if (!user) {
+            console.error('ARCHITECTURE: No user logged in, cannot initialize settings');
+            return;
+        }
+        
+        // Set a flag to indicate we're loading (can be used to prevent intermediate saves)
+        window.settingsPageInitializing = true;
+        
+        // Get the latest settings directly from Firebase
+        firebase.firestore().collection('users').doc(user.uid)
+            .collection('settings').doc('app')
+            .get()
+            .then(doc => {
+                if (!doc.exists) {
+                    console.log('ARCHITECTURE: No settings found in database, trying legacy location');
+                    return loadSettingsFromLegacyLocation().then(legacySettings => {
+                        if (legacySettings) {
+                            console.log('ARCHITECTURE: Found settings in legacy location');
+                            return legacySettings;
+                        }
+                        console.log('ARCHITECTURE: No settings found in any location, using empty state');
+                        return {};
+                    });
+                }
+                
+                console.log('ARCHITECTURE: Retrieved settings from database');
+                return doc.data();
+            })
+            .then(databaseSettings => {
+                if (!databaseSettings) {
+                    console.log('ARCHITECTURE: No valid settings found');
+                    window.settingsPageInitializing = false;
+                    return;
+                }
+                
+                console.log('ARCHITECTURE: Applying database settings to local state:', databaseSettings);
+                
+                // Complete reset of working days object to ensure clean state
+                if (databaseSettings.workingDays) {
+                    // Clear the existing object first
+                    Object.keys(workingDays).forEach(day => delete workingDays[day]);
+                    
+                    // Apply database values as the single source of truth
+                    Object.entries(databaseSettings.workingDays).forEach(([day, settings]) => {
+                        // Use deep copy to avoid reference issues
+                        workingDays[day] = JSON.parse(JSON.stringify(settings));
+                    });
+                    
+                    console.log('ARCHITECTURE: Completely reset workingDays from database:', workingDays);
+                }
+                
+                // Apply autoSendReceipts setting
+                if (typeof databaseSettings.autoSendReceipts === 'boolean') {
+                    const autoSendReceiptsToggle = document.getElementById('auto-send-receipts');
+                    if (autoSendReceiptsToggle) {
+                        autoSendReceiptsToggle.checked = databaseSettings.autoSendReceipts;
+                    }
+                }
+                
+                // Now sync UI with the reset workingDays object
+                console.log('ARCHITECTURE: Syncing UI with database state');
+                
+                // Update toggles and panels visibility
+                Object.entries(workingDays).forEach(([day, settings]) => {
+                    const isWorking = settings.isWorking === true;
+                    
+                    // Update toggle state to match database
+                    const toggle = document.querySelector(`.day-toggle[data-day="${day}"]`);
+                    if (toggle && toggle.checked !== isWorking) {
+                        toggle.checked = isWorking;
+                    }
+                    
+                    // Set panel visibility based on isWorking state
+                    const panel = document.querySelector(`[data-day-settings="${day}"]`);
+                    if (panel) {
+                        if (isWorking) {
+                            panel.classList.remove('hidden');
+        } else {
+                            panel.classList.add('hidden');
+                        }
+                    }
+                });
+                
+                // Generate content for working days
+                setTimeout(() => {
+                    Object.entries(workingDays).forEach(([day, settings]) => {
+                        if (settings.isWorking) {
+                            const jobCount = settings.jobsPerDay || 2;
+                            console.log(`ARCHITECTURE: Generating content for ${day} with ${jobCount} jobs`);
+                            
+                            if (typeof setJobCount === 'function') {
+                                setJobCount(day, jobCount);
+                            }
+                        }
+                    });
+                    
+                    // Apply our visibility fix as a final step
+                    fixDayPanelVisibility();
+                }, 100);
+                
+                window.settingsPageInitializing = false;
+            })
+            .catch(error => {
+                console.error('ARCHITECTURE: Error initializing from database:', error);
+                window.settingsPageInitializing = false;
+            });
+    }
+    
+    /**
+     * Debug function to monitor day panel states
+     * This is temporary diagnostic code to understand the visibility issues
+     */
+    function debugDayPanelState(dayName = 'saturday') {
+        console.log(`DEBUG: --------- ${dayName} panel state check ---------`);
+        
+        // Check working days object state
+        const daySettings = workingDays[dayName];
+        console.log(`DEBUG: workingDays.${dayName}:`, daySettings);
+        console.log(`DEBUG: isWorking value: ${daySettings?.isWorking}`);
+        console.log(`DEBUG: jobsPerDay value: ${daySettings?.jobsPerDay}`);
+        
+        // Check toggle state
+        const toggle = document.querySelector(`.day-toggle[data-day="${dayName}"]`);
+        console.log(`DEBUG: Toggle checked: ${toggle?.checked}`);
+        
+        // Check panel state in DOM
+        const panel = document.querySelector(`[data-day-settings="${dayName}"]`);
+        if (panel) {
+            console.log(`DEBUG: Panel hidden class: ${panel.classList.contains('hidden')}`);
+            console.log(`DEBUG: Panel display style: "${panel.style.display}"`);
+            console.log(`DEBUG: Panel offsetHeight: ${panel.offsetHeight}`);
+            
+            // Check content
+            const schedulePreview = panel.querySelector(`#${dayName}-schedule-preview`);
+            console.log(`DEBUG: Schedule preview exists: ${schedulePreview ? true : false}`);
+            console.log(`DEBUG: Schedule preview children: ${schedulePreview?.children.length || 0}`);
+            
+            // Check job count buttons
+            const jobButtons = panel.querySelectorAll('[data-job-option]');
+            console.log(`DEBUG: Job option buttons count: ${jobButtons.length}`);
+            jobButtons.forEach(btn => {
+                const jobCount = btn.getAttribute('data-job-option');
+                const isSelected = btn.classList.contains('bg-blue-50');
+                console.log(`DEBUG: Job button for ${jobCount} jobs selected: ${isSelected}`);
+            });
+        } else {
+            console.log(`DEBUG: Panel element not found`);
+        }
+        
+        console.log(`DEBUG: --------- End of ${dayName} panel state check ---------`);
+    }
+    
+    // Add debug calls at strategic points
+    const originalInitializeFromDatabase = initializeFromDatabase;
+    initializeFromDatabase = function() {
+        console.log("DEBUG: Before initialization");
+        debugDayPanelState();
+        
+        const result = originalInitializeFromDatabase.apply(this, arguments);
+        
+        // Check after initialization
+        setTimeout(() => {
+            console.log("DEBUG: After initialization (500ms)");
+            debugDayPanelState();
+        }, 500);
+        
+        setTimeout(() => {
+            console.log("DEBUG: After initialization (2000ms)");
+            debugDayPanelState();
+        }, 2000);
+        
+        return result;
+    };
+    
+    // Instrument setJobCount for saturday
+    if (typeof window.setJobCount === 'function') {
+        const originalSetJobCount = window.setJobCount;
+        window.setJobCount = function(day, jobCount) {
+            const result = originalSetJobCount.apply(this, arguments);
+            
+            if (day === 'saturday') {
+                console.log(`DEBUG: setJobCount called for saturday with ${jobCount} jobs`);
+                setTimeout(() => debugDayPanelState(), 100);
+            }
+            
+            return result;
+        };
+    }
+    
+    // Function to specifically fix Saturday panel visibility without changing UX
+    function fixSaturdayPanelVisibility() {
+        // Only run this fix if Saturday is set as a working day in the database
+        if (!workingDays.saturday || workingDays.saturday.isWorking !== true) {
+            return; // Exit if Saturday is not set as working
+        }
+        
+        // Get the Saturday panel element
+        const saturdayPanel = document.querySelector('[data-day-settings="saturday"]');
+        if (!saturdayPanel) {
+            return; // Exit if the panel doesn't exist
+        }
+        
+        // Check if the panel is hidden but should be visible
+        if (saturdayPanel.classList.contains('hidden') || saturdayPanel.style.display === 'none') {
+            // Make the panel visible - this doesn't change the UX, just ensures it's displayed
+            saturdayPanel.classList.remove('hidden');
+            saturdayPanel.style.display = '';
+            
+            // If content is missing, regenerate it using existing job count from database
+            const schedulePreview = saturdayPanel.querySelector('#saturday-schedule-preview');
+            if (!schedulePreview || schedulePreview.children.length === 0) {
+                const jobCount = workingDays.saturday.jobsPerDay || 2;
+                
+                // Use existing setJobCount function to maintain consistency
+                if (typeof window.setJobCount === 'function') {
+                    window.setJobCount('saturday', jobCount);
+                }
+                
+                // Update visual indicators using existing function
+                updateDayVisualIndicators('saturday');
+            }
+        }
+    }
+    
+    // Apply the fix at key moments without changing UX flow
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden) {
+            // Fix Saturday panel when returning to the page
+            setTimeout(fixSaturdayPanelVisibility, 300);
+            
+            // Fix all day panels
+            setTimeout(fixAllDayPanelsVisibility, 300);
+        }
+    });
+    
+    // Also check when navigating
+    window.addEventListener('popstate', function() {
+        setTimeout(fixSaturdayPanelVisibility, 300);
+        
+        // Fix all day panels
+        setTimeout(fixAllDayPanelsVisibility, 300);
+    });
+    
+    // Call initialization function on page load
+    initializeFromDatabase();
+    
+    // Apply the Saturday fix after initialization
+    setTimeout(fixSaturdayPanelVisibility, 500);
+    setTimeout(fixSaturdayPanelVisibility, 1500);
+    
+    // Function to specifically fix panel visibility for all days without changing UX
+    function fixAllDayPanelsVisibility() {
+        // Apply fix to all days, not just Saturday
+        Object.keys(workingDays).forEach(day => {
+            // Only run this fix if the day is set as a working day in the database
+            if (!workingDays[day] || workingDays[day].isWorking !== true) {
+                return; // Skip if this day is not set as working
+            }
+            
+            // Get the panel element for this day
+            const dayPanel = document.querySelector(`[data-day-settings="${day}"]`);
+            if (!dayPanel) {
+                console.log(`Could not find panel for ${day}`);
+                return; // Skip if the panel doesn't exist
+            }
+            
+            // Check if the panel is hidden but should be visible
+            const isHidden = dayPanel.classList.contains('hidden') || 
+                           dayPanel.style.display === 'none' ||
+                           dayPanel.style.visibility === 'hidden' ||
+                           dayPanel.offsetHeight === 0;
+                           
+            // Double check toggle state vs database
+            const toggle = document.querySelector(`.day-toggle[data-day="${day}"]`);
+            const toggleMismatch = toggle && toggle.checked !== workingDays[day].isWorking;
+            
+            // Fix toggle if needed
+            if (toggleMismatch) {
+                console.log(`Toggle for ${day} doesn't match database state. Fixing.`);
+                toggle.checked = workingDays[day].isWorking;
+            }
+            
+            if (isHidden) {
+                console.log(`Making ${day} panel visible (hidden=${isHidden})`);
+                // Make the panel visible - this doesn't change the UX, just ensures it's displayed
+                dayPanel.classList.remove('hidden');
+                dayPanel.style.display = '';
+                dayPanel.style.visibility = 'visible';
+                
+                // If content is missing, regenerate it using existing job count from database
+                const schedulePreview = dayPanel.querySelector(`#${day}-schedule-preview`);
+                if (!schedulePreview || schedulePreview.children.length === 0) {
+                    console.log(`Regenerating content for ${day} panel`);
+                    const jobCount = workingDays[day].jobsPerDay || 2;
+                    
+                    // Try to use existing setJobCount function 
+                    if (typeof window.setJobCount === 'function') {
+                        console.log(`Using setJobCount to regenerate ${day} content with ${jobCount} jobs`);
+                        window.setJobCount(day, jobCount);
+                    }
+                    
+                    // Always update visual indicators
+                    updateDayVisualIndicators(day);
+                }
+            }
+        });
+        
+        // Also check for edge case: panels that are shown but should be hidden
+        Object.keys(workingDays).forEach(day => {
+            // Only check days that should NOT be working
+            if (workingDays[day]?.isWorking !== false) {
+                return;
+            }
+            
+            const dayPanel = document.querySelector(`[data-day-settings="${day}"]`);
+            if (!dayPanel) return;
+            
+            // If panel is visible but should be hidden
+            if (!dayPanel.classList.contains('hidden')) {
+                console.log(`Hiding ${day} panel that should not be visible`);
+                dayPanel.classList.add('hidden');
+            }
+        });
+    }
+    
+    // Apply the fix at key moments without changing UX flow
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden) {
+            // Fix all day panels when returning to the page
+            setTimeout(fixAllDayPanelsVisibility, 300);
+        }
+    });
+    
+    // Also check when navigating
+    window.addEventListener('popstate', function() {
+        setTimeout(fixAllDayPanelsVisibility, 300);
+    });
+    
+    // Call initialization function on page load
+    initializeFromDatabase();
+    
+    // Apply the fix after initialization
+    setTimeout(fixAllDayPanelsVisibility, 500);
+    setTimeout(fixAllDayPanelsVisibility, 1500);
 }); 

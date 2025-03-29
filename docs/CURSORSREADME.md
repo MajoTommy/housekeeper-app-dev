@@ -143,51 +143,41 @@ workingDays: {
 
 ## Key Files and Components
 
-### Firebase Configuration
-- **public/js/firebase-config.js**: Firebase initialization 
-- **public/js/firestore-service.js**: Firestore service containing CRUD operations for all collections
+### Core Application Files
+- **public/index.html**: Main application entry point and schedule view
+- **public/login.html**: User authentication page
+- **public/signup.html**: New user registration page
+- **public/clients/clients.html**: Client management interface
 
-### Authentication
-- **public/js/auth.js**: Handles user authentication
-- **public/js/signup.js**: Manages user registration
+### JavaScript Core
+- **public/js/firebase-config.js**: Firebase configuration and initialization
+- **public/js/firestore-service.js**: Firestore service for database operations
+- **public/js/auth.js**: Authentication service handling login/logout
+- **public/js/schedule.js**: Schedule management (core application functionality)
+- **public/js/clients.js**: Client management functionality
+- **public/js/settings.js**: Settings management and working day configuration
+- **public/js/booking.js**: Appointment booking functionality
+- **public/js/defaults.js**: Default settings and time slot calculations
 
-### Settings Management
-- **public/js/settings.js**: Core settings management logic
-  - Loads user settings from Firestore
-  - Handles day toggle UI interactions
-  - Generates schedule previews
-  - Validates and saves settings
-  - Ensures proper UI display of working day panels
+### Settings Interface
+- **public/settings/settings.html**: Working day configuration interface
 
-### Schedule Management
-- **public/js/schedule.js**: Manages schedule display and interaction
-  - Loads user schedule from Firestore
-  - Calculates available time slots
-  - Handles week navigation
-  - Manages booking creation and editing
+### Booking Flow
+- **public/schedule/new-cleaning.html**: New appointment creation
+- **public/schedule/select-customer.html**: Client selection for appointments
+- **public/schedule/select-frequency.html**: Frequency selection for appointments
+- **public/schedule/confirm-booking.html**: Booking confirmation
 
-### Client Management
-- **public/js/clients.js**: Handles client data operations
-  - Client creation, editing, and deletion
-  - Client search and filtering
-  - Linking clients to appointments
+### Rescheduling Flow
+- **public/schedule/reschedule-choice.html**: Options for rescheduling
+- **public/schedule/reschedule-cleaning.html**: Interface for rescheduling
+- **public/schedule/confirm-reschedule.html**: Confirmation for rescheduled appointments
 
-### Booking Management
-- **public/js/booking.js**: Manages booking interactions
-  - Creating new bookings
-  - Editing existing bookings
-  - Handling cancellations and rescheduling
-
-### Default Settings
-- **public/js/defaults.js**: Contains default settings and calculation utilities
-  - Default configuration for new users
-  - Time slot calculation functions
-  - Time formatting utilities
-
-### Sample Data
-- **public/js/sample-data.js**: Contains functions to populate test data
-  - Creates sample settings
-  - Generates sample clients and bookings
+### Mobile Navigation
+All pages include the mobile footer navigation with three main sections:
+- Schedule (calendar icon)
+- Clients (users icon)
+- Payments (dollar sign icon with notification badge)
 
 ## HTML Structure
 
@@ -199,17 +189,17 @@ workingDays: {
 - Break duration configuration
 - Schedule preview visualization
 
-### Schedule Page
+### Schedule Page (public/index.html)
 - Weekly calendar view
 - Navigation between weeks
 - Time slot display for each day
 - Booking cards for scheduled appointments
 - Modal for creating/editing bookings
 
-### Clients Page
+### Clients Page (public/clients/clients.html)
 - Client list with search functionality
-- Client details view
-- Client creation/editing forms
+- Client details modal (shown as bottom sheet on mobile)
+- Client creation/editing interface
 
 ## Critical Functionality
 
@@ -237,6 +227,22 @@ For new users, the application creates comprehensive default settings:
 - Default values stored in database to maintain single source of truth
 - Reasonable job counts and break times pre-configured
 
+### Null-Value Approach for Settings
+The application uses a null-value approach for settings to avoid conflicts:
+- Initial working day objects start with null/empty values instead of hardcoded defaults
+- When settings are loaded from the database, the application applies reasonable defaults only for missing fields
+- This prevents conflicts between hardcoded defaults and database values
+- Ensures consistent behavior when toggling days from non-working to working and back
+
+### Sample Data Management
+- **Reset Functionality**: The app includes a reset button (red circular button at bottom-right corner of main screen)
+- **public/js/sample-data.js**: Contains functions to generate sample data with null values
+- Reset process:
+  1. Clears all existing user settings from the database
+  2. Creates minimal working day objects with only isWorking property set
+  3. Leaves all other fields as null to be populated by the application's default logic
+  4. Forces a page reload to apply the new settings
+
 ## Known Issues and Fixes
 
 ### Day Panel Visibility Issues
@@ -259,12 +265,21 @@ For new users, the application creates comprehensive default settings:
 - Double-checking visibility and content after a short delay
 - Using multiple approaches to generate content reliably
 
+### Default Values Conflicts
+- Previously, hardcoded defaults in the code could conflict with database values
+- Fixed by implementing a "null-value" approach:
+  - Initialize objects with minimal structure and null values
+  - Apply defaults only when needed
+  - Use database as single source of truth
+  - Generate appropriate content based on isWorking status
+
 ## Best Practices Implemented
 
 ### Data Management
 - Database as single source of truth for all settings
 - Initial default settings created once and stored in database
 - Comprehensive validation before saving to database
+- Null-value approach to avoid conflicts between code and database
 
 ### UI Reliability
 - Multiple visibility checks for UI elements
@@ -281,6 +296,7 @@ For new users, the application creates comprehensive default settings:
 - Loading indicators during data operations
 - Confirmation dialogs for important actions
 - Error notifications for failed operations
+- Sample data reset functionality for testing
 
 ## Future Enhancements
 - Integration with payment processing
@@ -288,5 +304,7 @@ For new users, the application creates comprehensive default settings:
 - Calendar synchronization with external calendars
 - Advanced reporting and analytics
 - Mobile app versions
+- Improved default value management
+- Progressive Web App (PWA) capabilities
 
 This comprehensive documentation provides a solid foundation for understanding the application's architecture, data flow, and implementation details to assist with future development. 

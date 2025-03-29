@@ -176,7 +176,8 @@ const firestoreService = {
     async updateAppointmentStatus(userId, appointmentId, status) {
         try {
             await db.collection('users').doc(userId).collection('appointments').doc(appointmentId).update({
-                status: status
+                status: status,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             });
             console.log('Appointment status updated successfully');
             return true;
@@ -186,42 +187,5 @@ const firestoreService = {
         }
     },
 
-    // Payment methods
-    async createPayment(userId, paymentData) {
-        try {
-            const paymentRef = await db.collection('users').doc(userId).collection('payments').add({
-                client_id: paymentData.client_id,
-                client_name: paymentData.client_name,
-                appointment_id: paymentData.appointment_id,
-                amount: paymentData.amount,
-                date: paymentData.date,
-                status: paymentData.status || 'pending',
-                payment_method: paymentData.payment_method || '',
-                notes: paymentData.notes || '',
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-            console.log('Payment created successfully');
-            return paymentRef.id;
-        } catch (error) {
-            console.error('Error creating payment:', error);
-            return null;
-        }
-    },
-
-    async getPendingPayments(userId) {
-        try {
-            const snapshot = await db.collection('users').doc(userId).collection('payments')
-                .where('status', '==', 'pending')
-                .orderBy('date', 'desc')
-                .get();
-            
-            return snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
-        } catch (error) {
-            console.error('Error getting pending payments:', error);
-            return [];
-        }
-    }
+    // Payment methods have been removed to simplify the application
 }; 
