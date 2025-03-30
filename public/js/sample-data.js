@@ -397,60 +397,75 @@ async function addSampleSettings() {
         return;
     }
     
-    console.log('Adding sample settings with null values for user:', user.uid);
+    console.log('Adding sample settings for user:', user.uid);
     
     try {
         const userRef = firebase.firestore().collection('users').doc(user.uid);
         
-        // Create minimal day settings with null values
+        // DEFAULT VALUES matching those in settings.js
+        const DEFAULT_JOBS_PER_DAY = 2;
+        const DEFAULT_BREAK_TIME = 90;
+        const DEFAULT_START_TIME = '8:00 AM';
+        const DEFAULT_JOB_DURATION = 180;
+        
+        // Create working day settings with proper structure
         const workingDays = {
-            sunday: { isWorking: false },
+            sunday: { 
+                isWorking: false,
+                jobsPerDay: null,
+                startTime: null,
+                breakTime: null,
+                jobDurations: [],
+                breakDurations: []
+            },
             monday: { 
                 isWorking: true,
-                startTime: null,
-                endTime: null,
-                jobsPerDay: null,
-                cleaningDuration: null,
-                breakTime: null,
-                maxHours: null
+                startTime: DEFAULT_START_TIME,
+                jobsPerDay: DEFAULT_JOBS_PER_DAY,
+                breakTime: DEFAULT_BREAK_TIME,
+                jobDurations: [DEFAULT_JOB_DURATION, DEFAULT_JOB_DURATION],
+                breakDurations: [DEFAULT_BREAK_TIME]
             },
             tuesday: { 
                 isWorking: true,
-                startTime: null,
-                endTime: null,
-                jobsPerDay: null,
-                cleaningDuration: null,
-                breakTime: null,
-                maxHours: null
+                startTime: DEFAULT_START_TIME,
+                jobsPerDay: DEFAULT_JOBS_PER_DAY,
+                breakTime: DEFAULT_BREAK_TIME,
+                jobDurations: [DEFAULT_JOB_DURATION, DEFAULT_JOB_DURATION],
+                breakDurations: [DEFAULT_BREAK_TIME]
             },
             wednesday: { 
                 isWorking: false,
-                startTime: null,
-                endTime: null,
                 jobsPerDay: null,
-                cleaningDuration: null,
+                startTime: null,
                 breakTime: null,
-                maxHours: null
+                jobDurations: [],
+                breakDurations: []
             },
             thursday: { 
                 isWorking: true,
-                startTime: null,
-                endTime: null,
-                jobsPerDay: null,
-                cleaningDuration: null,
-                breakTime: null,
-                maxHours: null
+                startTime: DEFAULT_START_TIME,
+                jobsPerDay: DEFAULT_JOBS_PER_DAY,
+                breakTime: DEFAULT_BREAK_TIME,
+                jobDurations: [DEFAULT_JOB_DURATION, DEFAULT_JOB_DURATION],
+                breakDurations: [DEFAULT_BREAK_TIME]
             },
             friday: { 
                 isWorking: true,
-                startTime: null,
-                endTime: null,
-                jobsPerDay: null,
-                cleaningDuration: null,
-                breakTime: null,
-                maxHours: null
+                startTime: DEFAULT_START_TIME,
+                jobsPerDay: DEFAULT_JOBS_PER_DAY,
+                breakTime: DEFAULT_BREAK_TIME,
+                jobDurations: [DEFAULT_JOB_DURATION, DEFAULT_JOB_DURATION],
+                breakDurations: [DEFAULT_BREAK_TIME]
             },
-            saturday: { isWorking: false }
+            saturday: { 
+                isWorking: false,
+                jobsPerDay: null,
+                startTime: null,
+                breakTime: null,
+                jobDurations: [],
+                breakDurations: []
+            }
         };
         
         // Create compatibility layer for schedule.js
@@ -464,22 +479,20 @@ async function addSampleSettings() {
             6: workingDays.saturday.isWorking   // Saturday
         };
         
-        // Create settings object with minimal data
+        // Create settings object with properly structured data
         const settings = {
-            // Set only the working days status, let the app fill in defaults
             workingDays: workingDays,
             workingDaysCompat: compatWorkingDays,
             autoSendReceipts: false,
-            calculatedTimeSlots: [], // Empty time slots, will be calculated by the app
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
         
-        console.log('Saving settings with null/empty values:', settings);
+        console.log('Saving settings with proper structure:', settings);
         
         // Save ONLY to new primary location
         await userRef.collection('settings').doc('app').set(settings);
         
-        console.log('Successfully added sample settings (primary location only)!');
+        console.log('Successfully added sample settings with proper job durations structure!');
         
         // Force reload to apply the new settings
         setTimeout(() => {

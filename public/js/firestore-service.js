@@ -86,6 +86,29 @@ const firestoreService = {
             normalizedSettings.workingDays = {};
         }
         
+        // Clean up any numeric string indexed properties (like "0", "1", "2", etc.)
+        // This fixes the corruption issue where "jobsPerDay" characters get saved as individual properties
+        if (normalizedSettings.workingDays) {
+            this.STANDARD_DAYS.forEach(day => {
+                if (normalizedSettings.workingDays[day]) {
+                    const daySettings = normalizedSettings.workingDays[day];
+                    
+                    // Create a new cleaned object with only the valid properties
+                    const cleanedDaySettings = {
+                        isWorking: daySettings.isWorking,
+                        jobsPerDay: daySettings.jobsPerDay,
+                        startTime: daySettings.startTime,
+                        breakTime: daySettings.breakTime,
+                        breakDurations: Array.isArray(daySettings.breakDurations) ? daySettings.breakDurations.filter(d => typeof d === 'number') : [],
+                        jobDurations: Array.isArray(daySettings.jobDurations) ? daySettings.jobDurations.filter(d => typeof d === 'number') : []
+                    };
+                    
+                    // Replace the original object with the cleaned one
+                    normalizedSettings.workingDays[day] = cleanedDaySettings;
+                }
+            });
+        }
+        
         // Ensure all days exist with correct structure, preserving nulls from DB
         this.STANDARD_DAYS.forEach(day => {
             if (!normalizedSettings.workingDays[day]) {
@@ -188,7 +211,8 @@ const firestoreService = {
     // Save settings to the primary location
     async saveSettingsToPrimaryLocation(userId, settings) {
         try {
-            console.log('Saving settings to primary location');
+            console.log('[FIREBASE-SAVE] Saving settings to primary location for user:', userId);
+            console.log('[FIREBASE-SAVE] Settings payload:', JSON.stringify(settings, null, 2));
             
             // Normalize the settings object to ensure correct structure
             const normalizedSettings = this.normalizeSettingsObject(settings);
@@ -196,15 +220,18 @@ const firestoreService = {
             // Add metadata
             normalizedSettings.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
             
+            console.log('[FIREBASE-SAVE] Normalized settings to save:', JSON.stringify(normalizedSettings, null, 2));
+            
             // Save to primary location
             await db.collection('users').doc(userId)
                 .collection('settings').doc('app')
                 .set(normalizedSettings);
             
-            console.log('Settings saved successfully to primary location');
+            console.log('[FIREBASE-SAVE] Settings saved successfully to primary location');
             return true;
         } catch (error) {
-            console.error('Error saving settings:', error);
+            console.error('[FIREBASE-SAVE] Error saving settings:', error);
+            console.error('[FIREBASE-SAVE] Error details:', error.code, error.message, error.stack);
             return false;
         }
     },
@@ -237,8 +264,28 @@ const firestoreService = {
     
     // Update settings (Public API)
     async updateUserSettings(userId, settingsData) {
-        // This function now directly calls the save function for the primary location
-        return this.saveSettingsToPrimaryLocation(userId, settingsData);
+        console.log('[FIREBASE-UPDATE] updateUserSettings called for user:', userId);
+        console.log('[FIREBASE-UPDATE] Settings data received:', JSON.stringify(settingsData, null, 2));
+        
+        if (!userId) {
+            console.error('[FIREBASE-UPDATE] Missing userId, cannot update settings');
+            return false;
+        }
+        
+        if (!settingsData || typeof settingsData !== 'object') {
+            console.error('[FIREBASE-UPDATE] Invalid settings data:', settingsData);
+            return false;
+        }
+        
+        try {
+            // This function now directly calls the save function for the primary location
+            const result = await this.saveSettingsToPrimaryLocation(userId, settingsData);
+            console.log('[FIREBASE-UPDATE] Save operation result:', result);
+            return result;
+        } catch (error) {
+            console.error('[FIREBASE-UPDATE] Unexpected error in updateUserSettings:', error);
+            return false;
+        }
     },
 
     // Client methods

@@ -80,18 +80,42 @@ function convertTo24HourFormat(timeStr) {
         
         async function loadSettings() {
             console.log('loadSettings called');
+
+            // User is logged in, load settings
             const user = firebase.auth().currentUser;
             if (!user) {
-                console.log('No user logged in, cannot load settings');
-        return;
-    }
-            console.log('Loading settings from centralized service');
+                console.error('Cannot load settings, no user logged in');
+                return false;
+            }
+            
             try {
+                console.log('Loading settings from centralized service');
                 const settings = await firestoreService.getUserSettings(user.uid);
-                console.log('Loaded settings:', settings);
+                
+                if (!settings || !settings.workingDays) {
+                    console.error('Failed to load settings or missing workingDays', settings);
+                    return false;
+                }
+                
+                console.log('Loaded settings:', JSON.stringify(settings, null, 2));
+                
+                // Apply loaded settings to UI
                 applyLoadedSettings(settings);
+                
+                // Fix any data issues in loaded settings
+                console.log('Fixing any data issues in loaded settings...');
+                window.settingsModule.fixWorkingDaysData();
+                
+                // Initialize debugging for schedule.js
+                if (typeof window.debugWorkingDays === 'function') {
+                    console.log('Initializing schedule.js debugging...');
+                    window.debugWorkingDays(settings);
+                }
+                
+                return true;
             } catch (error) {
                 console.error('Error loading settings:', error);
+                return false;
             }
         }
 
@@ -139,9 +163,11 @@ function convertTo24HourFormat(timeStr) {
 
                 // Update UI
                 const toggle = document.querySelector(`[data-day-toggle="${day}"]`);
-                if (toggle) {
-                    toggle.checked = currentDayState.isWorking;
+                if (!toggle) {
+                    console.error(`Toggle for ${day} not found`);
+                    return;
                 }
+                toggle.checked = currentDayState.isWorking;
                 
                 const settingsPanel = document.querySelector(`[data-day-settings="${day}"]`);
                 if (settingsPanel) {
@@ -172,13 +198,15 @@ function convertTo24HourFormat(timeStr) {
             // Apply autoSendReceipts setting
             if (autoSendReceiptsToggle) {
                 autoSendReceiptsToggle.checked = settings.autoSendReceipts === true;
+            } else {
+                console.error('Auto send receipts toggle not found');
             }
             console.log('Settings successfully applied to UI');
         }
 
         async function saveSettings() {
             console.log('[SAVE] saveSettings called'); // Log entry
-        const user = firebase.auth().currentUser;
+            const user = firebase.auth().currentUser;
             if (!user) {
                 console.error('[SAVE] Cannot save settings, no user logged in');
                 hideSavingIndicator(false);
@@ -201,27 +229,34 @@ function convertTo24HourFormat(timeStr) {
                     formattedSettings.workingDaysCompat[dayIndex] = workingDays[day].isWorking === true;
                 });
                 
-                console.log('[SAVE] Formatted settings with compatibility layer:', formattedSettings); // Log formatted data
-            
-                console.log('[SAVE] Calling firestoreService.updateUserSettings...'); // Log before service call
+                console.log('[SAVE] Formatted settings with compatibility layer:', formattedSettings);
+                
+                // ADDED: Check if firestoreService is available
+                if (!firestoreService || typeof firestoreService.updateUserSettings !== 'function') {
+                    console.error('[SAVE] firestoreService or updateUserSettings method not available');
+                    hideSavingIndicator(false);
+                    return false;
+                }
+                
+                console.log('[SAVE] Calling firestoreService.updateUserSettings...');
                 const success = await firestoreService.updateUserSettings(user.uid, formattedSettings);
-                console.log('[SAVE] firestoreService.updateUserSettings returned:', success); // Log service call result
-            
-                    if (success) {
+                console.log('[SAVE] firestoreService.updateUserSettings returned:', success);
+                
+                if (success) {
                     console.log('[SAVE] Settings saved successfully');
-                        hideSavingIndicator(true);
-                        return true;
-                    } else {
+                    hideSavingIndicator(true);
+                    return true;
+                } else {
                     console.error('[SAVE] Error saving settings via firestoreService');
-                        hideSavingIndicator(false);
-                        return false;
-                    }
-        } catch (error) {
-                console.error('[SAVE] Error caught in saveSettings:', error); // Log any caught errors
-            hideSavingIndicator(false);
-            return false;
+                    hideSavingIndicator(false);
+                    return false;
+                }
+            } catch (error) {
+                console.error('[SAVE] Error caught in saveSettings:', error, error.stack);
+                hideSavingIndicator(false);
+                return false;
+            }
         }
-    }
     
         function validateTimeSlots() {
             // Basic validation stub - implement actual logic if needed
@@ -229,12 +264,35 @@ function convertTo24HourFormat(timeStr) {
             return true; // Assume valid for now
         }
 
-        function validateAndSaveSettings() {
-             console.log('validateAndSaveSettings called');
-            if (validateTimeSlots()) {
-                saveSettings(); // Call local saveSettings
-                    } else {
-                console.warn('Settings validation failed, not saving');
+        async function validateAndSaveSettings() {
+            console.log('[VALIDATION] validateAndSaveSettings called');
+            
+            // Ensure firestoreService is available
+            if (!window.firestoreService || typeof window.firestoreService.updateUserSettings !== 'function') {
+                console.error('[VALIDATION] firestoreService or updateUserSettings not available!');
+                return false;
+            }
+            
+            // Check for logged in user
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                console.error('[VALIDATION] Cannot save settings - no user logged in');
+                return false;
+            }
+            
+            try {
+                if (validateTimeSlots()) {
+                    console.log('[VALIDATION] Validation passed, calling saveSettings()');
+                    const result = await saveSettings(); // Call local saveSettings
+                    console.log('[VALIDATION] saveSettings result:', result);
+                    return result;
+                } else {
+                    console.warn('[VALIDATION] Settings validation failed, not saving');
+                    return false;
+                }
+            } catch (error) {
+                console.error('[VALIDATION] Error in validateAndSaveSettings:', error);
+                return false;
             }
         }
 
@@ -300,9 +358,18 @@ function convertTo24HourFormat(timeStr) {
         function setJobCount(day, jobCount) {
             if (!workingDays[day]) {
                 console.error(`Cannot set job count, workingDays[${day}] does not exist.`);
-            return;
-        }
+                return;
+            }
             console.log(`Setting ${day} job count to ${jobCount}`);
+            
+            // Clean up any unexpected string-indexed properties that might have gotten into the object
+            Object.keys(workingDays[day]).forEach(key => {
+                if (!isNaN(parseInt(key))) {
+                    console.log(`Cleaning up unexpected property ${key} from ${day}`);
+                    delete workingDays[day][key];
+                }
+            });
+            
             workingDays[day].jobsPerDay = jobCount;
             
             // Adjust duration arrays
@@ -311,11 +378,81 @@ function convertTo24HourFormat(timeStr) {
                 i < oldJobDurations.length ? oldJobDurations[i] : DEFAULT_JOB_DURATION);
             
             const oldBreakDurations = workingDays[day].breakDurations || [];
-             workingDays[day].breakDurations = Array(Math.max(0, jobCount - 1)).fill(0).map((_, i) => 
-                 i < oldBreakDurations.length ? oldBreakDurations[i] : DEFAULT_BREAK_TIME);
+            workingDays[day].breakDurations = Array(Math.max(0, jobCount - 1)).fill(0).map((_, i) => 
+                i < oldBreakDurations.length ? oldBreakDurations[i] : DEFAULT_BREAK_TIME);
+
+            console.log(`Updated ${day} job durations:`, workingDays[day].jobDurations);
+            console.log(`Updated ${day} break durations:`, workingDays[day].breakDurations);
 
             updateDayVisualIndicators(day); // Update UI
-             validateAndSaveSettings(); // Save changes
+            validateAndSaveSettings(); // Save changes
+        }
+
+        // NEW FUNCTION: Update job duration values
+        function updateJobDuration(day, jobIndex, durationMinutes) {
+            if (!workingDays[day]) {
+                console.error(`Cannot update job duration, workingDays[${day}] does not exist.`);
+                return false;
+            }
+            
+            if (!workingDays[day].jobDurations) {
+                workingDays[day].jobDurations = [];
+            }
+            
+            // Ensure jobDurations array matches jobsPerDay
+            if (workingDays[day].jobsPerDay > workingDays[day].jobDurations.length) {
+                const oldJobDurations = [...workingDays[day].jobDurations];
+                workingDays[day].jobDurations = Array(workingDays[day].jobsPerDay).fill(0).map((_, i) => 
+                    i < oldJobDurations.length ? oldJobDurations[i] : DEFAULT_JOB_DURATION);
+                console.log(`Fixed ${day} job durations array length:`, workingDays[day].jobDurations);
+            }
+            
+            // Update the specific job duration
+            if (jobIndex >= 0 && jobIndex < workingDays[day].jobDurations.length) {
+                workingDays[day].jobDurations[jobIndex] = durationMinutes;
+                console.log(`Updated ${day} job ${jobIndex+1} duration to ${durationMinutes} minutes`);
+                
+                updateDayVisualIndicators(day); // Update UI
+                validateAndSaveSettings(); // Save changes
+                return true;
+            } else {
+                console.error(`Invalid job index ${jobIndex} for ${day}`);
+                return false;
+            }
+        }
+        
+        // NEW FUNCTION: Update break duration values
+        function updateBreakDuration(day, breakIndex, durationMinutes) {
+            if (!workingDays[day]) {
+                console.error(`Cannot update break duration, workingDays[${day}] does not exist.`);
+                return false;
+            }
+            
+            if (!workingDays[day].breakDurations) {
+                workingDays[day].breakDurations = [];
+            }
+            
+            // Ensure breakDurations array matches jobsPerDay - 1
+            const expectedBreaks = Math.max(0, workingDays[day].jobsPerDay - 1);
+            if (expectedBreaks > workingDays[day].breakDurations.length) {
+                const oldBreakDurations = [...workingDays[day].breakDurations];
+                workingDays[day].breakDurations = Array(expectedBreaks).fill(0).map((_, i) => 
+                    i < oldBreakDurations.length ? oldBreakDurations[i] : DEFAULT_BREAK_TIME);
+                console.log(`Fixed ${day} break durations array length:`, workingDays[day].breakDurations);
+            }
+            
+            // Update the specific break duration
+            if (breakIndex >= 0 && breakIndex < workingDays[day].breakDurations.length) {
+                workingDays[day].breakDurations[breakIndex] = durationMinutes;
+                console.log(`Updated ${day} break ${breakIndex+1} duration to ${durationMinutes} minutes`);
+                
+                updateDayVisualIndicators(day); // Update UI
+                validateAndSaveSettings(); // Save changes
+                return true;
+            } else {
+                console.error(`Invalid break index ${breakIndex} for ${day}`);
+                return false;
+            }
         }
 
         // --- Initialization & Event Listeners ---
@@ -414,7 +551,98 @@ function convertTo24HourFormat(timeStr) {
         }
         
         // --- Global Exposure (Minimal) ---
-        // Expose only what's needed externally (e.g., by schedule.js)
+        // UPDATED: Expose settings functionality properly
+        window.settingsModule = {
+            // Expose the working days object directly
+            workingDays: workingDays,
+            
+            // Expose key functions
+            setJobCount: setJobCount,
+            saveSettings: saveSettings,
+            loadSettings: loadSettings,
+            updateJobDuration: updateJobDuration,
+            updateBreakDuration: updateBreakDuration,
+            
+            // Add helper for other modules to access current settings
+            getWorkingDays: function() {
+                return JSON.parse(JSON.stringify(workingDays)); // Return a copy
+            },
+            
+            // Method to update settings from external code
+            updateWorkingDay: function(day, updates) {
+                if (!workingDays[day]) {
+                    console.error(`Cannot update settings, workingDays[${day}] does not exist.`);
+                    return false;
+                }
+                
+                // Apply updates to the day's settings
+                Object.assign(workingDays[day], updates);
+                
+                // Update UI and save
+                updateDayVisualIndicators(day);
+                return validateAndSaveSettings();
+            },
+            
+            // Fix corrupted working days data
+            fixWorkingDaysData: function() {
+                console.log('[FIX] Cleaning up potential data issues in workingDays');
+                dayNames.forEach(day => {
+                    if (!workingDays[day]) return;
+                    
+                    // Clean up any unexpected string-indexed properties
+                    Object.keys(workingDays[day]).forEach(key => {
+                        if (!isNaN(parseInt(key))) {
+                            console.log(`[FIX] Cleaning up unexpected property ${key} from ${day}`);
+                            delete workingDays[day][key];
+                        }
+                    });
+                    
+                    // Ensure array lengths match job counts
+                    if (workingDays[day].isWorking && workingDays[day].jobsPerDay > 0) {
+                        const jobCount = workingDays[day].jobsPerDay;
+                        
+                        // Fix job durations
+                        if (!workingDays[day].jobDurations || workingDays[day].jobDurations.length !== jobCount) {
+                            const oldJobDurations = workingDays[day].jobDurations || [];
+                            workingDays[day].jobDurations = Array(jobCount).fill(0).map((_, i) => 
+                                i < oldJobDurations.length ? oldJobDurations[i] : DEFAULT_JOB_DURATION);
+                            console.log(`[FIX] Fixed ${day} job durations:`, workingDays[day].jobDurations);
+                        }
+                        
+                        // Fix break durations
+                        const expectedBreaks = Math.max(0, jobCount - 1);
+                        if (!workingDays[day].breakDurations || workingDays[day].breakDurations.length !== expectedBreaks) {
+                            const oldBreakDurations = workingDays[day].breakDurations || [];
+                            workingDays[day].breakDurations = Array(expectedBreaks).fill(0).map((_, i) => 
+                                i < oldBreakDurations.length ? oldBreakDurations[i] : DEFAULT_BREAK_TIME);
+                            console.log(`[FIX] Fixed ${day} break durations:`, workingDays[day].breakDurations);
+                        }
+                    }
+                });
+                
+                return validateAndSaveSettings();
+            }
+        };
+
+        // CRITICAL FIX: Add global compatibility references for external scripts
+        window.workingDays = workingDays; // Direct global access to workingDays
+        window.setJobCount = setJobCount; // Global function access
+        window.saveSettings = saveSettings; // Global function access
+        window.validateAndSaveSettings = validateAndSaveSettings; // Global save trigger
+        window.updateJobDuration = updateJobDuration; // Global job duration updater
+        window.updateBreakDuration = updateBreakDuration; // Global break duration updater
+        window.fixWorkingDaysData = window.settingsModule.fixWorkingDaysData; // Data cleaner
+        
+        // Legacy compatibility variables for different code patterns
+        window.settingsWorkingDays = workingDays;
+        window.updateSettingsWorkingDays = function(day, updates) {
+            return window.settingsModule.updateWorkingDay(day, updates);
+        };
+        window.getSettingsWorkingDays = function() {
+            return window.settingsModule.getWorkingDays();
+        };
+        
+        // For backward compatibility with existing code
         window.getCalculatedTimeSlots = function() {
             console.log('Calculating time slots on demand for external use');
             
@@ -526,12 +754,96 @@ function convertTo24HourFormat(timeStr) {
         // --- Initialization Flow ---
         initializeUI(); // Setup event listeners
 
+        // Add diagnostic tool
+        function createDiagnosticTool() {
+            console.log('[DIAGNOSTIC] Creating settings diagnostic tool');
+            
+            // Create diagnostic function
+            window.debugSettings = function() {
+                console.group('📊 Settings Diagnostic Report');
+                
+                // Check working days
+                console.log('Local workingDays object:', workingDays);
+                console.log('Global workingDays object:', window.workingDays === workingDays ? 'CORRECTLY SYNCHRONIZED' : 'NOT SYNCHRONIZED');
+                console.log('settingsModule.workingDays:', window.settingsModule?.workingDays === workingDays ? 'CORRECTLY SYNCHRONIZED' : 'NOT SYNCHRONIZED');
+                
+                // Check firebase service
+                console.log('firestoreService available:', typeof firestoreService !== 'undefined');
+                console.log('firestoreService.updateUserSettings available:', typeof firestoreService?.updateUserSettings === 'function');
+                
+                // Check exposed functions
+                console.log('Global setJobCount available:', typeof window.setJobCount === 'function');
+                console.log('Global saveSettings available:', typeof window.saveSettings === 'function');
+                console.log('validateAndSaveSettings available:', typeof validateAndSaveSettings === 'function');
+                console.log('updateJobDuration available:', typeof window.updateJobDuration === 'function');
+                console.log('updateBreakDuration available:', typeof window.updateBreakDuration === 'function');
+                console.log('fixWorkingDaysData available:', typeof window.fixWorkingDaysData === 'function');
+                
+                // Current user
+                const user = firebase.auth().currentUser;
+                console.log('Current user:', user ? user.uid : 'Not logged in');
+                
+                // Check data consistency
+                console.log('Checking data consistency...');
+                let hasIssues = false;
+                
+                dayNames.forEach(day => {
+                    if (!workingDays[day]) return;
+                    
+                    // Check for numeric string keys (corruption)
+                    const numericKeys = Object.keys(workingDays[day]).filter(key => !isNaN(parseInt(key)));
+                    if (numericKeys.length > 0) {
+                        console.warn(`⚠️ Day ${day} has unexpected string indices:`, numericKeys);
+                        hasIssues = true;
+                    }
+                    
+                    // Check for array length mismatches
+                    if (workingDays[day].isWorking && workingDays[day].jobsPerDay > 0) {
+                        const jobCount = workingDays[day].jobsPerDay;
+                        
+                        if (!workingDays[day].jobDurations || workingDays[day].jobDurations.length !== jobCount) {
+                            console.warn(`⚠️ Day ${day} has mismatched job durations array length:`, 
+                                workingDays[day].jobDurations?.length, 'vs expected', jobCount);
+                            hasIssues = true;
+                        }
+                        
+                        const expectedBreaks = Math.max(0, jobCount - 1);
+                        if (!workingDays[day].breakDurations || workingDays[day].breakDurations.length !== expectedBreaks) {
+                            console.warn(`⚠️ Day ${day} has mismatched break durations array length:`, 
+                                workingDays[day].breakDurations?.length, 'vs expected', expectedBreaks);
+                            hasIssues = true;
+                        }
+                    }
+                });
+                
+                if (hasIssues) {
+                    console.warn('⚠️ Data consistency issues found. Run window.fixWorkingDaysData() to fix them.');
+                    
+                    // Auto-fix detected issues
+                    console.log('[DIAGNOSTIC] Auto-fixing detected data issues...');
+                    window.fixWorkingDaysData();
+                } else {
+                    console.log('✅ No data consistency issues detected.');
+                }
+                
+                console.groupEnd();
+            };
+            
+            // Run an initial diagnostic check after short delay to ensure everything loaded
+            setTimeout(() => {
+                console.log('[DIAGNOSTIC] Running initial settings diagnostic...');
+                window.debugSettings();
+            }, 2000);
+        }
+        
+        createDiagnosticTool();
+
         // Listen for auth state changes to load initial settings
         firebase.auth().onAuthStateChanged(user => {
             if (user) {
                 console.log('User logged in, loading initial settings...');
                 loadSettings(); // Call local loadSettings
-                    } else {
+            } else {
                 console.log('User logged out, settings UI inactive.');
                 // Optionally clear UI or show logged-out state
                 applyLoadedSettings({ workingDays: {} }); // Clear UI by applying empty settings
