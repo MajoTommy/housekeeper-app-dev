@@ -476,13 +476,10 @@ async function addSampleSettings() {
         
         console.log('Saving settings with null/empty values:', settings);
         
-        // Save to Firestore
-        await userRef.set({ settings }, { merge: true });
-        
-        // Also save to new location
+        // Save ONLY to new primary location
         await userRef.collection('settings').doc('app').set(settings);
         
-        console.log('Successfully added sample settings with null values!');
+        console.log('Successfully added sample settings (primary location only)!');
         
         // Force reload to apply the new settings
         setTimeout(() => {
@@ -526,9 +523,12 @@ async function resetAndPopulateDatabase() {
             console.log(`Deleted all documents in ${collectionName}`);
         });
         
-        // Also clear any settings directly on the user document
-        await db.collection('users').doc(user.uid).set({}, { merge: false });
-        console.log('Cleared user document settings');
+        // Explicitly delete the legacy 'settings' field from the user document
+        const userDocRef = db.collection('users').doc(user.uid);
+        await userDocRef.update({
+            settings: firebase.firestore.FieldValue.delete()
+        });
+        console.log('Deleted legacy settings field from user document');
         
         await Promise.all(deletePromises);
         

@@ -38,61 +38,207 @@ const firestoreService = {
         }
     },
 
-    // User Settings methods
-    async getUserSettings(userId) {
-        try {
-            console.log('Getting settings for user:', userId);
-            const doc = await db.collection('users').doc(userId).get();
-            
-            if (!doc.exists) {
-                console.log('No user document found');
-                return null;
-            }
-            
-            const userData = doc.data();
-            
-            // Check if settings are in a nested field or directly in the document
-            if (userData.settings) {
-                console.log('Found settings in nested field');
-                return userData.settings;
-            } else {
-                // For backward compatibility, return the parts of userData that would be settings
-                console.log('Using settings from main document for backward compatibility');
-                const settings = {
-                    workingDays: userData.workingDays || {},
-                    workingDaysCompat: userData.workingDaysCompat || {},
-                    calculatedTimeSlots: userData.calculatedTimeSlots || [],
-                    hourlyRate: userData.hourlyRate || 30,
-                    autoSendReceipts: userData.autoSendReceipts || false
+    // ----- SETTINGS METHODS (SINGLE SOURCE OF TRUTH) -----
+    
+    // Primary location for settings
+    get PRIMARY_SETTINGS_PATH() {
+        return 'settings/app'; // Collection/document path under user document
+    },
+    
+    // Legacy location
+    get LEGACY_SETTINGS_FIELD() {
+        return 'settings'; // Field directly in user document
+    },
+    
+    // Standard days for settings
+    get STANDARD_DAYS() {
+        return ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    },
+    
+    // Create a standard settings object with correct structure
+    createStandardSettingsObject() {
+        return {
+            workingDays: {
+                monday: { isWorking: false },
+                tuesday: { isWorking: false },
+                wednesday: { isWorking: false },
+                thursday: { isWorking: false },
+                friday: { isWorking: false },
+                saturday: { isWorking: false },
+                sunday: { isWorking: false }
+            },
+            autoSendReceipts: false,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+    },
+    
+    // Ensure a settings object has the correct structure
+    normalizeSettingsObject(settings) {
+        if (!settings) {
+            return this.createStandardSettingsObject();
+        }
+        
+        // Create a deep copy to avoid modifying the original
+        const normalizedSettings = JSON.parse(JSON.stringify(settings));
+        
+        // Ensure workingDays exists
+        if (!normalizedSettings.workingDays) {
+            normalizedSettings.workingDays = {};
+        }
+        
+        // Ensure all days exist with correct structure, preserving nulls from DB
+        this.STANDARD_DAYS.forEach(day => {
+            if (!normalizedSettings.workingDays[day]) {
+                // If day doesn't exist at all, initialize with nulls/defaults
+                const isWeekday = !['saturday', 'sunday'].includes(day);
+                normalizedSettings.workingDays[day] = {
+                    isWorking: isWeekday, // Default isWorking for new days
+                    jobsPerDay: null,
+                    startTime: null,
+                    breakTime: null,
+                    breakDurations: [],
+                    jobDurations: []
                 };
-                return settings;
+            } else {
+                // Ensure core properties exist, but keep DB values (including null)
+                const daySettings = normalizedSettings.workingDays[day];
+                
+                // Only set default if property is truly missing (undefined), not if it's null
+                if (daySettings.isWorking === undefined) {
+                    daySettings.isWorking = !['saturday', 'sunday'].includes(day);
+                }
+                
+                if (daySettings.jobsPerDay === undefined) {
+                    daySettings.jobsPerDay = null; // Default to null if missing
+                }
+                
+                if (daySettings.startTime === undefined) {
+                    daySettings.startTime = null; // Default to null if missing
+                }
+                
+                if (daySettings.breakTime === undefined) {
+                    daySettings.breakTime = null; // Default to null if missing
+                }
+                
+                if (daySettings.breakDurations === undefined) {
+                    daySettings.breakDurations = []; // Default to empty array if missing
+                }
+                
+                if (daySettings.jobDurations === undefined) {
+                    daySettings.jobDurations = []; // Default to empty array if missing
+                }
             }
+        });
+        
+        // Ensure other standard fields
+        if (typeof normalizedSettings.autoSendReceipts !== 'boolean') {
+            normalizedSettings.autoSendReceipts = false;
+        }
+        
+        // Create compatibility object for schedule.js
+        normalizedSettings.workingDaysCompat = {
+            0: normalizedSettings.workingDays.sunday?.isWorking === true,
+            1: normalizedSettings.workingDays.monday?.isWorking === true,
+            2: normalizedSettings.workingDays.tuesday?.isWorking === true,
+            3: normalizedSettings.workingDays.wednesday?.isWorking === true,
+            4: normalizedSettings.workingDays.thursday?.isWorking === true,
+            5: normalizedSettings.workingDays.friday?.isWorking === true,
+            6: normalizedSettings.workingDays.saturday?.isWorking === true
+        };
+        
+        return normalizedSettings;
+    },
+    
+    // Get settings from the primary location
+    async getSettingsFromPrimaryLocation(userId) {
+        try {
+            const doc = await db.collection('users').doc(userId)
+                .collection('settings').doc('app')
+                .get();
+                
+            if (doc.exists) {
+                console.log('Found settings in primary location');
+                return doc.data();
+            }
+            
+            return null;
         } catch (error) {
-            console.error('Error getting user settings:', error);
+            console.error('Error getting settings from primary location:', error);
             return null;
         }
     },
     
-    async updateUserSettings(userId, settingsData) {
+    // Get settings from the legacy location
+    async getSettingsFromLegacyLocation(userId) {
         try {
-            console.log('Updating settings for user:', userId);
-            console.log('Settings data:', settingsData);
+            const doc = await db.collection('users').doc(userId).get();
             
-            // Include a timestamp
-            const dataToUpdate = {
-                settings: {
-                    ...settingsData,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                }
-            };
+            if (doc.exists && doc.data().settings) {
+                console.log('Found settings in legacy location');
+                return doc.data().settings;
+            }
             
-            await db.collection('users').doc(userId).update(dataToUpdate);
-            console.log('User settings updated successfully');
+            return null;
+        } catch (error) {
+            console.error('Error getting settings from legacy location:', error);
+            return null;
+        }
+    },
+    
+    // Save settings to the primary location
+    async saveSettingsToPrimaryLocation(userId, settings) {
+        try {
+            console.log('Saving settings to primary location');
+            
+            // Normalize the settings object to ensure correct structure
+            const normalizedSettings = this.normalizeSettingsObject(settings);
+            
+            // Add metadata
+            normalizedSettings.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+            
+            // Save to primary location
+            await db.collection('users').doc(userId)
+                .collection('settings').doc('app')
+                .set(normalizedSettings);
+            
+            console.log('Settings saved successfully to primary location');
             return true;
         } catch (error) {
-            console.error('Error updating user settings:', error);
+            console.error('Error saving settings:', error);
             return false;
         }
+    },
+    
+    // Unified method to get user settings (Primary location only)
+    async getUserSettings(userId) {
+        try {
+            console.log('Getting settings for user (Primary Only):', userId);
+            
+            // Try primary location
+            let settings = await this.getSettingsFromPrimaryLocation(userId);
+            
+            // If still not found, create default settings
+            if (!settings) {
+                console.log('No settings found, creating defaults');
+                settings = this.createStandardSettingsObject();
+                
+                // Save the default settings (only to primary location)
+                await this.saveSettingsToPrimaryLocation(userId, settings);
+            }
+            
+            // Ensure settings have correct structure before returning
+            return this.normalizeSettingsObject(settings);
+        } catch (error) {
+            console.error('Error getting user settings:', error);
+            // Return a default structure on error to prevent downstream issues
+            return this.createStandardSettingsObject();
+        }
+    },
+    
+    // Update settings (Public API)
+    async updateUserSettings(userId, settingsData) {
+        // This function now directly calls the save function for the primary location
+        return this.saveSettingsToPrimaryLocation(userId, settingsData);
     },
 
     // Client methods
@@ -186,6 +332,4 @@ const firestoreService = {
             return false;
         }
     },
-
-    // Payment methods have been removed to simplify the application
 }; 

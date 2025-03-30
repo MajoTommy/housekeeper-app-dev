@@ -736,6 +736,29 @@
                         // DIRECT JOB COUNT UPDATE: Use the dedicated function for reliable job count setting
                         console.log(`DIRECT JOB COUNT CALL: Using setJobCount(${day}, ${jobCount})`);
                         
+                        // CRITICAL FIX: Also update window.workingDays directly
+                        if (window.workingDays && window.workingDays[day]) {
+                            console.log(`CRITICAL FIX: Directly updating window.workingDays[${day}].jobsPerDay to ${jobCount}`);
+                            window.workingDays[day].jobsPerDay = jobCount;
+                            
+                            // Ensure proper job and break durations arrays
+                            if (!window.workingDays[day].jobDurations || 
+                                window.workingDays[day].jobDurations.length !== jobCount) {
+                                const oldDurations = window.workingDays[day].jobDurations || [];
+                                window.workingDays[day].jobDurations = Array(jobCount).fill(0).map((_, i) => 
+                                    i < oldDurations.length ? oldDurations[i] : 210);
+                            }
+                            
+                            if (!window.workingDays[day].breakDurations || 
+                                window.workingDays[day].breakDurations.length !== jobCount - 1) {
+                                const oldBreaks = window.workingDays[day].breakDurations || [];
+                                window.workingDays[day].breakDurations = Array(jobCount - 1).fill(0).map((_, i) => 
+                                    i < oldBreaks.length ? oldBreaks[i] : 60);
+                            }
+                        } else {
+                            console.error(`CRITICAL ERROR: window.workingDays[${day}] not available`);
+                        }
+                        
                         if (window.setJobCount) {
                             // Use our specialized direct setter that ensures save happens
                             window.setJobCount(day, jobCount);
@@ -774,7 +797,7 @@
                                     // Preserve existing durations when possible
                                     const oldDurations = window.settingsWorkingDays[day].jobDurations || [];
                                     window.settingsWorkingDays[day].jobDurations = Array(jobCount).fill(0).map((_, i) => 
-                                        i < oldDurations.length ? oldDurations[i] : 210); // 3.5 hours default
+                                        i < oldDurations.length ? oldDurations[i] : 210);
                                     
                                     console.log(`Updated job durations array for ${day}:`, window.settingsWorkingDays[day].jobDurations);
                                 }
@@ -784,7 +807,7 @@
                                     window.settingsWorkingDays[day].breakDurations.length !== jobCount - 1) {
                                     const oldBreaks = window.settingsWorkingDays[day].breakDurations || [];
                                     window.settingsWorkingDays[day].breakDurations = Array(jobCount - 1).fill(0).map((_, i) => 
-                                        i < oldBreaks.length ? oldBreaks[i] : 60); // 1 hour default
+                                        i < oldBreaks.length ? oldBreaks[i] : 60);
                                     
                                     console.log(`Updated break durations array for ${day}:`, window.settingsWorkingDays[day].breakDurations);
                                 }
@@ -839,6 +862,17 @@
                         // Debug: Print state after update
                         if (window.settingsWorkingDays) {
                             console.log(`FINAL STATE - day ${day}:`, JSON.stringify(window.settingsWorkingDays[day]));
+                        }
+                        
+                        // CRITICAL FIX: Directly call window.saveSettings to ensure save happens
+                        if (typeof window.saveSettings === 'function') {
+                            console.log('CRITICAL FIX: Directly calling window.saveSettings()');
+                            window.saveSettings();
+                        } else if (typeof window.validateAndSaveSettings === 'function') {
+                            console.log('CRITICAL FIX: Directly calling window.validateAndSaveSettings()');
+                            window.validateAndSaveSettings();
+                        } else {
+                            console.error('CRITICAL ERROR: No global save function available');
                         }
                     });
                 });

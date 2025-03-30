@@ -65,17 +65,10 @@ Given many solo housekeepers aren’t particularly tech-savvy, the priority is a
 
 A super-simple, mobile-first approach that integrates:
 
--  Quick scheduling and booking confirmations
+- Quick scheduling and booking confirmations
 - Automated payments and invoicing
 - Basic client profiles and notes
 - Intuitive, icon-driven UI
 
 …should remove most of the everyday admin burdens for solo housekeepers while helping them look and feel more professional. The key is to keep the user experience very straightforward—minimal forms, one-tap accept/decline for bookings, automated reminders, and a built-in payment flow that requires no heavy lifting.
 
-
-
-
-
-
-You said:
-Are there 

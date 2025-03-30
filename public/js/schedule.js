@@ -244,37 +244,21 @@ async function loadUserSchedule(showLoadingIndicator = true) {
         // Debug working days
         debugWorkingDays(settings);
 
-        // Calculate available time slots based on settings
-        console.log('Checking calculatedTimeSlots:', settings.calculatedTimeSlots);
+        // SIMPLIFICATION: Always calculate time slots on demand
+        // This ensures we're always using the most up-to-date settings
+        console.log('Using on-demand time slot calculation');
         
-        if (!settings.calculatedTimeSlots || settings.calculatedTimeSlots.length === 0) {
-            console.log('No calculated time slots found in settings, calculating now...');
-            settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
-        } else {
-            console.log('Using calculated time slots from database:', settings.calculatedTimeSlots);
-            
-            // Validate the structure of calculatedTimeSlots
-            if (Array.isArray(settings.calculatedTimeSlots)) {
-                console.log('calculatedTimeSlots is an array with length:', settings.calculatedTimeSlots.length);
-                
-                // Check if it has the expected structure
-                const hasExpectedStructure = settings.calculatedTimeSlots.every(item => 
-                    typeof item === 'object' && 
-                    'day' in item && 
-                    'slots' in item && 
-                    Array.isArray(item.slots)
-                );
-                
-                console.log('calculatedTimeSlots has expected structure:', hasExpectedStructure);
-                
-                if (!hasExpectedStructure) {
-                    console.warn('calculatedTimeSlots does not have the expected structure, recalculating...');
-                    settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
-                }
+        try {
+            if (typeof window.getCalculatedTimeSlots === 'function') {
+                console.log('Using global getCalculatedTimeSlots() function');
+                settings.calculatedTimeSlots = window.getCalculatedTimeSlots();
             } else {
-                console.warn('calculatedTimeSlots is not an array, recalculating...');
+                console.log('Using local calculateAvailableTimeSlots() function');
                 settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
             }
+        } catch (error) {
+            console.error('Error calculating time slots:', error);
+            settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
         }
         
         console.log('Final calculated time slots:', settings.calculatedTimeSlots);

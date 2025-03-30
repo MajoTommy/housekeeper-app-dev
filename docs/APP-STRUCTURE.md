@@ -1,4 +1,4 @@
-# Housekeeping App - Simplified Structure
+# APP STRUCTURE
 
 ## Overview
 The Housekeeping App has been simplified to focus on three core features:
@@ -52,7 +52,3 @@ The app uses a consistent footer navigation menu across all pages:
 - Set up schedule preferences (start times, job durations)
 - Adjust cleaning preferences
 
-## Development Notes
-- The app has been simplified to focus on core functionality
-- Removed features related to payments and other non-essential elements
-- Streamlined navigation to improve user experience 

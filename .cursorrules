@@ -1,0 +1,50 @@
+# Housekeeping App Cursor Rules
+version: 1
+
+# Files that should not be sent to AI models (sensitive data)
+do_not_send_to_llm:
+  - "*.env"
+  - "firebase-config.js"
+  - "firebase-credentials.json"
+  - "**/node_modules/**"
+  - "**/.git/**"
+  - "**/dist/**"
+  - "**/.firebase/**"
+
+# Project context hints
+project_hints:
+  description: "Housekeeping scheduling app with Firebase integration for users to manage cleaning schedules, client appointments, and settings"
+  primary_language: "javascript"
+  frameworks:
+    - "firebase"
+    - "firestore"
+    - "tailwindcss"
+  
+# File type specific rules
+file_rules:
+  - pattern: "*.js"
+    comment_character: "//"
+    hint: "JavaScript files follow camelCase naming convention"
+  - pattern: "*.html"
+    comment_character: "<!--"
+    hint: "HTML files contain UI components and inline scripts"
+  - pattern: "*.css"
+    comment_character: "/*"
+    hint: "CSS uses TailwindCSS classes extensively"
+  - pattern: "public/js/*.js"
+    hint: "Core business logic files with Firebase integration"
+  - pattern: "public/settings/*.html"
+    hint: "Settings UI with complex user schedule configuration"
+
+# Key files with descriptions to help Cursor understand project structure
+key_files:
+  - path: "public/js/settings.js"
+    description: "Main settings management with workingDays as the Single Source of Truth"
+  - path: "public/js/schedule.js"
+    description: "Schedule page logic that uses on-demand time slot calculation"
+  - path: "public/js/firestore-service.js"
+    description: "Centralized Firebase/Firestore service for data access"
+  - path: "public/js/sample-data.js"
+    description: "Sample data generation for new users"
+  - path: "public/settings/settings.html"
+    description: "Settings UI with complex working day configuration"
