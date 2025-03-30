@@ -138,13 +138,24 @@ function debugWorkingDays(settings) {
         const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
         const value = workingDaysForDebug[i];
         const valueType = typeof value;
-        const isWorkingDay = value == true || (typeof value === 'string' && value.toLowerCase() === 'true');
+        const isWorkingDay = value === true || (typeof value === 'string' && value.toLowerCase() === 'true');
         
         console.log(`${dayNames[i]} (${i}):`, {
             value,
             valueType,
             isWorkingDay,
-            booleanValue: !!value
+            booleanValue: !!value,
+            strictEquality: value === true
+        });
+    }
+    
+    // Also check the original workingDays object if it's in the named format
+    if (settings.workingDays && settings.workingDays.monday) {
+        console.log('Original workingDays (named format):');
+        ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].forEach(day => {
+            if (settings.workingDays[day]) {
+                console.log(`  ${day}:`, settings.workingDays[day]);
+            }
         });
     }
 }
