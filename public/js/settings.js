@@ -114,6 +114,14 @@ function convertTo24HourFormat(timeStr) {
                 currentDayState.breakTime = daySettings.breakTime !== undefined ? daySettings.breakTime : null;
                 currentDayState.breakDurations = daySettings.breakDurations || [];
                 currentDayState.jobDurations = daySettings.jobDurations || [];
+                
+                // Log detailed information about each day's settings
+                console.log(`Day settings for ${day}:`, {
+                    isWorking: currentDayState.isWorking,
+                    jobsPerDay: currentDayState.jobsPerDay,
+                    startTime: currentDayState.startTime,
+                    breakTime: currentDayState.breakTime
+                });
                 // Ensure job/break arrays match job count if needed
                  if (currentDayState.isWorking && currentDayState.jobsPerDay !== null) {
                      const jobCount = currentDayState.jobsPerDay;
@@ -180,11 +188,20 @@ function convertTo24HourFormat(timeStr) {
             showSavingIndicator();
             try {
                 // Format settings using the local workingDays state
-            const formattedSettings = {
+                const formattedSettings = {
                     workingDays: JSON.parse(JSON.stringify(workingDays)), // Deep copy
-                autoSendReceipts: autoSendReceiptsToggle ? autoSendReceiptsToggle.checked : false
-            };
-                console.log('[SAVE] Formatted settings:', formattedSettings); // Log formatted data
+                    autoSendReceipts: autoSendReceiptsToggle ? autoSendReceiptsToggle.checked : false
+                };
+                
+                // Add compatibility layer for schedule.js
+                formattedSettings.workingDaysCompat = {};
+                dayNames.forEach((day, index) => {
+                    // Map day names to numeric indices (0=Sunday, 1=Monday, etc.)
+                    const dayIndex = (index + 1) % 7; // Convert from Monday-based to Sunday-based
+                    formattedSettings.workingDaysCompat[dayIndex] = workingDays[day].isWorking === true;
+                });
+                
+                console.log('[SAVE] Formatted settings with compatibility layer:', formattedSettings); // Log formatted data
             
                 console.log('[SAVE] Calling firestoreService.updateUserSettings...'); // Log before service call
                 const success = await firestoreService.updateUserSettings(user.uid, formattedSettings);
@@ -398,13 +415,113 @@ function convertTo24HourFormat(timeStr) {
         
         // --- Global Exposure (Minimal) ---
         // Expose only what's needed externally (e.g., by schedule.js)
-    window.getCalculatedTimeSlots = function() {
-             console.log('Calculating time slots on demand for external use');
-             // Need to define calculateTimeSlots locally first
-             // TEMP: Return empty array until calculateTimeSlots is defined locally
-              console.warn('calculateTimeSlots not yet defined locally for global export');
-              return []; 
+        window.getCalculatedTimeSlots = function() {
+            console.log('Calculating time slots on demand for external use');
+            
+            // Calculate time slots for each working day
+            const calculatedSlots = [];
+            
+            dayNames.forEach((day, index) => {
+                const dayState = workingDays[day];
+                // Skip if not a working day or missing required settings
+                if (!dayState || !dayState.isWorking || !dayState.startTime || !dayState.jobsPerDay) {
+                    return;
+                }
+                
+                // Map day names to numeric indices (0=Sunday, 1=Monday, etc.)
+                const dayIndex = (index + 1) % 7; // Convert from Monday-based to Sunday-based
+                
+                // Calculate slots for this day
+                const daySlots = calculateDayTimeSlots(dayState);
+                if (daySlots && daySlots.length > 0) {
+                    calculatedSlots.push({
+                        day: dayIndex,
+                        slots: daySlots
+                    });
+                }
+            });
+            
+            console.log('Calculated time slots for all working days:', calculatedSlots);
+            return calculatedSlots;
         };
+        
+        // Helper function to calculate time slots for a specific day
+        function calculateDayTimeSlots(daySettings) {
+            if (!daySettings.startTime || !daySettings.jobsPerDay) {
+                return [];
+            }
+            
+            const slots = [];
+            const jobCount = daySettings.jobsPerDay;
+            const jobDuration = 180; // Default 3 hours (180 minutes)
+            const breakDuration = daySettings.breakTime || 90; // Default 1.5 hours (90 minutes)
+            
+            // Parse start time
+            let startHour = 8; // Default 8 AM
+            let startMinute = 0;
+            
+            try {
+                const timeMatch = daySettings.startTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
+                if (timeMatch) {
+                    let hours = parseInt(timeMatch[1]);
+                    const minutes = parseInt(timeMatch[2]);
+                    const period = timeMatch[3].toUpperCase();
+                    
+                    // Convert to 24-hour format
+                    if (period === 'PM' && hours < 12) hours += 12;
+                    if (period === 'AM' && hours === 12) hours = 0;
+                    
+                    startHour = hours;
+                    startMinute = minutes;
+                }
+            } catch (error) {
+                console.error('Error parsing start time:', error);
+            }
+            
+            // Calculate slots based on job count, duration, and breaks
+            let currentHour = startHour;
+            let currentMinute = startMinute;
+            
+            for (let i = 0; i < jobCount; i++) {
+                // Calculate start time for this slot
+                const startTime = formatTime(currentHour, currentMinute);
+                
+                // Calculate end time (job duration later)
+                let endHour = currentHour;
+                let endMinute = currentMinute + jobDuration;
+                
+                // Adjust for hour overflow
+                while (endMinute >= 60) {
+                    endHour++;
+                    endMinute -= 60;
+                }
+                
+                const endTime = formatTime(endHour, endMinute);
+                
+                // Add the slot
+                slots.push({
+                    start: startTime,
+                    end: endTime,
+                    durationMinutes: jobDuration
+                });
+                
+                // Move to next slot start time (after break)
+                currentMinute += jobDuration + breakDuration;
+                while (currentMinute >= 60) {
+                    currentHour++;
+                    currentMinute -= 60;
+                }
+            }
+            
+            return slots;
+        }
+        
+        // Helper function to format time as "HH:MM AM/PM"
+        function formatTime(hours, minutes) {
+            const period = hours >= 12 ? 'PM' : 'AM';
+            const hours12 = hours % 12 || 12;
+            return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
+        }
 
         // --- Initialization Flow ---
         initializeUI(); // Setup event listeners

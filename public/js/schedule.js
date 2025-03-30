@@ -822,35 +822,31 @@ function generateSchedule(settings) {
             // Prepare available time slots
             let availableTimeSlots = [];
             
-            // Check if this day is a working day - use loose equality to handle different data types
-            // On mobile, we'll be more lenient to ensure slots show up
+            // Check if this day is a working day
+            // Simplified and more reliable check
             let isWorkingDay = false;
             
-            if (isMobile) {
+            // First try the compatibility layer (numeric format)
+            if (settings.workingDaysCompat && settings.workingDaysCompat[dayOfWeek] === true) {
+                isWorkingDay = true;
+            } 
+            // Then try the original workingDays object (named format)
+            else if (settings.workingDays) {
+                const dayName = dayMapping[dayOfWeek];
+                if (settings.workingDays[dayName] && settings.workingDays[dayName].isWorking === true) {
+                    isWorkingDay = true;
+                }
+                // Also check numeric format in original workingDays
+                else if (settings.workingDays[dayOfWeek] === true) {
+                    isWorkingDay = true;
+                }
+            }
+            
+            // On mobile, be more lenient
+            if (isMobile && !isWorkingDay) {
                 // On mobile, consider a day working if it's not explicitly set to false
-                isWorkingDay = workingDaysForSchedule && 
-                    workingDaysForSchedule[dayOfWeek] !== false;
-            } else {
-                // On desktop, make sure we strictly check for false values
-                // First check if the value exists
-                if (workingDaysForSchedule && workingDaysForSchedule[dayOfWeek] !== undefined) {
-                    // If it's a boolean, use it directly
-                    if (typeof workingDaysForSchedule[dayOfWeek] === 'boolean') {
-                        isWorkingDay = workingDaysForSchedule[dayOfWeek];
-                    }
-                    // If it's a string, check if it's "true"
-                    else if (typeof workingDaysForSchedule[dayOfWeek] === 'string') {
-                        isWorkingDay = workingDaysForSchedule[dayOfWeek].toLowerCase() === 'true';
-                    }
-                    // For object format, check isWorking property
-                    else if (typeof workingDaysForSchedule[dayOfWeek] === 'object' && 
-                             workingDaysForSchedule[dayOfWeek] !== null) {
-                        isWorkingDay = !!workingDaysForSchedule[dayOfWeek].isWorking;
-                    }
-                    // For anything else, use simple truthy check (but not for explicit false)
-                    else if (workingDaysForSchedule[dayOfWeek] !== false) {
-                        isWorkingDay = !!workingDaysForSchedule[dayOfWeek];
-                    }
+                if (settings.workingDaysCompat && settings.workingDaysCompat[dayOfWeek] !== false) {
+                    isWorkingDay = true;
                 }
             }
             
