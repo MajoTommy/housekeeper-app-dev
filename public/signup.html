@@ -69,6 +69,49 @@
                         </div>
                     </div>
 
+                    <!-- Name Input -->
+                    <div>
+                        <label for="name" class="block text-sm font-medium text-gray-700">
+                            Full Name
+                        </label>
+                        <div class="mt-1">
+                            <input id="name" name="name" type="text" autocomplete="name" required
+                                class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm">
+                        </div>
+                    </div>
+                    
+                    <!-- Phone Input -->
+                    <div>
+                        <label for="phone" class="block text-sm font-medium text-gray-700">
+                            Phone Number
+                        </label>
+                        <div class="mt-1">
+                            <input id="phone" name="phone" type="tel" autocomplete="tel" required
+                                class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm">
+                        </div>
+                    </div>
+
+                    <!-- Role Selection -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            I am a:
+                        </label>
+                        <div class="grid grid-cols-2 gap-4">
+                            <button type="button" id="housekeeper-role" 
+                                class="role-btn flex flex-col items-center justify-center py-3 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary relative overflow-hidden">
+                                <i class="fas fa-broom text-2xl mb-2"></i>
+                                <span>Housekeeper</span>
+                                <div class="selected-indicator absolute bottom-0 left-0 right-0 h-1 bg-primary transform scale-x-0 transition-transform"></div>
+                            </button>
+                            <button type="button" id="homeowner-role" 
+                                class="role-btn flex flex-col items-center justify-center py-3 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary relative overflow-hidden">
+                                <i class="fas fa-home text-2xl mb-2"></i>
+                                <span>Homeowner</span>
+                                <div class="selected-indicator absolute bottom-0 left-0 right-0 h-1 bg-primary transform scale-x-0 transition-transform"></div>
+                            </button>
+                        </div>
+                    </div>
+
                     <div>
                         <button type="submit" 
                             class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary">
@@ -111,29 +154,72 @@
     <script defer src="https://unpkg.com/alpinejs@3.12.0/dist/cdn.min.js"></script>
     
     <!-- Your Firebase configuration -->
-    <script src="js/firebase-config.js"></script>
+    <script src="common/js/firebase-config.js"></script>
+    
+    <!-- Firestore Service -->
+    <script src="common/js/firestore-service.js"></script>
+    
+    <!-- Auth Router for Role-Based Routing -->
+    <script src="common/js/auth-router.js"></script>
+    
+    <!-- Sample Data for initialization -->
+    <script src="common/js/sample-data.js"></script>
     
     <!-- Signup JS -->
     <script>
+        // Helper function to generate a simple random code
+        function generateInviteCode(length = 6) {
+            const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let result = '';
+            for (let i = 0; i < length; i++) {
+                result += characters.charAt(Math.floor(Math.random() * characters.length));
+            }
+            return result;
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
-            // Check if user is already logged in
-            firebase.auth().onAuthStateChanged(function(user) {
-                if (user) {
-                    // User is signed in, redirect to dashboard
-                    window.location.href = 'index.html';
-                }
+            // Role selection buttons
+            const housekeeperBtn = document.getElementById('housekeeper-role');
+            const homeownerBtn = document.getElementById('homeowner-role');
+            let selectedRole = 'housekeeper'; // Default role
+
+            // Mark default role as selected
+            housekeeperBtn.querySelector('.selected-indicator').classList.add('scale-x-100');
+            housekeeperBtn.classList.add('bg-primary-light');
+
+            // Role selection click handlers
+            housekeeperBtn.addEventListener('click', () => {
+                selectedRole = 'housekeeper';
+                // Update UI
+                housekeeperBtn.querySelector('.selected-indicator').classList.add('scale-x-100');
+                homeownerBtn.querySelector('.selected-indicator').classList.remove('scale-x-100');
+                housekeeperBtn.classList.add('bg-primary-light');
+                homeownerBtn.classList.remove('bg-primary-light');
+            });
+
+            homeownerBtn.addEventListener('click', () => {
+                selectedRole = 'homeowner';
+                // Update UI
+                homeownerBtn.querySelector('.selected-indicator').classList.add('scale-x-100');
+                housekeeperBtn.querySelector('.selected-indicator').classList.remove('scale-x-100');
+                homeownerBtn.classList.add('bg-primary-light');
+                housekeeperBtn.classList.remove('bg-primary-light');
             });
 
             // Signup form submission
             const signupForm = document.getElementById('signup-form');
             const errorMessage = document.getElementById('error-message');
             
-            signupForm.addEventListener('submit', function(e) {
+            // Make the event listener async
+            signupForm.addEventListener('submit', async function(e) { 
                 e.preventDefault();
+                console.log('Signup form submitted.');
                 
                 const email = document.getElementById('email').value;
                 const password = document.getElementById('password').value;
                 const confirmPassword = document.getElementById('confirm-password').value;
+                const name = document.getElementById('name').value; 
+                const phone = document.getElementById('phone').value; 
                 
                 // Clear previous error messages
                 errorMessage.textContent = '';
@@ -141,26 +227,80 @@
                 
                 // Validate passwords match
                 if (password !== confirmPassword) {
-                    errorMessage.textContent = 'Passwords do not match';
+                    errorMessage.textContent = 'Passwords do not match.';
                     errorMessage.classList.remove('hidden');
                     return;
                 }
                 
-                // Disable button during signup
-                signupForm.querySelector('button').disabled = true;
-                
-                // Create user with Firebase
-                firebase.auth().createUserWithEmailAndPassword(email, password)
-                    .then((userCredential) => {
-                        // Signed up successfully
-                        window.location.href = 'index.html';
-                    })
-                    .catch((error) => {
-                        // Handle errors
-                        errorMessage.textContent = error.message;
-                        errorMessage.classList.remove('hidden');
-                        signupForm.querySelector('button').disabled = false;
-                    });
+                const submitButton = signupForm.querySelector('button[type="submit"]');
+                submitButton.disabled = true;
+                console.log('Signup button disabled. Starting async operations...');
+
+                try {
+                    // 1. Create user with Firebase Auth
+                    console.log('Attempting Firebase Auth...');
+                    const userCredential = await firebase.auth().createUserWithEmailAndPassword(email, password);
+                    const user = userCredential.user;
+                    console.log('Firebase Auth successful. UID:', user.uid);
+
+                    // 2. Create user profile in Firestore
+                    const userData = { email: email, name: name, phone: phone, role: selectedRole };
+                    console.log('Attempting to create user profile:', userData);
+                    const profileCreated = await firestoreService.createUserProfile(user.uid, userData);
+                    if (!profileCreated) {
+                        // Error logged inside createUserProfile, throw to trigger catch block
+                        throw new Error('firestoreService.createUserProfile returned false.');
+                    }
+                    console.log('User profile creation successful.');
+
+                    // 3. Create default settings
+                    console.log('Attempting to create default settings...');
+                    const defaultSettings = firestoreService.createStandardSettingsObject();
+                    const settingsCreated = await firestoreService.saveSettingsToPrimaryLocation(user.uid, defaultSettings);
+                     if (!settingsCreated) {
+                        // Log settings error but still proceed with redirect
+                        console.error('Non-critical error creating default settings, but proceeding with redirect.');
+                    } else {
+                         console.log('Default settings creation successful.');
+                    }
+
+                    // 4. Create role-specific profile placeholder
+                    console.log('Attempting to create role-specific profile...');
+                    let inviteCode = null;
+                    if (selectedRole === 'housekeeper') {
+                        inviteCode = generateInviteCode();
+                        console.log('Generated invite code for housekeeper:', inviteCode);
+                    }
+                    const profilePlaceholderCreated = await firestoreService.createRoleSpecificProfile(user.uid, selectedRole, inviteCode);
+                    if (!profilePlaceholderCreated) {
+                        console.error('Non-critical error creating role-specific profile placeholder, proceeding anyway.');
+                    }
+                    
+                    // 5. Redirect DIRECTLY to the correct dashboard
+                    console.log('All operations successful. Redirecting based on role:', selectedRole);
+                    let baseUrl = '';
+                    const currentPath = window.location.pathname;
+                    if (currentPath.includes('/public/')) {
+                         baseUrl = currentPath.split('/public/')[0] + '/public/';
+                    } else {
+                         baseUrl = '/'; // Assume root if /public/ not present
+                    }
+                    
+                    if (selectedRole === 'homeowner') {
+                        window.location.href = baseUrl + 'homeowner/dashboard.html';
+                    } else {
+                        window.location.href = baseUrl + 'housekeeper/dashboard.html';
+                    }
+
+                } catch (error) {
+                    // Catch errors from Auth or Firestore operations
+                    console.error("--- SIGNUP ASYNC/AWAIT ERROR CAUGHT ---:", error);
+                    errorMessage.textContent = "Error signing up: " + error.message;
+                    errorMessage.classList.remove('hidden');
+                    // Re-enable button on error
+                    submitButton.disabled = false; 
+                    console.log('Signup button re-enabled after error.');
+                }
             });
         });
     </script>

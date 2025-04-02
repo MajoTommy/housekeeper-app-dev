@@ -4,37 +4,135 @@ const db = firebase.firestore();
 const firestoreService = {
     // User methods
     async createUserProfile(userId, userData) {
+        console.log('[createUserProfile] Attempting to set document for userId:', userId);
         try {
             await db.collection('users').doc(userId).set({
                 name: userData.name || '',
                 email: userData.email,
                 phone: userData.phone || '',
+                role: userData.role,
                 hourly_rate: userData.hourly_rate || 0,
                 service_area: userData.service_area || '',
                 working_hours: userData.working_hours || {},
                 profile_picture: userData.profile_picture || '',
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
-            console.log('User profile created successfully');
+            console.log('[createUserProfile] Firestore set operation successful for userId:', userId);
             return true;
         } catch (error) {
-            console.error('Error creating user profile:', error);
+            console.error('[createUserProfile] Error during Firestore set operation:', error);
             return false;
         }
     },
 
     async getUserProfile(userId) {
         try {
+            console.log('[Firestore] Getting user profile for ID:', userId);
+            
+            if (!userId) {
+                console.error('[Firestore] getUserProfile called with invalid userId');
+                return null;
+            }
+            
             const doc = await db.collection('users').doc(userId).get();
+            
             if (doc.exists) {
-                return doc.data();
+                const userData = doc.data();
+                console.log('[Firestore] User profile found:', userData);
+                
+                // Ensure role is set
+                if (!userData.role) {
+                    console.warn('[Firestore] User has no role defined, defaulting to housekeeper');
+                    userData.role = 'housekeeper';
+                    
+                    // Update the user document with the default role
+                    try {
+                        await db.collection('users').doc(userId).update({
+                            role: 'housekeeper',
+                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                        console.log('[Firestore] Updated user document with default role');
+                    } catch (updateError) {
+                        console.error('[Firestore] Failed to update user with default role:', updateError);
+                    }
+                }
+                
+                return userData;
             } else {
-                console.log('No user profile found');
+                console.warn('[Firestore] No user profile found for ID:', userId);
                 return null;
             }
         } catch (error) {
-            console.error('Error getting user profile:', error);
+            console.error('[Firestore] Error getting user profile:', error);
             return null;
+        }
+    },
+
+    // ---- HOMEOWNER PROFILE -----
+    async getHomeownerProfile(userId) {
+        console.log('[Firestore] Getting homeowner profile for ID:', userId);
+        if (!userId) {
+            console.error('[Firestore] getHomeownerProfile called with invalid userId');
+            return null;
+        }
+        try {
+            const doc = await db.collection('homeowner_profiles').doc(userId).get();
+            if (doc.exists) {
+                console.log('[Firestore] Homeowner profile found:', doc.data());
+                return doc.data();
+            } else {
+                console.warn('[Firestore] No homeowner profile found for ID:', userId);
+                // A profile document should have been created at signup. 
+                // If it's missing, there might be an issue, but return null for now.
+                return null;
+            }
+        } catch (error) {
+            console.error('[Firestore] Error getting homeowner profile:', error);
+            return null;
+        }
+    },
+
+    // ---- HOMEOWNER-HOUSEKEEPER LINKING ----
+    async linkHomeownerToHousekeeper(homeownerId, inviteCode) {
+        console.log(`[Link] Attempting to link homeowner ${homeownerId} using code ${inviteCode}`);
+        const normalizedCode = inviteCode.toUpperCase(); // Ensure case-insensitivity
+
+        if (!homeownerId || !normalizedCode || normalizedCode.length !== 6) {
+            console.error('[Link] Invalid homeownerId or invite code format.');
+            return { success: false, message: 'Invalid code format.' };
+        }
+
+        try {
+            // 1. Find housekeeper profile with the matching invite code
+            const housekeeperProfilesRef = db.collection('housekeeper_profiles');
+            const querySnapshot = await housekeeperProfilesRef.where('inviteCode', '==', normalizedCode).limit(1).get();
+
+            if (querySnapshot.empty) {
+                console.warn('[Link] No housekeeper found with invite code:', normalizedCode);
+                return { success: false, message: 'Invite code not found.' };
+            }
+
+            // Should only be one match due to the code generation logic (ideally)
+            const housekeeperDoc = querySnapshot.docs[0];
+            const housekeeperId = housekeeperDoc.id;
+            console.log('[Link] Found housekeeper:', housekeeperId);
+
+            // 2. Update homeowner profile with the linkedHousekeeperId
+            const homeownerProfileRef = db.collection('homeowner_profiles').doc(homeownerId);
+            await homeownerProfileRef.update({
+                linkedHousekeeperId: housekeeperId,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            console.log('[Link] Homeowner profile updated successfully.');
+            return { success: true, housekeeperId: housekeeperId };
+
+        } catch (error) {
+            console.error('[Link] Error linking homeowner to housekeeper:', error);
+            if (error.code === 'permission-denied') {
+                 return { success: false, message: 'Permission denied. Check Firestore rules.' };
+            }
+            return { success: false, message: 'An unexpected error occurred.' };
         }
     },
 
@@ -379,4 +477,127 @@ const firestoreService = {
             return false;
         }
     },
-}; 
+
+    // ---- ROLE SPECIFIC PROFILE CREATION ----
+    // Accept inviteCode as an optional parameter
+    async createRoleSpecificProfile(userId, role, inviteCode = null) { 
+        console.log(`[createRoleSpecificProfile] Attempting to create ${role} profile for userId:`, userId);
+        const profileCollection = role === 'housekeeper' ? 'housekeeper_profiles' : 'homeowner_profiles';
+        
+        // Base data
+        const initialProfileData = {
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        // Add invite code only for housekeepers
+        if (role === 'housekeeper' && inviteCode) {
+            initialProfileData.inviteCode = inviteCode;
+            console.log(`[createRoleSpecificProfile] Storing invite code ${inviteCode} for housekeeper.`);
+        }
+        
+        try {
+            // Use the specific data object
+            await db.collection(profileCollection).doc(userId).set(initialProfileData); 
+            console.log(`[createRoleSpecificProfile] ${role} profile document created successfully for userId:`, userId);
+            return true;
+        } catch (error) {
+            console.error(`[createRoleSpecificProfile] Error creating ${role} profile document:`, error);
+            // This might not be critical for initial signup flow, depending on requirements
+            return false; 
+        }
+    },
+    
+    // ----- BOOKING METHODS -----
+    // Adds a new booking document under the specified housekeeper's bookings subcollection
+    async addBooking(housekeeperId, bookingData) {
+        console.log(`[Firestore] Adding new booking for housekeeper ${housekeeperId}...`, bookingData);
+        if (!housekeeperId || !bookingData) {
+            console.error('[Firestore] addBooking requires housekeeperId and bookingData.');
+            return null;
+        }
+        // Basic validation
+        if (!bookingData.clientId || !bookingData.date || !bookingData.startTime || !bookingData.endTime || !bookingData.status) {
+            console.error('[Firestore] Booking data is missing required fields (clientId, date, startTime, endTime, status).');
+            return null;
+        }
+
+        try {
+            const bookingsRef = db.collection('users').doc(housekeeperId).collection('bookings');
+            const bookingDoc = {
+                ...bookingData,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            const docRef = await bookingsRef.add(bookingDoc);
+            console.log(`[Firestore] Booking added successfully with ID: ${docRef.id}`);
+            return docRef.id; // Return the new booking ID
+        } catch (error) {
+            console.error('[Firestore] Error adding booking:', error);
+            return null;
+        }
+    },
+
+    // Fetch upcoming bookings for a specific homeowner linked to a specific housekeeper
+    async getUpcomingHomeownerBookings(homeownerId, housekeeperId) {
+        console.log(`[Firestore] Getting upcoming bookings for homeowner ${homeownerId} linked to housekeeper ${housekeeperId}`);
+        if (!homeownerId || !housekeeperId) {
+            console.error('[Firestore] getUpcomingHomeownerBookings requires homeownerId and housekeeperId.');
+            return [];
+        }
+        try {
+            const today = new Date().toISOString().split('T')[0]; // Get YYYY-MM-DD
+            const bookingsRef = db.collection('users').doc(housekeeperId).collection('bookings');
+            const snapshot = await bookingsRef
+                .where('clientId', '==', homeownerId)
+                .where('date', '>=', today) // Only future or today's bookings
+                .orderBy('date')
+                .orderBy('startTime')
+                .get();
+
+            const bookings = [];
+            snapshot.forEach(doc => {
+                bookings.push({ id: doc.id, ...doc.data() });
+            });
+            console.log(`[Firestore] Found ${bookings.length} upcoming bookings.`);
+            return bookings;
+        } catch (error) {
+            console.error('[Firestore] Error getting upcoming homeowner bookings:', error);
+            return [];
+        }
+    },
+
+    async addBookings(userId, bookings) {
+        // Implementation of addBookings method
+    },
+
+    // Add Client method
+    async addClient(housekeeperId, clientData) {
+        console.log(`[Firestore] Adding new client for housekeeper ${housekeeperId}...`, clientData);
+        if (!housekeeperId || !clientData) {
+            console.error('[Firestore] addClient requires housekeeperId and clientData.');
+            return null;
+        }
+        // Basic validation (adjust as needed)
+        if (!clientData.firstName || !clientData.lastName) {
+            console.error('[Firestore] Client data is missing required fields (firstName, lastName).');
+            return null;
+        }
+
+        try {
+            const clientsRef = db.collection('users').doc(housekeeperId).collection('clients');
+            // Ensure createdAt timestamp is added
+            const clientDoc = {
+                ...clientData,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            const docRef = await clientsRef.add(clientDoc);
+            console.log(`[Firestore] Client added successfully with ID: ${docRef.id}`);
+            return docRef.id; // Return the new client ID
+        } catch (error) {
+            console.error('[Firestore] Error adding client:', error);
+            return null;
+        }
+    },
+};
+
+// Make the service globally accessible
+window.firestoreService = firestoreService; 

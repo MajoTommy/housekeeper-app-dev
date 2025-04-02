@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schedule - Housekeeper App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            DEFAULT: '#2196F3',
+                            light: '#E3F2FD',
+                        },
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+    
+    <!-- Your Firebase configuration -->
+    <script src="../common/js/firebase-config.js"></script>
+    
+    <!-- Firestore Service -->
+    <script src="../common/js/firestore-service.js"></script>
+
+    <!-- Auth Service -->
+    <script src="../common/js/auth.js"></script>
+
+    <!-- Auth Router -->
+    <script src="../common/js/auth-router.js"></script>
+
+    <!-- Default Settings -->
+    <script src="../common/js/defaults.js"></script>
+
+    <!-- Sample Data Generator (for development) -->
+    <script src="../common/js/sample-data.js"></script>
+
+    <!-- Schedule Service -->
+    <script src="js/schedule.js"></script>
+</head>
+<body class="h-full pb-16">
+    <!-- Personalized Header with Settings Icon and Logout -->
+    <div class="bg-white px-4 py-6 border-b border-gray-200">
+        <div class="flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Schedule</h1>
+            </div>
+            <div class="flex items-center gap-x-4">
+                <a href="settings/settings.html" class="text-gray-500 hover:text-gray-700 p-2">
+                    <i class="fas fa-cog text-xl"></i>
+                </a>
+                <!-- Simplified Logout Button -->
+                <button onclick="handleLogout()" class="text-gray-500 hover:text-gray-700 p-2 cursor-pointer">
+                    <i class="fas fa-sign-out-alt text-xl"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Add this script right after the header -->
+    <script>
+        function handleLogout() {
+            console.log('Logout clicked');
+            if (firebase.auth) {
+                firebase.auth().signOut()
+                    .then(() => {
+                        console.log('Logout successful');
+                        window.location.href = '../login.html';
+                    })
+                    .catch((error) => {
+                        console.error('Logout error:', error);
+                        alert('Error signing out: ' + error.message);
+                    });
+            } else {
+                console.error('Firebase auth not available');
+                alert('Authentication service not available');
+            }
+        }
+    </script>
+    
+    <!-- Month Selector -->
+    <div class="flex flex-col px-4 py-2 border-b border-gray-200 bg-white">
+        <div class="flex items-center justify-start mb-2">
+            <button id="today-btn" class="flex items-center gap-1 px-3 py-1 text-sm font-medium text-primary border border-primary/20 rounded-full hover:bg-primary-light/30">
+                <i class="fas fa-chevron-left text-xs"></i>
+                <span>Today</span>
+            </button>
+        </div>
+        <div class="flex items-center justify-between w-full">
+            <button class="text-gray-600 hover:text-gray-900 p-2 disabled:opacity-50 disabled:cursor-not-allowed" id="prev-week">
+            <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+            </svg>
+            </button>
+            <h2 class="text-base font-medium text-gray-900 px-2" id="week-range"></h2>
+            <button class="text-gray-600 hover:text-gray-900 p-2" id="next-week">
+            <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+            </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="p-4">
+        <!-- Schedule will be dynamically generated here -->
+    </div>
+
+    <!-- Mobile Footer Navigation with Payment Badge -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30">
+        <div class="mx-auto max-w-7xl">
+            <div class="flex justify-around">
+                <a href="dashboard.html" class="flex flex-col items-center py-3 px-6 text-primary">
+                    <i class="fas fa-calendar-alt text-xl"></i>
+                    <span class="text-xs mt-1">Schedule</span>
+                </a>
+                <a href="clients/clients.html" class="flex flex-col items-center py-3 px-6 text-gray-500 hover:text-primary">
+                    <i class="fas fa-users text-xl"></i>
+                    <span class="text-xs mt-1">Clients</span>
+                </a>
+                <a href="settings/settings.html" class="flex flex-col items-center py-3 px-6 text-gray-500 hover:text-primary">
+                    <i class="fas fa-cog text-xl"></i>
+                    <span class="text-xs mt-1">Settings</span>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Booking Modal -->
+    <div id="bookingModal" class="fixed inset-x-0 bottom-0 z-50 transform transition-transform duration-300 ease-in-out translate-y-full">
+        <div class="bg-white w-full rounded-t-xl overflow-hidden shadow-xl transform transition-all max-h-[90vh] flex flex-col">
+            <div class="flex justify-center pt-2 pb-1">
+                <div class="w-10 h-1 bg-gray-300 rounded-full"></div>
+            </div>
+            <div class="flex justify-between items-center p-4 border-b border-gray-200">
+                <h2 class="text-xl font-bold text-gray-900">New Cleaning</h2>
+                <button id="closeBookingModal" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="bookingContent" class="p-4 overflow-y-auto flex-grow -webkit-overflow-scrolling-touch">
+                <!-- Booking content will be loaded here -->
+                <div id="bookingDateTime" class="mb-4 p-3 bg-primary-light/30 rounded-lg">
+                    <p class="font-medium">Loading booking details...</p>
+                </div>
+                
+                <div id="bookingSteps">
+                    <!-- Client Selection -->
+                    <div id="clientSelection" class="booking-step">
+                        <h3 class="text-lg font-bold mb-3">Select Client</h3>
+                        <div id="existingClients" class="mb-4">
+                            <p class="text-gray-600 mb-2">Loading clients...</p>
+                        </div>
+                        <button id="newClientBtn" class="w-full p-3 bg-gray-100 rounded-lg text-left mb-2 hover:bg-gray-200">
+                            <div class="flex items-center">
+                                <div class="bg-primary text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">
+                                    <i class="fas fa-plus"></i>
+                                </div>
+                                <span>Add New Client</span>
+                            </div>
+                        </button>
+                    </div>
+                    
+                    <!-- Frequency Selection -->
+                    <div id="frequencySelection" class="booking-step hidden">
+                        <h3 class="text-lg font-bold mb-3">Select Frequency</h3>
+                        <div class="grid grid-cols-1 gap-3">
+                            <button class="frequency-option p-3 bg-gray-100 rounded-lg text-left hover:bg-gray-200" data-frequency="one-time">
+                                <div class="flex items-center">
+                                    <div class="bg-primary text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">
+                                        <i class="fas fa-calendar-day"></i>
+                                    </div>
+                                    <div>
+                                        <span class="font-medium">One-time</span>
+                                        <p class="text-sm text-gray-600">Single cleaning service</p>
+                                    </div>
+                                </div>
+                            </button>
+                            <button class="frequency-option p-3 bg-gray-100 rounded-lg text-left hover:bg-gray-200" data-frequency="weekly">
+                                <div class="flex items-center">
+                                    <div class="bg-primary text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">
+                                        <i class="fas fa-calendar-week"></i>
+                                    </div>
+                                    <div>
+                                        <span class="font-medium">Weekly</span>
+                                        <p class="text-sm text-gray-600">Every week on this day (creates 8 bookings)</p>
+                                    </div>
+                                </div>
+                            </button>
+                            <button class="frequency-option p-3 bg-gray-100 rounded-lg text-left hover:bg-gray-200" data-frequency="bi-weekly">
+                                <div class="flex items-center">
+                                    <div class="bg-primary text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">
+                                        <i class="fas fa-calendar-alt"></i>
+                                    </div>
+                                    <div>
+                                        <span class="font-medium">Bi-weekly</span>
+                                        <p class="text-sm text-gray-600">Every two weeks on this day (creates 6 bookings)</p>
+                                    </div>
+                                </div>
+                            </button>
+                            <button class="frequency-option p-3 bg-gray-100 rounded-lg text-left hover:bg-gray-200" data-frequency="monthly">
+                                <div class="flex items-center">
+                                    <div class="bg-primary text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">
+                                        <i class="fas fa-calendar-check"></i>
+                                    </div>
+                                    <div>
+                                        <span class="font-medium">Monthly</span>
+                                        <p class="text-sm text-gray-600">Once a month on this day (creates 3 bookings)</p>
+                                    </div>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Confirmation -->
+                    <div id="confirmationStep" class="booking-step hidden">
+                        <h3 class="text-lg font-bold mb-3">Confirm Booking</h3>
+                        <div class="bg-gray-100 p-4 rounded-lg mb-4">
+                            <div id="confirmationDetails">
+                                <p class="text-gray-600">Loading confirmation details...</p>
+                            </div>
+                        </div>
+                        <button id="confirmBookingBtn" class="w-full bg-primary text-white py-3 rounded-lg font-medium hover:bg-primary-dark">
+                            Confirm Booking
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Booking Modal Backdrop -->
+    <div id="bookingModalBackdrop" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden transition-opacity duration-300"></div>
+</body>
+</html> 

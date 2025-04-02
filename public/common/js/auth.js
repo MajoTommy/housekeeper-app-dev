@@ -26,9 +26,37 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Sign in with Firebase
             firebase.auth().signInWithEmailAndPassword(email, password)
-                .then((userCredential) => {
-                    // Signed in successfully
-                    window.location.href = 'index.html';
+                .then(async (userCredential) => {
+                    // Get user role for proper redirection
+                    const user = userCredential.user;
+                    console.log('Login successful, getting user profile for redirection...');
+                    
+                    try {
+                        const userProfile = await firestoreService.getUserProfile(user.uid);
+                        const userRole = userProfile?.role || 'housekeeper';
+                        
+                        console.log('User logged in with role:', userRole);
+                        
+                        // Determine base URL for redirects
+                        let baseUrl = '';
+                        const currentPath = window.location.pathname;
+                        if (currentPath.includes('/public/')) {
+                            baseUrl = currentPath.split('/public/')[0] + '/public/';
+                        } else {
+                            baseUrl = '/';
+                        }
+                        
+                        // Redirect based on role
+                        if (userRole === 'homeowner') {
+                            window.location.href = baseUrl + 'homeowner/dashboard.html';
+                        } else {
+                            window.location.href = baseUrl + 'housekeeper/dashboard.html';
+                        }
+                    } catch (error) {
+                        console.error('Error getting user profile after login:', error);
+                        // Fallback to index if profile fetch fails
+                        window.location.href = 'index.html';
+                    }
                 })
                 .catch((error) => {
                     // Handle errors

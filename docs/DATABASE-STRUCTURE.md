@@ -4,31 +4,180 @@ This document outlines the structure of the Firebase Firestore database used in 
 
 ## Overview
 
-The database is organized around user accounts, with each user having their own collections for settings, clients, and bookings.
-The primary user document (`/users/{userId}`) contains basic profile information (managed via `firestore-service.js#getUserProfile`, not detailed here).
-Application settings, client details, and bookings are stored in subcollections under the user document.
+The database is organized to support both housekeepers and homeowners, with collections specific to each user type as well as shared resources. The architecture allows homeowners to own multiple properties and housekeepers to manage their clients and bookings.
+
+## Database Organization
+
+The database follows a role-based architecture:
+
+1. **User-centric Organization**: All data is organized under the relevant user, with subcollections for user-specific data
+2. **Role-based Collections**: Separate collections for role-specific extended profiles (`housekeeper_profiles` and `homeowner_profiles`)
+3. **Shared Resources**: Global collections like `properties` that are referenced from user documents
 
 ## Data Models / Collections
 
-### Settings (`/users/{userId}/settings/app`)
+### Users (`/users/{userId}`)
 
-Stores application configuration for the user. This is the single source of truth for settings.
-The data is stored in a single document named `app` within the `settings` subcollection.
-*Note: A legacy `settings` field directly on the user document (`/users/{userId}`) is no longer used.*
+Base user information common to both housekeepers and homeowners. Populated during signup and potentially updated by `populate-sample-data.js`.
 
 ```javascript
 {
-  // Represents the user's working schedule and preferences.
+  email: "user@example.com", // (String) From Firebase Auth
+  role: "housekeeper" | "homeowner", // (String) Set during signup
+  firstName: "John", // (String) User's first name (may be set initially or via profile update)
+  lastName: "Doe", // (String) User's last name
+  companyName: "Cleaning Co.", // (String, Optional) Only relevant for housekeepers, potentially duplicated from profile
+  // Fields below might be legacy or less used, profiles are preferred
+  phone: "555-123-4567", // (String, Optional)
+  hourly_rate: 0, // (Number, Optional, Likely unused - use profile)
+  service_area: "", // (String, Optional, Likely unused - use profile)
+  working_hours: {}, // (Object, Optional, Likely unused - use profile settings)
+  profile_picture: "", // (String, Optional, Likely unused - use profile)
+  createdAt: Timestamp, // Set on creation
+  updatedAt: Timestamp, // Set on updates
+  lastLogin: Timestamp // (Optional) Updated by Auth functions
+}
+```
+
+### Clients (`/users/{housekeeperId}/clients/{clientId}`)
+
+For housekeepers, stores their client information. Added via UI or `populate-sample-data.js`.
+
+```javascript
+{
+  firstName: "Manual", // (String) Client's first name
+  lastName: "Clientone", // (String) Client's last name
+  email: "manual1@example.com", // (String, Optional)
+  phone: "555-555-0001", // (String, Optional)
+  address: "789 Test Ave", // (String, Optional) Full address string
+  city: "Sampletown", // (String, Optional)
+  state: "CA", // (String, Optional)
+  zip: "90210", // (String, Optional)
+  notes: "Has a dog, prefers eco-friendly products", // (String, Optional)
+  createdAt: Timestamp, // Set by firestoreService.addClient
+  updatedAt: Timestamp // (Optional) Set on updates
+}
+```
+
+### Bookings (`/users/{housekeeperId}/bookings/{bookingId}`)
+
+For housekeepers, stores their booking information. Added via UI (`schedule.js` -> `firestoreService.addBooking`) or `populate-sample-data.js`.
+
+```javascript
+{
+  clientId: "homeowner_user_id_or_generated_client_id", // (String) Links to homeowner UID or a client doc ID
+  clientName: "Corey Homeowner", // (String) Denormalized client name at time of booking
+  date: "2025-08-15", // (String) Format YYYY-MM-DD
+  startTime: "10:00", // (String) Format HH:MM (24-hour)
+  endTime: "12:00", // (String) Format HH:MM (24-hour)
+  status: "scheduled" | "completed" | "canceled", // (String)
+  frequency: "one-time" | "weekly" | "bi-weekly" | "monthly", // (String)
+  notes: "First cleaning for Corey.", // (String, Optional)
+  address: "101 Home Sweet Ln", // (String, Optional) Denormalized address at time of booking
+  createdAt: Timestamp, // Set by firestoreService.addBooking
+  updatedAt: Timestamp // (Optional) Set on updates
+}
+```
+
+### Housekeeper Profiles (`/housekeeper_profiles/{userId}`)
+
+Extended information specific to housekeepers. Populated/updated by `populate-sample-data.js` or settings UI.
+
+```javascript
+{
+  firstName: "Casey", // (String)
+  lastName: "Keeper", // (String)
+  companyName: "Core Cleaning Co.", // (String, Optional)
+  phone: "555-333-4444", // (String)
+  address: "202 Clean St", // (String, Optional)
+  city: "Workville", // (String, Optional)
+  state: "CA", // (String, Optional)
+  zip: "90212", // (String, Optional)
+  serviceZipCodes: ["90210", "90211", "90212"], // (Array of Strings)
+  workingDays: { // (Map) Structure defining availability (may be complex, see settings section too)
+      monday: { available: true, startTime: "09:00", endTime: "17:00" },
+      // ... other days
+  },
+  inviteCode: "COREKEEPER-XYZ", // (String) Generated 6-char code
+  // DEPRECATED FIELDS? (Compare with example below)
+  // businessName: "John's Cleaning Service",
+  // serviceAreas: ["Downtown", "Suburbs"],
+  // servicesOffered: ["Regular Cleaning", "Deep Cleaning"],
+  // pricing: { hourlyRate: 30, minimumHours: 2 },
+  // bio: "Experienced cleaner with 5 years in the industry",
+  // profilePicture: "https://example.com/profile.jpg",
+  createdAt: Timestamp, // (Optional) Set on creation
+  updatedAt: Timestamp // Set on updates
+}
+```
+
+### Homeowner Profiles (`/homeowner_profiles/{userId}`)
+
+Extended information specific to homeowners. Populated/updated by `populate-sample-data.js` or settings UI.
+
+```javascript
+{
+  firstName: "Corey", // (String)
+  lastName: "Homeowner", // (String)
+  address: "101 Home Sweet Ln", // (String)
+  city: "Homestead", // (String)
+  state: "CA", // (String)
+  zip: "90211", // (String)
+  phone: "555-111-2222", // (String)
+  specialInstructions: "Please use the back door.", // (String, Optional)
+  linkedHousekeeperId: "housekeeper_user_id", // (String, Optional) Set via invite code linking
+  // DEPRECATED FIELDS? (Compare with example below)
+  // preferredContactMethod: "email" | "phone" | "text",
+  // paymentMethods: ["credit_card", "paypal"],
+  // defaultInstructions: "Please use eco-friendly products",
+  // communicationPreferences: { sendReminders: true, reminderHours: 24 },
+  createdAt: Timestamp, // (Optional) Set on creation
+  updatedAt: Timestamp // Set on updates
+}
+```
+
+### Properties (`/properties/{propertyId}`)
+
+Properties owned by homeowners that need cleaning services.
+
+```javascript
+{
+  name: "Main Home",
+  address: {
+    street: "123 Main St",
+    city: "Anytown",
+    state: "CA",
+    zip: "90210"
+  },
+  size: 2000, // square feet
+  bedrooms: 3,
+  bathrooms: 2,
+  specialInstructions: "Please focus on kitchen and bathrooms",
+  accessInformation: "Key under the mat. Alarm code: 1234",
+  photos: ["https://example.com/property1.jpg"],
+  ownerId: "homeowner_user_id", // Reference to user
+  preferredHousekeeperId: "housekeeper_user_id", // Optional preferred cleaner
+  createdAt: Timestamp,
+  updatedAt: Timestamp
+}
+```
+
+### Housekeeper Settings (`/users/{housekeeperId}/settings/app`)
+
+Stores application configuration for the housekeeper. This is the single source of truth for housekeeper settings.
+
+```javascript
+{
+  // Represents the housekeeper's working schedule and preferences.
   // This object is normalized by firestore-service.js upon read/write.
   workingDays: {
     monday: {
-      isWorking: true, // boolean: Is the user working this day?
-      jobsPerDay: 2,   // number | null: Max jobs for this day
-      startTime: "8:00 AM", // string | null: e.g., "HH:MM AM/PM"
-      breakTime: 90, // number | null: Total break time in minutes
-      breakDurations: [90], // array<number> | null: Duration of each break
-      jobDurations: [180, 180] // array<number> | null: Duration of each job slot
-      // endTime, cleaningDuration, maxHours might be present but often null/calculated
+      isWorking: true,
+      jobsPerDay: 2,
+      startTime: "8:00 AM",
+      breakTime: 90,
+      breakDurations: [90],
+      jobDurations: [180, 180]
     },
     tuesday: { isWorking: true, /* ... other fields ... */ },
     wednesday: { isWorking: false, /* ... other fields ... */ },
@@ -43,74 +192,82 @@ The data is stored in a single document named `app` within the `settings` subcol
     "1": true,  // Monday
     // ... etc for 2-6
   },
-  autoSendReceipts: false, // boolean
-  updatedAt: Timestamp // Firestore Server Timestamp
-}
-```
-
-### Clients (`/users/{userId}/clients/{clientId}`)
-
-Each client document contains information about a client.
-
-```javascript
-{
-  firstName: "John",
-  lastName: "Smith",
-  street: "123 Main St",
-  city: "Anytown",
-  state: "CA",
-  zip: "90210",
-  phone: "555-123-4567",
-  email: "john.smith@example.com",
-  accessInfo: "Key under the mat",
-  specialInstructions: "Please clean the windows thoroughly",
-  frequency: "weekly",
-  scheduleDay: "Monday",
-  scheduleTime: "10:00 AM",
-  propertyDetails: "3 bedroom, 2 bath house",
-  price: "150",
-  createdAt: Timestamp,
+  autoSendReceipts: false,
   updatedAt: Timestamp
 }
 ```
 
-### Bookings (`/users/{userId}/bookings/{bookingId}`)
+### Homeowner Settings (`/users/{homeownerId}/settings/app`)
 
-Each booking document represents a scheduled cleaning.
+Settings specific to homeowners.
 
 ```javascript
 {
-  date: "2023-05-15",
-  startTime: "9:00 AM",
-  endTime: "12:00 PM",
-  clientId: "abc123",
-  clientFirstName: "John",
-  clientLastName: "Smith",
-  clientAddress: "123 Main St, Anytown, CA 90210",
-  clientPhone: "555-123-4567",
-  clientEmail: "john.smith@example.com",
-  accessInfo: "Key under the mat",
-  propertyDetails: "3 bedroom, 2 bath house",
-  specialInstructions: "Please clean the windows thoroughly",
-  frequency: "weekly",
-  occurrenceNumber: 1,
-  totalOccurrences: 8,
-  status: "scheduled",
-  price: "150",
-  seriesId: "series-1234567890",
-  createdAt: Timestamp,
+  notificationPreferences: {
+    bookingConfirmations: true,
+    reminderAlerts: true,
+    specialOffers: false
+  },
+  defaultPropertyId: "property_id", // Default property for bookings
+  paymentSettings: {
+    autoCharge: true,
+    preferredMethod: "credit_card"
+  },
   updatedAt: Timestamp
 }
 ```
+
+## User Creation Process
+
+When a new user signs up (`signup.js`):
+
+1.  Firebase Auth user is created.
+2.  On success, `sample-data.js` is called which creates:
+    *   A minimal document in `/users/{userId}` with `email` and `role`.
+    *   A minimal profile document in `/housekeeper_profiles/{userId}` or `/homeowner_profiles/{userId}`.
+    *   (Potentially) An empty settings document in `/users/{userId}/settings/app`.
+
+*(Note: Comprehensive sample data population is now handled separately by the developer tool `dev-tools.html` and `populate-sample-data.js`, not during regular signup.)*
 
 ## Data Relationships
 
-1. **Clients to Bookings**: Bookings reference clients using the `clientId` field. Essential client information is duplicated in the booking for quick access.
+1.  **Users to Profiles**: Each user document in `/users/{userId}` has a corresponding profile document in either `/housekeeper_profiles/{userId}` or `/homeowner_profiles/{userId}` based on the `role` field in the user document.
+2.  **Homeowners to Housekeepers (Linking)**: A homeowner profile (`/homeowner_profiles/{homeownerId}`) can contain a `linkedHousekeeperId` field, pointing to the UID of the housekeeper they are linked with via an invite code.
+3.  **Housekeepers to Clients**: Housekeepers manage multiple clients (1:many relationship) stored in their `/users/{housekeeperId}/clients` subcollection.
+4.  **Bookings Relationships**: 
+    *   Bookings in `/users/{housekeeperId}/bookings` reference the client via `clientId`. This `clientId` can be the **User ID** of a linked homeowner OR the **Document ID** of a client stored in the housekeeper's `/clients` subcollection.
+    *   *(Removed reference to propertyId here as it doesn't seem relevant to bookings collection)*
 
-2. **Settings to Bookings**: The availability of time slots for bookings is determined by the user's settings stored in `/users/{userId}/settings/app`, specifically the `workingDays` object within that document.
+## Role-Based Application Flow
 
-3. **Series Bookings**: Recurring bookings are linked using the `seriesId` field, allowing operations on all bookings in a series.
+1. **Authentication**: Users sign in via Firebase Authentication
+2. **Role Detection**: The application checks the user's role from their `/users/{userId}` document
+3. **Routing**:
+   - Housekeepers are directed to `/housekeeper/dashboard.html`
+   - Homeowners are directed to `/homeowner/dashboard.html`
+4. **Data Access**: Each interface only loads the relevant data for that user role
+
+## Data Reset & Sample Data
+
+The application includes a `resetDB()` function that:
+
+1. Clears existing subcollections for the current user
+2. Regenerates sample data appropriate for the user's role
+3. Maintains the user's basic information and role
+4. Ensures all required documents and subcollections exist
+
+## Security Rules
+
+Security rules ensure:
+
+1. Users can only read/write their own profile data
+2. Data access is restricted by role (housekeepers cannot access homeowner data and vice versa)
+3. References between collections are properly maintained and validated
 
 ## Best Practices
 
-1. Always use the database as the source of truth. Do NOT hardcode data into the application. 
+1. Always use the database as the source of truth
+2. Minimize redundant data while considering read optimization
+3. Use transactions for operations that update multiple documents
+4. Maintain proper timestamps for all created or updated documents
+5. Check user role before displaying role-specific features 
