@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>View Schedule - Housekeeping App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        /* Add any schedule-specific styles here if needed */
+        .slot { /* Example style for time slots */
+            border: 1px solid #e5e7eb; /* gray-200 */
+            padding: 0.5rem;
+            margin-bottom: 0.25rem;
+            border-radius: 0.375rem; /* rounded-md */
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .slot.available:hover {
+            background-color: #dbeafe; /* blue-100 */
+        }
+        .slot.booked {
+            background-color: #f3f4f6; /* gray-100 */
+            color: #6b7280; /* gray-500 */
+            cursor: not-allowed;
+        }
+         .slot.unavailable {
+             background-color: #fef2f2; /* red-50 */
+             color: #9ca3af; /* gray-400 */
+             cursor: not-allowed;
+             border-style: dashed;
+         }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <div class="container mx-auto max-w-4xl px-4 pb-20"> <!-- Added pb-20 for footer space -->
+
+        <!-- Header -->
+        <header class="py-4 flex items-center justify-between">
+             <a href="/homeowner/dashboard.html" class="text-blue-600 hover:text-blue-800">
+                 <i class="fas fa-arrow-left mr-2"></i>Dashboard
+             </a>
+            <h1 class="text-xl font-semibold text-gray-800">Housekeeper Schedule</h1>
+            <!-- Maybe add settings/logout later if needed on this page -->
+             <div></div> <!-- Placeholder for alignment -->
+        </header>
+
+        <!-- Week Navigation -->
+        <div class="my-4 p-4 bg-white rounded-lg shadow flex items-center justify-between">
+            <button id="prev-week-btn" class="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50">
+                <i class="fas fa-chevron-left"></i> Prev
+            </button>
+            <div id="week-display" class="text-lg font-medium text-gray-700 text-center">
+                Loading week...
+            </div>
+            <button id="next-week-btn" class="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50">
+                Next <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="loading-indicator" class="text-center py-8 text-gray-500">
+            <i class="fas fa-spinner fa-spin mr-2"></i>Loading schedule...
+        </div>
+        
+        <!-- Schedule Grid / List -->
+        <main id="schedule-container" class="hidden bg-white rounded-lg shadow p-4 md:p-6 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4">
+            <!-- Schedule content will be dynamically generated here -->
+            <!-- Example Day Column Structure -->
+            <!--
+            <div class="day-column border rounded p-2 bg-gray-50">
+                <h3 class="font-semibold text-center mb-2">Monday</h3>
+                <div class="slots-container">
+                    <div class="slot available">9:00 AM - 11:00 AM</div>
+                    <div class="slot unavailable">11:00 AM - 12:00 PM (Break)</div>
+                    <div class="slot booked">1:00 PM - 3:00 PM</div>
+                </div>
+            </div>
+            -->
+        </main>
+        
+        <!-- Error Message Area -->
+         <div id="error-message" class="hidden mt-4 p-4 bg-red-100 text-red-700 border border-red-300 rounded-md">
+             <!-- Error messages will appear here -->
+         </div>
+
+    </div>
+
+    <!-- Bottom Navigation -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-md md:hidden z-50">
+        <div class="max-w-md mx-auto flex justify-around">
+            <a href="/homeowner/dashboard.html" class="flex flex-col items-center justify-center p-3 text-gray-500 hover:text-blue-600">
+                <i class="fas fa-tachometer-alt text-xl"></i>
+                <span class="text-xs mt-1">Dashboard</span>
+            </a>
+            <a href="/homeowner/schedule.html" class="flex flex-col items-center justify-center p-3 text-blue-600 font-medium"> <!-- Current page -->
+                <i class="fas fa-calendar-alt text-xl"></i>
+                <span class="text-xs mt-1">Schedule</span>
+            </a>
+            <a href="/homeowner/settings/settings.html" class="flex flex-col items-center justify-center p-3 text-gray-500 hover:text-blue-600">
+                <i class="fas fa-cog text-xl"></i>
+                <span class="text-xs mt-1">Settings</span>
+            </a>
+        </div>
+    </nav>
+
+    <!-- Firebase App (the core Firebase SDK) is always required and must be listed first -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <!-- Add SDKs for Firebase products that you want to use https://firebase.google.com/docs/web/setup#available-libraries -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <!-- Init Firebase -->
+    <!-- <script src="/__/firebase/init.js"></script> --> <!-- Remove this, init should be handled by firebase-config.js -->
+
+    <!-- Common Scripts -->
+     <!-- Ensure firebase-config initializes Firebase BEFORE other scripts use it -->
+     <script type="module" src="/common/js/firebase-config.js"></script>
+     <script type="module" src="/common/js/auth-router.js"></script>
+     <script type="module" src="/common/js/firestore-service.js"></script>
+
+    <!-- Page Specific Script -->
+    <script type="module" src="./js/schedule.js"></script>
+
+</body>
+</html> 

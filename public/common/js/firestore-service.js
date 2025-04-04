@@ -92,6 +92,110 @@ const firestoreService = {
         }
     },
 
+    // NEW: Update Homeowner Profile
+    async updateHomeownerProfile(homeownerId, profileData) {
+        console.log(`[Firestore] Updating homeowner profile for ID: ${homeownerId}`);
+        if (!homeownerId || !profileData) {
+            console.error('[Firestore] updateHomeownerProfile requires homeownerId and profileData.');
+            throw new Error('Invalid input for profile update.');
+        }
+        try {
+            const profileRef = db.collection('homeowner_profiles').doc(homeownerId);
+            // Ensure we have an update timestamp
+            const dataToUpdate = {
+                ...profileData,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            
+            // Remove undefined fields to avoid Firestore errors if they exist
+            Object.keys(dataToUpdate).forEach(key => dataToUpdate[key] === undefined && delete dataToUpdate[key]);
+
+            await profileRef.update(dataToUpdate);
+            console.log(`[Firestore] Homeowner profile updated successfully for ID: ${homeownerId}`);
+            return true; // Indicate success
+        } catch (error) {
+            console.error('[Firestore] Error updating homeowner profile:', error);
+            throw error; // Re-throw the error to be caught by the caller
+        }
+    },
+
+    // NEW: Update Homeowner Location Details
+    async updateHomeownerLocation(homeownerId, locationData) {
+        console.log(`[Firestore] Updating location for homeowner ID: ${homeownerId}`);
+        if (!homeownerId || !locationData || !locationData.address || !locationData.city || !locationData.state || !locationData.zip) {
+            console.error('[Firestore] updateHomeownerLocation requires homeownerId and complete locationData (address, city, state, zip).');
+            throw new Error('Invalid input for location update.');
+        }
+        try {
+            const profileRef = db.collection('homeowner_profiles').doc(homeownerId);
+            const dataToUpdate = {
+                address: locationData.address,
+                city: locationData.city,
+                state: locationData.state,
+                zip: locationData.zip,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            await profileRef.update(dataToUpdate);
+            console.log(`[Firestore] Homeowner location updated successfully for ID: ${homeownerId}`);
+            return true; // Indicate success
+        } catch (error) {
+            console.error('[Firestore] Error updating homeowner location:', error);
+            throw error; // Re-throw the error
+        }
+    },
+
+    // ---- HOUSEKEEPER PROFILE -----
+    async getHousekeeperProfile(housekeeperId) {
+        console.log('[Firestore] Getting housekeeper profile for ID:', housekeeperId);
+        if (!housekeeperId) {
+            console.error('[Firestore] getHousekeeperProfile called with invalid housekeeperId');
+            return null;
+        }
+        try {
+            const doc = await db.collection('housekeeper_profiles').doc(housekeeperId).get();
+            if (doc.exists) {
+                console.log('[Firestore] Housekeeper profile found:', doc.data());
+                return { id: doc.id, ...doc.data() }; // Include ID with data
+            } else {
+                console.warn('[Firestore] No housekeeper profile found for ID:', housekeeperId);
+                return null;
+            }
+        } catch (error) {
+            console.error('[Firestore] Error getting housekeeper profile:', error);
+            return null;
+        }
+    },
+
+    // NEW: Get ONLY public-facing housekeeper details
+    async getHousekeeperPublicProfile(housekeeperId) {
+        console.log('[Firestore] Getting housekeeper PUBLIC profile for ID:', housekeeperId);
+        try {
+            const profile = await this.getHousekeeperProfile(housekeeperId); // Use existing function
+            if (!profile) {
+                console.warn('[Firestore] No housekeeper profile found for ID in public profile fetch:', housekeeperId);
+                return null;
+            }
+
+            // Extract only the fields safe for homeowners to see
+            const publicProfile = {
+                id: profile.id, // Keep the ID
+                firstName: profile.firstName || '' , // From housekeeper_profiles
+                lastName: profile.lastName || '', // From housekeeper_profiles
+                companyName: profile.companyName || '' , // From housekeeper_profiles
+                profilePictureUrl: profile.profilePictureUrl || null // From housekeeper_profiles
+                // Add any other relevant public fields here, e.g., service area if applicable
+            };
+
+            console.log('[Firestore] Returning public housekeeper profile:', publicProfile);
+            return publicProfile;
+
+        } catch (error) {
+            console.error('[Firestore] Error getting housekeeper public profile:', error);
+            return null;
+        }
+    },
+
     // ---- HOMEOWNER-HOUSEKEEPER LINKING ----
     async linkHomeownerToHousekeeper(homeownerId, inviteCode) {
         console.log(`[Link] Attempting to link homeowner ${homeownerId} using code ${inviteCode}`);
@@ -133,6 +237,27 @@ const firestoreService = {
                  return { success: false, message: 'Permission denied. Check Firestore rules.' };
             }
             return { success: false, message: 'An unexpected error occurred.' };
+        }
+    },
+
+    // NEW: Function to unlink homeowner
+    async unlinkHomeownerFromHousekeeper(homeownerId) {
+        console.log(`[Link] Attempting to unlink homeowner ${homeownerId}`);
+        if (!homeownerId) {
+            console.error('[Link] Invalid homeownerId for unlinking.');
+            return false;
+        }
+        try {
+            const homeownerProfileRef = db.collection('homeowner_profiles').doc(homeownerId);
+            await homeownerProfileRef.update({
+                linkedHousekeeperId: firebase.firestore.FieldValue.delete(), // Delete the field
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            console.log('[Link] Homeowner unlinked successfully.');
+            return true;
+        } catch (error) {
+            console.error('[Link] Error unlinking homeowner:', error);
+            return false;
         }
     },
 
@@ -334,29 +459,55 @@ const firestoreService = {
         }
     },
     
-    // Unified method to get user settings (Primary location only)
-    async getUserSettings(userId) {
+    // Retrieves settings, attempting primary location first, then legacy.
+    // IMPORTANT: Only creates default settings if the *requester* is the owner of the settings.
+    async getUserSettings(userId, requesterId = null) {
+        console.log(`Getting settings for user ${userId}${requesterId ? ' (requested by ' + requesterId + ')' : ''}`);
+        const isOwnerRequest = requesterId === null || userId === requesterId;
+
         try {
-            console.log('Getting settings for user (Primary Only):', userId);
-            
-            // Try primary location
             let settings = await this.getSettingsFromPrimaryLocation(userId);
-            
-            // If still not found, create default settings
-            if (!settings) {
-                console.log('No settings found, creating defaults');
-                settings = this.createStandardSettingsObject();
-                
-                // Save the default settings (only to primary location)
-                await this.saveSettingsToPrimaryLocation(userId, settings);
+            if (settings) {
+                console.log('Settings found in primary location');
+                return this.normalizeSettingsObject(settings); // Normalize before returning
             }
-            
-            // Ensure settings have correct structure before returning
-            return this.normalizeSettingsObject(settings);
+
+            console.warn('Settings not found in primary location, checking legacy field...');
+            settings = await this.getSettingsFromLegacyLocation(userId);
+            if (settings) {
+                console.log('Settings found in legacy field, migrating...');
+                const normalized = this.normalizeSettingsObject(settings);
+                // Migrate to primary location (don't await, let it happen in background)
+                this.saveSettingsToPrimaryLocation(userId, normalized).catch(err => {
+                    console.error('Error migrating legacy settings:', err);
+                });
+                return normalized; 
+            }
+
+            // Only create defaults if the request is from the owner
+            if (isOwnerRequest) {
+                console.warn('No settings found anywhere, creating and returning defaults.');
+                const defaultSettings = this.createStandardSettingsObject(); 
+                const normalizedDefaults = this.normalizeSettingsObject(defaultSettings);
+                 // Attempt to save defaults (don't await)
+                 this.saveSettingsToPrimaryLocation(userId, normalizedDefaults).catch(err => {
+                     console.error('Error saving default settings:', err);
+                 });
+                return normalizedDefaults;
+            } else {
+                console.warn(`Settings not found for user ${userId} and requester ${requesterId} is not owner. Returning null.`);
+                return null; // Not owner, don't create defaults
+            }
+
         } catch (error) {
-            console.error('Error getting user settings:', error);
-            // Return a default structure on error to prevent downstream issues
-            return this.createStandardSettingsObject();
+            console.error(`Error in getUserSettings for ${userId}:`, error);
+            // Don't create defaults on error if not owner
+            if (isOwnerRequest) {
+                 console.error('Returning default settings due to error during fetch for owner.');
+                 return this.normalizeSettingsObject(this.createStandardSettingsObject());
+            } else {
+                return null; // Return null on error if not owner
+            }
         }
     },
     
@@ -523,10 +674,32 @@ const firestoreService = {
 
         try {
             const bookingsRef = db.collection('users').doc(housekeeperId).collection('bookings');
+            
+            // Convert date string to Firestore Timestamp
+            let firestoreDate = bookingData.date; // Default to original value
+            if (typeof bookingData.date === 'string' && bookingData.date.length > 0) {
+                try {
+                    // Attempt conversion. Assumes date is in a format JS Date constructor understands (e.g., YYYY-MM-DD)
+                    firestoreDate = firebase.firestore.Timestamp.fromDate(new Date(bookingData.date));
+                    console.log(`[Firestore] Converted date string "${bookingData.date}" to Timestamp.`);
+                } catch (dateError) {
+                    console.error(`[Firestore] Failed to convert date string "${bookingData.date}" to Timestamp:`, dateError);
+                    // Decide how to handle error: proceed with original string, or throw error?
+                    // For now, let's proceed but log the error prominently.
+                    firestoreDate = bookingData.date; // Fallback to original string on error
+                }
+            } else if (bookingData.date instanceof Date) {
+                 firestoreDate = firebase.firestore.Timestamp.fromDate(bookingData.date);
+                 console.log(`[Firestore] Converted Date object to Timestamp.`);
+            }
+
             const bookingDoc = {
                 ...bookingData,
+                date: firestoreDate, // Use the converted Timestamp (or original on error)
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             };
+
+            console.log('[Firestore] Saving booking document:', bookingDoc);
             const docRef = await bookingsRef.add(bookingDoc);
             console.log(`[Firestore] Booking added successfully with ID: ${docRef.id}`);
             return docRef.id; // Return the new booking ID
@@ -536,8 +709,8 @@ const firestoreService = {
         }
     },
 
-    // Fetch upcoming bookings for a specific homeowner linked to a specific housekeeper
-    async getUpcomingHomeownerBookings(homeownerId, housekeeperId) {
+    // Retrieve upcoming homeowner bookings (Corrected + Limit)
+    async getUpcomingHomeownerBookings(homeownerId, housekeeperId, limit = null) {
         console.log(`[Firestore] Getting upcoming bookings for homeowner ${homeownerId} linked to housekeeper ${housekeeperId}`);
         if (!homeownerId || !housekeeperId) {
             console.error('[Firestore] getUpcomingHomeownerBookings requires homeownerId and housekeeperId.');
@@ -545,13 +718,17 @@ const firestoreService = {
         }
         try {
             const today = new Date().toISOString().split('T')[0]; // Get YYYY-MM-DD
-            const bookingsRef = db.collection('users').doc(housekeeperId).collection('bookings');
-            const snapshot = await bookingsRef
+            let query = db.collection('users').doc(housekeeperId).collection('bookings')
                 .where('clientId', '==', homeownerId)
                 .where('date', '>=', today) // Only future or today's bookings
                 .orderBy('date')
-                .orderBy('startTime')
-                .get();
+                .orderBy('startTime');
+                
+            if (limit && typeof limit === 'number' && limit > 0) {
+                query = query.limit(limit); // Apply limit if provided
+            }
+
+            const snapshot = await query.get();
 
             const bookings = [];
             snapshot.forEach(doc => {
@@ -561,6 +738,48 @@ const firestoreService = {
             return bookings;
         } catch (error) {
             console.error('[Firestore] Error getting upcoming homeowner bookings:', error);
+            // Check if it's an index error and provide guidance
+            if (error.code === 'failed-precondition') {
+                 console.warn('Firestore requires a composite index for this query. Please create it using the link provided in the error message in the browser console.');
+            }
+            return [];
+        }
+    },
+    
+    // NEW: Function to get past homeowner bookings
+    async getPastHomeownerBookings(homeownerId, housekeeperId, limit = 5) {
+        console.log(`[Firestore] Getting past bookings for homeowner ${homeownerId} linked to housekeeper ${housekeeperId}`);
+        if (!homeownerId || !housekeeperId) {
+            console.error('[Firestore] getPastHomeownerBookings requires homeownerId and housekeeperId.');
+            return [];
+        }
+        try {
+            const today = new Date().toISOString().split('T')[0]; // Get YYYY-MM-DD
+            let query = db.collection('users').doc(housekeeperId).collection('bookings')
+                .where('clientId', '==', homeownerId)
+                .where('date', '<', today) // Only past bookings
+                // Optionally filter by status: .where('status', '==', 'completed') 
+                .orderBy('date', 'desc') // Order by most recent first
+                .orderBy('startTime', 'desc'); // Secondary sort if needed
+                
+            if (limit && typeof limit === 'number' && limit > 0) {
+                query = query.limit(limit);
+            }
+
+            const snapshot = await query.get();
+
+            const bookings = [];
+            snapshot.forEach(doc => {
+                bookings.push({ id: doc.id, ...doc.data() });
+            });
+            console.log(`[Firestore] Found ${bookings.length} past bookings.`);
+            return bookings;
+        } catch (error) {
+            console.error('[Firestore] Error getting past homeowner bookings:', error);
+             // Check if it's an index error and provide guidance (different index likely needed)
+            if (error.code === 'failed-precondition') {
+                 console.warn('Firestore requires a composite index for the past bookings query. Please check the browser console for the creation link if this error persists.');
+            }
             return [];
         }
     },
@@ -595,6 +814,58 @@ const firestoreService = {
         } catch (error) {
             console.error('[Firestore] Error adding client:', error);
             return null;
+        }
+    },
+
+    // NEW: Get bookings for a specific housekeeper within a date range
+    async getBookingsForHousekeeperInRange(housekeeperId, startDate, endDate) {
+        console.log(`[Firestore] Getting bookings for housekeeper ${housekeeperId} from ${startDate.toISOString()} to ${endDate.toISOString()}`);
+        if (!housekeeperId || !startDate || !endDate) {
+            console.error('getBookingsForHousekeeperInRange requires housekeeperId, startDate, and endDate.');
+            return [];
+        }
+
+        try {
+            const bookingsRef = db.collection('users').doc(housekeeperId).collection('bookings');
+            
+            // Convert JS Dates to Firestore Timestamps for querying
+            const startTimestamp = firebase.firestore.Timestamp.fromDate(startDate);
+            // Firestore range queries are inclusive of start, exclusive of end.
+            // If we want bookings ON the endDate, we need to query up to the start of the NEXT day.
+            const endOfEndDate = new Date(endDate);
+            // endOfEndDate.setHours(23, 59, 59, 999); // Alternative: query up to end of day
+            const endTimestamp = firebase.firestore.Timestamp.fromDate(endOfEndDate);
+
+            // Query based on the 'date' field (assuming it's a Timestamp)
+            // Adjust field name if different (e.g., 'bookingDate')
+            const q = bookingsRef
+                .where('date', '>=', startTimestamp)
+                .where('date', '< ', endTimestamp) // Use '<' for exclusive end date query
+                .orderBy('date'); // Order by date for consistency
+
+            const querySnapshot = await q.get();
+            const bookings = [];
+            querySnapshot.forEach((doc) => {
+                const data = doc.data();
+                // Convert Firestore Timestamps back to JS Dates if needed by the frontend
+                if (data.date && data.date.toDate) {
+                    data.jsDate = data.date.toDate(); 
+                }
+                if (data.createdAt && data.createdAt.toDate) {
+                    data.jsCreatedAt = data.createdAt.toDate();
+                }
+                bookings.push({ id: doc.id, ...data });
+            });
+
+            console.log(`[Firestore] Found ${bookings.length} bookings in range.`);
+            return bookings;
+
+        } catch (error) {
+            console.error('[Firestore] Error getting bookings in range:', error);
+             if (error.code === 'permission-denied') {
+                 console.error('Permission denied fetching bookings. Check Firestore rules.');
+             }
+            return []; // Return empty array on error
         }
     },
 };

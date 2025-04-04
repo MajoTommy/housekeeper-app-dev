@@ -10,28 +10,29 @@ document.addEventListener('DOMContentLoaded', function() {
         // --- Local State & Constants ---
         const workingDays = {};
         const dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-    const DEFAULT_JOBS_PER_DAY = 2;
+        const DEFAULT_JOBS_PER_DAY = 2;
         const DEFAULT_BREAK_TIME = 90;
-    const DEFAULT_START_TIME = '8:00 AM';
+        const DEFAULT_START_TIME = '8:00 AM';
         const DEFAULT_JOB_DURATION = 180;
 
         // Initialize local workingDays state
-dayNames.forEach(day => {
-        workingDays[day] = {
-            isWorking: false,
+        dayNames.forEach(day => {
+            workingDays[day] = {
+                isWorking: false,
                 jobsPerDay: null,
                 startTime: null,
                 breakTime: null,
-            breakDurations: [],
-            jobDurations: []
-        };
+                breakDurations: [],
+                jobDurations: []
+            };
         });
         console.log('Local workingDays initialized:', workingDays);
 
         // --- UI Element References ---
         const dayToggles = document.querySelectorAll('.day-toggle');
         const autoSendReceiptsToggle = document.getElementById('auto-send-receipts');
-        const savingIndicator = createSavingIndicator(); // Create indicator element
+        const timezoneSelect = document.getElementById('timezone');
+        const savingIndicator = createSavingIndicator();
 
         // --- Core Functions (Defined Locally) ---
 
@@ -51,29 +52,56 @@ dayNames.forEach(day => {
             }
         }
         
-function convertTo12HourFormat(timeStr) {
-    if (!timeStr) return '';
+        function convertTo12HourFormat(timeStr) {
+            if (!timeStr) return '';
             if (timeStr.includes('AM') || timeStr.includes('PM')) return timeStr;
             try {
-        const [hours, minutes] = timeStr.split(':').map(Number);
-        const period = hours >= 12 ? 'PM' : 'AM';
-        const hours12 = hours % 12 || 12;
-        return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
+                const [hours, minutes] = timeStr.split(':').map(Number);
+                const period = hours >= 12 ? 'PM' : 'AM';
+                const hours12 = hours % 12 || 12;
+                return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
             } catch (error) { console.error('Error converting time format:', error); return timeStr; }
-}
-    
-function convertTo24HourFormat(timeStr) {
+        }
+        
+        function convertTo24HourFormat(timeStr) {
             if (!timeStr || (timeStr.includes(':') && !timeStr.includes('AM') && !timeStr.includes('PM'))) return timeStr;
             try {
-        const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM|am|pm)/i);
-        if (!match) return timeStr;
-        let hours = parseInt(match[1]);
-        const minutes = parseInt(match[2]);
-        const period = match[3].toUpperCase();
-        if (period === 'PM' && hours < 12) hours += 12;
-        if (period === 'AM' && hours === 12) hours = 0;
-        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+                const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM|am|pm)/i);
+                if (!match) return timeStr;
+                let hours = parseInt(match[1]);
+                const minutes = parseInt(match[2]);
+                const period = match[3].toUpperCase();
+                if (period === 'PM' && hours < 12) hours += 12;
+                if (period === 'AM' && hours === 12) hours = 0;
+                return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
             } catch (error) { console.error('Error converting to 24-hour format:', error); return timeStr; }
+        }
+
+        // NEW: Function to populate timezone dropdown
+        function populateTimezoneOptions() {
+            if (!timezoneSelect) return;
+
+            try {
+                const timezones = Intl.supportedValuesOf('timeZone');
+                timezoneSelect.innerHTML = '<option value="">Select your time zone</option>';
+                timezones.forEach(tz => {
+                    const option = document.createElement('option');
+                    option.value = tz;
+                    option.textContent = tz.replace(/_/g, ' ');
+                    timezoneSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error("Error populating time zones (Intl API might not be fully supported or error occurred):", error);
+                const fallbackTimezones = ["America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "Europe/London", "UTC"];
+                timezoneSelect.innerHTML = '<option value="">Select your time zone</option>';
+                 fallbackTimezones.forEach(tz => {
+                    const option = document.createElement('option');
+                    option.value = tz;
+                    option.textContent = tz.replace(/_/g, ' ');
+                    timezoneSelect.appendChild(option);
+                });
+                 timezoneSelect.insertAdjacentHTML('beforeend', '<option value="">-- Other (See List) --</option>');
+            }
         }
 
         // --- Data Handling Functions ---
@@ -128,8 +156,8 @@ function convertTo24HourFormat(timeStr) {
 
             // Apply working days settings
             dayNames.forEach(day => {
-                const daySettings = settings.workingDays[day] || {}; // Use empty obj if day missing
-                const currentDayState = workingDays[day]; // Get local state ref
+                const daySettings = settings.workingDays[day] || {};
+                const currentDayState = workingDays[day];
 
                 // Apply all settings explicitly, handling potential missing fields
                 currentDayState.isWorking = daySettings.isWorking === true;
@@ -201,11 +229,29 @@ function convertTo24HourFormat(timeStr) {
             } else {
                 console.error('Auto send receipts toggle not found');
             }
+
+            // Apply timezone setting
+            if (timezoneSelect && settings.timezone) {
+                timezoneSelect.value = settings.timezone;
+                if(timezoneSelect.selectedIndex === -1 && settings.timezone) { 
+                    console.warn(`Saved timezone "${settings.timezone}" not found in standard list. Adding it.`);
+                    const option = document.createElement('option');
+                    option.value = settings.timezone;
+                    option.textContent = `${settings.timezone.replace(/_/g, ' ')} (Saved)`;
+                    timezoneSelect.appendChild(option);
+                    timezoneSelect.value = settings.timezone;
+                } else if (!settings.timezone) {
+                    timezoneSelect.value = "";
+                }
+            } else if (timezoneSelect) {
+                timezoneSelect.value = "";
+            }
+
             console.log('Settings successfully applied to UI');
         }
 
         async function saveSettings() {
-            console.log('[SAVE] saveSettings called'); // Log entry
+            console.log('[SAVE] saveSettings called');
             const user = firebase.auth().currentUser;
             if (!user) {
                 console.error('[SAVE] Cannot save settings, no user logged in');
@@ -217,15 +263,20 @@ function convertTo24HourFormat(timeStr) {
             try {
                 // Format settings using the local workingDays state
                 const formattedSettings = {
-                    workingDays: JSON.parse(JSON.stringify(workingDays)), // Deep copy
-                    autoSendReceipts: autoSendReceiptsToggle ? autoSendReceiptsToggle.checked : false
+                    workingDays: JSON.parse(JSON.stringify(workingDays)),
+                    autoSendReceipts: autoSendReceiptsToggle ? autoSendReceiptsToggle.checked : false,
+                    timezone: timezoneSelect ? timezoneSelect.value : null
                 };
+                
+                // Remove null timezone if not selected
+                if (formattedSettings.timezone === "") {
+                    delete formattedSettings.timezone;
+                }
                 
                 // Add compatibility layer for schedule.js
                 formattedSettings.workingDaysCompat = {};
                 dayNames.forEach((day, index) => {
-                    // Map day names to numeric indices (0=Sunday, 1=Monday, etc.)
-                    const dayIndex = (index + 1) % 7; // Convert from Monday-based to Sunday-based
+                    const dayIndex = (index + 1) % 7;
                     formattedSettings.workingDaysCompat[dayIndex] = workingDays[day].isWorking === true;
                 });
                 
@@ -548,6 +599,11 @@ function convertTo24HourFormat(timeStr) {
                  }
                 // Add similar listeners for job duration controls if implemented
              });
+
+            // NEW: Add listener for Timezone Select
+            if (timezoneSelect) {
+                timezoneSelect.addEventListener('change', validateAndSaveSettings);
+            }
         }
         
         // --- Global Exposure (Minimal) ---
@@ -752,97 +808,40 @@ function convertTo24HourFormat(timeStr) {
         }
 
         // --- Initialization Flow ---
-        initializeUI(); // Setup event listeners
 
-        // Add diagnostic tool
+        // NEW: Define Diagnostic Tool function before calling it
         function createDiagnosticTool() {
-            console.log('[DIAGNOSTIC] Creating settings diagnostic tool');
-            
-            // Create diagnostic function
+            console.log('[DIAGNOSTIC] Initializing settings diagnostic tool placeholder.');
+            // Basic placeholder. Can add more detailed checks later if needed.
             window.debugSettings = function() {
-                console.group('📊 Settings Diagnostic Report');
-                
-                // Check working days
+                console.group('📊 Basic Settings Diagnostic');
                 console.log('Local workingDays object:', workingDays);
-                console.log('Global workingDays object:', window.workingDays === workingDays ? 'CORRECTLY SYNCHRONIZED' : 'NOT SYNCHRONIZED');
-                console.log('settingsModule.workingDays:', window.settingsModule?.workingDays === workingDays ? 'CORRECTLY SYNCHRONIZED' : 'NOT SYNCHRONIZED');
-                
-                // Check firebase service
                 console.log('firestoreService available:', typeof firestoreService !== 'undefined');
-                console.log('firestoreService.updateUserSettings available:', typeof firestoreService?.updateUserSettings === 'function');
-                
-                // Check exposed functions
-                console.log('Global setJobCount available:', typeof window.setJobCount === 'function');
-                console.log('Global saveSettings available:', typeof window.saveSettings === 'function');
-                console.log('validateAndSaveSettings available:', typeof validateAndSaveSettings === 'function');
-                console.log('updateJobDuration available:', typeof window.updateJobDuration === 'function');
-                console.log('updateBreakDuration available:', typeof window.updateBreakDuration === 'function');
-                console.log('fixWorkingDaysData available:', typeof window.fixWorkingDaysData === 'function');
-                
-                // Current user
                 const user = firebase.auth().currentUser;
                 console.log('Current user:', user ? user.uid : 'Not logged in');
-                
-                // Check data consistency
-                console.log('Checking data consistency...');
-                let hasIssues = false;
-                
-                dayNames.forEach(day => {
-                    if (!workingDays[day]) return;
-                    
-                    // Check for numeric string keys (corruption)
-                    const numericKeys = Object.keys(workingDays[day]).filter(key => !isNaN(parseInt(key)));
-                    if (numericKeys.length > 0) {
-                        console.warn(`⚠️ Day ${day} has unexpected string indices:`, numericKeys);
-                        hasIssues = true;
-                    }
-                    
-                    // Check for array length mismatches
-                    if (workingDays[day].isWorking && workingDays[day].jobsPerDay > 0) {
-                        const jobCount = workingDays[day].jobsPerDay;
-                        
-                        if (!workingDays[day].jobDurations || workingDays[day].jobDurations.length !== jobCount) {
-                            console.warn(`⚠️ Day ${day} has mismatched job durations array length:`, 
-                                workingDays[day].jobDurations?.length, 'vs expected', jobCount);
-                            hasIssues = true;
-                        }
-                        
-                        const expectedBreaks = Math.max(0, jobCount - 1);
-                        if (!workingDays[day].breakDurations || workingDays[day].breakDurations.length !== expectedBreaks) {
-                            console.warn(`⚠️ Day ${day} has mismatched break durations array length:`, 
-                                workingDays[day].breakDurations?.length, 'vs expected', expectedBreaks);
-                            hasIssues = true;
-                        }
-                    }
-                });
-                
-                if (hasIssues) {
-                    console.warn('⚠️ Data consistency issues found. Run window.fixWorkingDaysData() to fix them.');
-                    
-                    // Auto-fix detected issues
-                    console.log('[DIAGNOSTIC] Auto-fixing detected data issues...');
-                    window.fixWorkingDaysData();
-                } else {
-                    console.log('✅ No data consistency issues detected.');
-                }
-                
+                 console.log('Timezone select element:', timezoneSelect ? 'Found' : 'Not Found');
+                 console.log('Populate function exists:', typeof populateTimezoneOptions === 'function');
                 console.groupEnd();
             };
-            
-            // Run an initial diagnostic check after short delay to ensure everything loaded
-            setTimeout(() => {
-                console.log('[DIAGNOSTIC] Running initial settings diagnostic...');
-                window.debugSettings();
-            }, 2000);
+             // Run check after a delay
+             // setTimeout(() => { window.debugSettings(); }, 3000); 
         }
-        
+
         createDiagnosticTool();
 
         // Listen for auth state changes to load initial settings
-        firebase.auth().onAuthStateChanged(user => {
+        firebase.auth().onAuthStateChanged(async user => {
             if (user) {
                 console.log('User logged in, loading initial settings...');
-                loadSettings(); // Call local loadSettings
+                // MOVE POPULATE HERE: Ensure DOM is ready before populating
+                populateTimezoneOptions(); 
+                await loadSettings(); // Call local loadSettings
+                // Setup listeners AFTER settings are loaded to avoid premature saves
+                // setupEventListeners();  <- We should ensure setupEventListeners is called AFTER loadSettings finishes
+                // It seems setupEventListeners might not be defined here, let's double check.
+                // Let's ensure initializeUI which contains setupEventListeners is called correctly.
+                // initializeUI() is called at the end, let's call it AFTER loadSettings. 
+                initializeUI(); // Call this after loading settings
             } else {
                 console.log('User logged out, settings UI inactive.');
                 // Optionally clear UI or show logged-out state

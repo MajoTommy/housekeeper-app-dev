@@ -18,4 +18,4 @@ Review these files:
 - [REQUIREMENTS.md](REQUIREMENTS.md) - Key requirments for this project overall
 - [RULES.md] - Instructions for Cursor to consider when working with me
 - [NEXTSTEPS.md](NEXTSTEPS.md) - Upcoming major development tasks.
-- 
+-

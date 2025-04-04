@@ -13,9 +13,6 @@ node_modules/
 # Firebase cache
 .firebase/
 
-# Vercel
-.vercel
-
 # Editor directories and files
 .idea/
 .vscode/
@@ -24,8 +21,9 @@ node_modules/
 *.njsproj
 *.sln
 *.sw?
+ public/common/js/maps-config.js
 
 # OS files
 .DS_Store
 Thumbs.db
-.aider*
+

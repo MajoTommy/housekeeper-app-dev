@@ -287,7 +287,7 @@ async function createBookingsForClient(db, userId, clientId, clientData) {
                 clientAddress: `${clientData.street}, ${clientData.city}, ${clientData.state} ${clientData.zip}`,
                 clientPhone: clientData.phone,
                 clientEmail: clientData.email,
-                date: formattedDate,
+                date: firebase.firestore.Timestamp.fromDate(nextDate),
                 startTime: formattedStartTime,
                 endTime: endTime,
                 frequency: frequency,

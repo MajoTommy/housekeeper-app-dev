@@ -4,11 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Homeowner Dashboard - Housekeeper App</title>
-    <!-- Tailwind, FontAwesome, Configs -->
+    <!-- Tailwind -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <!-- Common Styles (if applicable) -->
-    <!-- <link rel="stylesheet" href="../common/css/styles.css"> -->
+    <!-- Tailwind Config -->
     <script>
         tailwind.config = {
             theme: {
@@ -24,109 +24,270 @@
             }
         }
     </script>
-</head>
-<body class="flex flex-col h-screen">
-
-    <!-- Header -->
-    <header class="bg-primary text-white p-4 shadow-md">
-        <h1 class="text-xl font-semibold text-center">My Dashboard</h1>
-    </header>
-
-    <!-- Main Content -->
-    <main class="flex-grow p-4 overflow-y-auto">
-
-        <!-- State 1: Not Linked View (Modified) -->
-        <div id="not-linked-view" class="max-w-md mx-auto mt-8 text-center p-6 bg-white shadow rounded-lg hidden">
-            <i class="fas fa-link text-4xl text-gray-400 mb-4"></i>
-            <h2 class="text-lg font-medium text-gray-800 mb-2">Link to Your Housekeeper</h2>
-            <p class="text-gray-600 mb-6">
-                Enter the 6-character invite code provided by your housekeeper.
-            </p>
-            <form id="invite-code-form" class="space-y-4">
-                <div>
-                    <label for="invite-code-input" class="sr-only">Invite Code</label>
-                    <input type="text" id="invite-code-input" name="invite-code" required maxlength="6"
-                           class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm uppercase text-center tracking-widest" 
-                           placeholder="CODE">
-                </div>
-                 <div id="invite-error-message" class="text-red-600 text-sm hidden">Invalid code. Please try again.</div>
-                <button type="submit" id="submit-invite-code-btn" 
-                        class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50">
-                    Link Account
-                </button>
-            </form>
-             <p class="mt-4 text-xs text-gray-500">You can also manage your connection in Settings.</p>
-        </div>
-
-        <!-- State 2: Linked View (Hidden by default) -->
-        <div id="linked-view" class="hidden">
-
-            <!-- Upcoming Bookings Section -->
-            <section class="mb-6">
-                <h2 class="text-lg font-semibold text-gray-800 mb-3">Upcoming Cleanings</h2>
-                <div id="upcoming-bookings-list" class="space-y-3">
-                    <p id="no-upcoming-bookings" class="text-gray-500 hidden">No upcoming cleanings scheduled.</p>
-                    <!-- Loading placeholder -->
-                    <div class="animate-pulse space-y-3" id="bookings-loading-placeholder">
-                        <div class="h-16 bg-gray-200 rounded"></div>
-                        <div class="h-16 bg-gray-200 rounded"></div>
-                    </div>
-                     <!-- Example Card Structure (JS will populate):
-                    <div class="bg-white p-4 rounded-lg shadow flex justify-between items-center">
-                        <div>
-                            <p class="font-medium text-gray-900">Mon, Apr 7, 2025 - 9:00 AM</p>
-                            <p class="text-sm text-gray-600">Property: Main Home</p>
-                        </div>
-                        <button class="text-primary hover:text-primary-dark text-sm">View Details</button>
-                    </div>
-                    -->
-                </div>
-            </section>
-
-            <!-- Quick Actions Section -->
-            <section>
-                 <h2 class="text-lg font-semibold text-gray-800 mb-3">Actions</h2>
-                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                     <button id="book-new-cleaning-btn" class="bg-primary text-white py-3 px-4 rounded-md text-center font-medium hover:bg-primary-dark transition-colors w-full">
-                         <i class="fas fa-calendar-plus mr-2"></i>Book New Cleaning
-                     </button>
-                      <button id="view-all-bookings-btn" class="bg-white text-primary py-3 px-4 rounded-md text-center font-medium border border-primary hover:bg-primary-light transition-colors w-full">
-                         <i class="fas fa-calendar-check mr-2"></i>View All Bookings
-                     </button>
-                     <button id="manage-properties-btn" class="bg-white text-gray-700 py-3 px-4 rounded-md text-center font-medium border border-gray-300 hover:bg-gray-50 transition-colors w-full sm:col-span-2">
-                         <i class="fas fa-home mr-2"></i>Manage Properties
-                     </button>
-                 </div>
-            </section>
-        </div>
-
-    </main>
-
-    <!-- Footer Navigation -->
-    <footer class="flex justify-around items-center p-3 bg-white border-t border-gray-200 sticky bottom-0">
-        <a href="dashboard.html" class="text-center text-primary"> <!-- Current Page -->
-            <i class="fas fa-calendar-check text-xl"></i>
-            <span class="block text-xs font-medium">Bookings</span>
-        </a>
-        <a href="properties/properties.html" class="text-center text-gray-500 hover:text-primary">
-            <i class="fas fa-home text-xl"></i>
-            <span class="block text-xs">Properties</span>
-        </a>
-        <a href="settings/settings.html" class="text-center text-gray-500 hover:text-primary">
-            <i class="fas fa-cog text-xl"></i>
-            <span class="block text-xs">Settings</span>
-        </a>
-    </footer>
-
-    <!-- Firebase SDKs, Config, Services -->
+    <!-- Firebase SDKs - Load EARLY -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-    <script src="../common/js/firebase-config.js"></script>
-    <script src="../common/js/firestore-service.js"></script>
-    <script src="../common/js/auth-router.js"></script> <!-- Handles auth protection -->
-    <!-- Dashboard Specific JS -->
-    <script src="js/dashboard.js"></script> <!-- Needs creation -->
+
+</head>
+<body class="bg-gray-100">
+    <div id="loadingIndicator" class="fixed inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50">
+        <div class="loader ease-linear rounded-full border-8 border-t-8 border-gray-200 h-32 w-32"></div>
+    </div>
+
+    <div class="container mx-auto px-4 pb-20"> <!-- Added pb-20 for bottom nav spacing -->
+        <!-- Added margin-top to compensate for removed H1 -->
+        <div class="mt-6">
+             <!-- View for Homeowners NOT LINKED to a Housekeeper -->
+             <div id="unlinkedView" class="hidden bg-white p-6 rounded-lg shadow-md mb-6">
+                 <h2 class="text-xl font-semibold mb-4">Link to Your Housekeeper</h2>
+                 <p class="text-gray-600 mb-4">Enter the 6-character invite code provided by your housekeeper to connect your account and view upcoming cleanings.</p>
+                 <form id="inviteCodeForm" class="flex items-center space-x-3">
+                     <input type="text" id="inviteCodeInput" name="inviteCode" maxlength="6"
+                            class="block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm uppercase tracking-widest text-center"
+                            placeholder="ABCDEF" required>
+                     <button type="submit"
+                             class="inline-flex items-center px-6 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 whitespace-nowrap">
+                         Link Account
+                     </button>
+                 </form>
+                 <p id="inviteCodeError" class="text-red-500 text-sm mt-2 hidden"></p>
+             </div>
+
+             <!-- View for Homeowners LINKED to a Housekeeper -->
+             <div id="linkedView" class="hidden space-y-6">
+
+                 <!-- Linked Housekeeper Info Section -->
+                 <div id="linkedHousekeeperInfo" class="bg-white p-4 rounded-lg shadow-md">
+                     <p class="text-sm text-gray-500 mb-1">Cleaning Service Provided By:</p>
+                     <div class="flex items-center space-x-3">
+                         <!-- Placeholder Icon -->
+                         <span class="inline-block h-10 w-10 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
+                              <svg class="h-8 w-8 text-gray-400" fill="currentColor" viewBox="0 0 24 24"> <path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" /> </svg>
+                         </span>
+                         <div>
+                             <p id="housekeeperName" class="text-lg font-medium text-gray-900">Loading...</p>
+                             <p id="housekeeperCompany" class="text-sm text-gray-600"></p>
+                         </div>
+                     </div>
+                      <!-- Unlink Button (Optional) -->
+                      <button id="unlinkButton" class="mt-3 text-xs text-red-600 hover:text-red-800">Unlink from housekeeper</button>
+                 </div>
+
+                 <!-- Edit Actions Section -->
+                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                     <button id="editProfileButton" class="w-full inline-flex items-center justify-center px-4 py-3 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                         <svg class="-ml-1 mr-2 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"> <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /> </svg>
+                         Edit My Profile
+                     </button>
+                      <button id="editLocationButton" class="w-full inline-flex items-center justify-center px-4 py-3 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                          <svg class="-ml-1 mr-2 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"> <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" /> </svg>
+                         Edit Location Details
+                     </button>
+                 </div>
+
+                 <!-- Next Cleaning Section -->
+                 <div id="nextCleaningSection" class="bg-white p-4 rounded-lg shadow-md">
+                     <div class="flex justify-between items-center mb-2">
+                         <h2 class="text-lg font-medium text-gray-900">Next Cleaning</h2>
+                         <p id="nextCleaningDateTime" class="text-sm font-medium text-blue-600">Loading...</p>
+                     </div>
+                     <p id="nextCleaningService" class="text-base text-gray-700">Loading service details...</p>
+                     <p id="nextCleaningAddress" class="text-sm text-gray-500">Loading address...</p>
+                     <!-- Buttons removed from here as per new design -->
+                 </div>
+
+                 <!-- Recent History Section -->
+                 <div>
+                     <h2 class="text-xl font-semibold text-gray-800 mb-3">Recent History</h2>
+                     <div id="recentHistoryList" class="space-y-3">
+                         <!-- History items will be loaded here by JS -->
+                         <p class="text-gray-500">Loading history...</p>
+                     </div>
+                 </div>
+
+             </div> <!-- End Linked View -->
+
+        </div> <!-- End Container -->
+
+    </div>
+
+    <!-- Bottom Navigation -->
+    <nav class="fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 shadow-sm z-10">
+        <div class="max-w-md mx-auto flex justify-around py-2 px-4">
+            <!-- Home Tab (Current Page) -->
+            <a href="/homeowner/dashboard.html" class="text-center text-blue-600 p-2">
+                <svg class="w-6 h-6 mx-auto mb-1" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20"> <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" /> </svg>
+                <span class="text-xs font-medium">Home</span>
+            </a>
+            <!-- Schedule Tab -->
+            <a href="#" id="scheduleNavButton" class="text-center text-gray-500 hover:text-blue-600 p-2"> <!-- Placeholder href -->
+                <svg class="w-6 h-6 mx-auto mb-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"> <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /> </svg>
+                <span class="text-xs font-medium">Schedule</span>
+            </a>
+             <!-- Settings Tab (Removed from bottom nav as per design discussion) -->
+            <!-- Add other tabs if needed later -->
+        </div>
+    </nav>
+
+    <!-- END: Bottom Navigation -->
+
+    <!-- Profile Edit Modal (Bottom Slide) -->
+    <div id="profileEditModal" class="fixed inset-x-0 bottom-0 z-50 transform transition-transform duration-300 ease-in-out translate-y-full">
+        <div class="bg-white w-full rounded-t-xl overflow-hidden shadow-xl transform transition-all max-h-[90vh] flex flex-col">
+            <!-- Handle -->
+            <div class="flex justify-center pt-2 pb-1 cursor-grab">
+                <div class="w-10 h-1 bg-gray-300 rounded-full"></div>
+            </div>
+            <!-- Header -->
+            <div class="flex justify-between items-center p-4 border-b border-gray-200">
+                <h2 class="text-xl font-bold text-gray-900">Edit Profile</h2>
+                <button id="closeProfileEditModal" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i> <!-- Assuming Font Awesome is available -->
+                     <span class="sr-only">Close</span>
+                </button>
+            </div>
+            <!-- Content -->
+            <div id="profileEditContent" class="p-4 overflow-y-auto flex-grow -webkit-overflow-scrolling-touch">
+                <!-- Profile Form -->
+                <form id="profileEditForm" class="space-y-4">
+                    <div>
+                        <label for="profileFirstName" class="block text-sm font-medium text-gray-700">First Name</label>
+                        <input type="text" name="profileFirstName" id="profileFirstName" autocomplete="given-name" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required>
+                    </div>
+                    <div>
+                        <label for="profileLastName" class="block text-sm font-medium text-gray-700">Last Name</label>
+                        <input type="text" name="profileLastName" id="profileLastName" autocomplete="family-name" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required>
+                    </div>
+                    <div>
+                        <label for="profilePhone" class="block text-sm font-medium text-gray-700">Phone</label>
+                        <input type="tel" name="profilePhone" id="profilePhone" autocomplete="tel" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="profileSpecialInstructions" class="block text-sm font-medium text-gray-700">Special Instructions</label>
+                        <textarea id="profileSpecialInstructions" name="profileSpecialInstructions" rows="3" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="e.g., Key under the mat, focus on bathrooms..."></textarea>
+                    </div>
+
+                    <div class="pt-2 flex justify-end space-x-3">
+                        <button type="button" id="cancelProfileEditButton" class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Cancel</button>
+                        <button type="submit" id="saveProfileButton" class="inline-flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Save Profile</button>
+                    </div>
+                </form>
+                 <!-- Loading/Error State -->
+                <div id="profileEditStatus" class="mt-4 text-center"></div>
+            </div>
+        </div>
+    </div>
+    <!-- Profile Modal Backdrop -->
+    <div id="profileEditModalBackdrop" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden transition-opacity duration-300"></div>
+
+    <!-- Location Edit Modal (Bottom Slide) -->
+    <div id="locationEditModal" class="fixed inset-x-0 bottom-0 z-50 transform transition-transform duration-300 ease-in-out translate-y-full">
+        <div class="bg-white w-full rounded-t-xl overflow-hidden shadow-xl transform transition-all max-h-[90vh] flex flex-col">
+            <!-- Handle -->
+            <div class="flex justify-center pt-2 pb-1 cursor-grab">
+                <div class="w-10 h-1 bg-gray-300 rounded-full"></div>
+            </div>
+            <!-- Header -->
+            <div class="flex justify-between items-center p-4 border-b border-gray-200">
+                <h2 class="text-xl font-bold text-gray-900">Edit Location</h2>
+                <button id="closeLocationEditModal" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i>
+                     <span class="sr-only">Close</span>
+                </button>
+            </div>
+            <!-- Content -->
+            <div id="locationEditContent" class="p-4 overflow-y-auto flex-grow -webkit-overflow-scrolling-touch">
+                <!-- Location Form -->
+                <form id="locationEditForm" class="space-y-4">
+                    <div>
+                        <label for="locationAddress" class="block text-sm font-medium text-gray-700">Street Address</label>
+                        <input type="text" name="locationAddress" id="locationAddress" autocomplete="street-address" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required placeholder="Start typing your address...">
+                    </div>
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div>
+                            <label for="locationCity" class="block text-sm font-medium text-gray-700">City</label>
+                            <input type="text" name="locationCity" id="locationCity" autocomplete="address-level2" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required>
+                        </div>
+                        <div>
+                            <label for="locationState" class="block text-sm font-medium text-gray-700">State / Province</label>
+                            <input type="text" name="locationState" id="locationState" autocomplete="address-level1" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="locationZip" class="block text-sm font-medium text-gray-700">ZIP / Postal Code</label>
+                        <input type="text" name="locationZip" id="locationZip" autocomplete="postal-code" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required>
+                    </div>
+
+                    <div class="pt-2 flex justify-end space-x-3">
+                        <button type="button" id="cancelLocationEditButton" class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Cancel</button>
+                        <button type="submit" id="saveLocationButton" class="inline-flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Save Location</button>
+                    </div>
+                </form>
+                 <!-- Loading/Error State -->
+                <div id="locationEditStatus" class="mt-4 text-center"></div>
+            </div>
+        </div>
+    </div>
+    <!-- Location Modal Backdrop -->
+    <div id="locationEditModalBackdrop" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden transition-opacity duration-300"></div>
+
+    <!-- ADDED: Bottom Navigation Bar -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-md md:hidden z-50">
+        <div class="max-w-md mx-auto flex justify-around">
+            <a href="/homeowner/dashboard.html" class="flex flex-col items-center justify-center p-3 text-blue-600 font-medium"> <!-- Current page -->
+                <i class="fas fa-tachometer-alt text-xl"></i>
+                <span class="text-xs mt-1">Dashboard</span>
+            </a>
+            <a href="/homeowner/schedule.html" class="flex flex-col items-center justify-center p-3 text-gray-500 hover:text-blue-600">
+                <i class="fas fa-calendar-alt text-xl"></i>
+                <span class="text-xs mt-1">Schedule</span>
+            </a>
+            <a href="/homeowner/settings/settings.html" class="flex flex-col items-center justify-center p-3 text-gray-500 hover:text-blue-600">
+                <i class="fas fa-cog text-xl"></i>
+                <span class="text-xs mt-1">Settings</span>
+            </a>
+        </div>
+    </nav>
+
+    <!-- Script Loading Order is Important -->
+    <!-- 1. API Key defined directly below - DO NOT COMMIT ACTUAL KEY IN THIS FILE -->
+    <!-- <script src="../common/js/maps-config.js"></script> <-- Removed this line -->
+    <!-- Removed the immediate log check script block -->
+
+    <!-- 2. Load Google Maps API (references key defined below) -->
+    <script id="maps-api-script"></script> 
+    <script>
+      // !!! IMPORTANT: Replace 'YOUR_API_KEY_HERE' with your actual Google Maps API key. !!!
+      // !!! DO NOT COMMIT your actual key in this file to version control (e.g., Git). !!!
+      const apiKey = 'AIzaSyDlXNozm93VKcVRrPAC9Cr9QgIEvql6XUA'; 
+      
+      function loadMapsApi() {
+        console.log('Checking key defined in script:', apiKey ? 'Found' : 'Missing');
+        if (!apiKey || apiKey === 'YOUR_API_KEY_HERE') {
+          console.warn('Google Maps API Key not found or is placeholder in dashboard.html. Autocomplete will not work.');
+          return; 
+        }
+        const script = document.getElementById('maps-api-script');
+        // Use the locally defined apiKey constant
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=initAutocomplete&async=1&defer=1`;
+        console.log('Loading Google Maps API...');
+      }
+      window.initAutocomplete = () => {
+        console.log("Google Maps API loaded and ready (callback executed).");
+      }
+      loadMapsApi(); 
+    </script>
+
+    <!-- 3. Firebase Config (uses Firebase SDKs) -->
+    <script type="module" src="/common/js/firebase-config.js"></script>
+    <!-- 4. Firestore Service (uses Firebase SDKs & config) -->
+    <script type="module" src="/common/js/firestore-service.js"></script>
+    <!-- 5. Page Specific Script (uses all above) -->
+    <script type="module" src="/homeowner/js/dashboard.js"></script>
+
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
 </body>
 </html> 

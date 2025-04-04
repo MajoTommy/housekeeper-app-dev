@@ -17,7 +17,13 @@
 </head>
 <body class="bg-gray-100 p-8">
 
-    <div class="max-w-md mx-auto bg-white p-6 rounded-lg shadow-md">
+    <!-- Added Auth Status Message -->
+    <div id="auth-status" class="text-center text-gray-600">
+        Checking authentication...
+    </div>
+
+    <!-- Wrapped main content, added ID, hidden by default -->
+    <div id="dev-tools-content" class="max-w-md mx-auto bg-white p-6 rounded-lg shadow-md hidden">
         <h1 class="text-2xl font-bold mb-6 text-center">Developer Data Tools</h1>
 
         <p class="text-sm text-gray-600 mb-4">
@@ -48,6 +54,40 @@
     <script src="/js/populate-sample-data.js"></script>
 
     <script>
+        const authStatusDiv = document.getElementById('auth-status');
+        const mainContentDiv = document.getElementById('dev-tools-content');
+        const populateButton = document.getElementById('populateButton');
+        const homeownerUidInput = document.getElementById('homeownerUid');
+        const housekeeperUidInput = document.getElementById('housekeeperUid');
+
+        function showContent() {
+            if (authStatusDiv) authStatusDiv.classList.add('hidden');
+            if (mainContentDiv) mainContentDiv.classList.remove('hidden');
+        }
+
+        function redirectToLogin() {
+            if (authStatusDiv) {
+                authStatusDiv.textContent = 'Redirecting to login...';
+                authStatusDiv.classList.remove('hidden'); // Ensure it's visible
+            }
+            if (mainContentDiv) mainContentDiv.classList.add('hidden'); // Hide main content
+            // Adjust '/login.html' if your login page is different
+            window.location.href = '/login.html?redirect=dev-tools.html'; 
+        }
+
+        // Firebase Auth Listener
+        firebase.auth().onAuthStateChanged((user) => {
+            if (user) {
+                // User is signed in.
+                console.log("User is authenticated, showing dev tools.");
+                showContent();
+            } else {
+                // User is signed out.
+                console.log("User is not authenticated, redirecting to login.");
+                redirectToLogin();
+            }
+        });
+
         // Initialize Firebase (if not already done globally)
         if (!firebase.apps.length) {
              try {
@@ -95,11 +135,7 @@
             }
         }
 
-        // Add event listener to the button
-        const populateButton = document.getElementById('populateButton');
-        const homeownerUidInput = document.getElementById('homeownerUid');
-        const housekeeperUidInput = document.getElementById('housekeeperUid');
-
+        // Add event listener to the button (Only runs if content is shown)
         if (populateButton && homeownerUidInput && housekeeperUidInput) {
             populateButton.addEventListener('click', () => {
                 const homeownerUid = homeownerUidInput.value.trim();
@@ -135,7 +171,8 @@
                 }
             });
         } else {
-            console.error('Could not find required elements (button or inputs) on the dev-tools page.');
+            // This might log if elements are initially hidden, which is expected.
+            // console.error('Could not find required elements (button or inputs) on the dev-tools page initially.'); 
         }
     </script>
 

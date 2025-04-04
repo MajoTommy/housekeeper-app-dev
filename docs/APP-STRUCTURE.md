@@ -9,9 +9,7 @@ The Housekeeping App has two main user interfaces based on user roles:
    - **Settings** - Configuring work schedule and preferences
 
 2. **Homeowner Interface**
-   - **Bookings** - Managing cleaning appointments
-   - **Properties** - Managing property information
-   - **Settings** - Configuring preferences and notifications
+   - **Dashboard** - Unified view showing linked housekeeper, next cleaning, recent history, and providing access to profile/location editing.
 
 ## Technology Stack
 - **Core Language:** JavaScript (ES6+)
@@ -19,8 +17,9 @@ The Housekeeping App has two main user interfaces based on user roles:
   - **Database:** Firestore (NoSQL, document-based)
   - **Authentication:** Firebase Authentication (Email/Password)
 - **Frontend:** Vanilla JavaScript (direct DOM manipulation, no major framework like React/Vue/Angular)
-- **Styling:** Tailwind CSS (v2 via CDN)
+- **Styling:** Tailwind CSS (v3 via CDN - *confirm version if different*)
 - **Development Server:** Assumed local server (e.g., live-server, http-server) serving the `public` directory.
+- **Mapping/Places:** Google Maps Platform (Places API for Autocomplete)
 
 ## App Navigation
 Each role has a consistent footer navigation menu:
@@ -31,9 +30,9 @@ Each role has a consistent footer navigation menu:
 - Settings (cog icon)
 
 ### Homeowner Navigation
-- Bookings (calendar icon)
-- Properties (home icon)
-- Settings (cog icon)
+- **Dashboard** (home icon) - Main view.
+- **Schedule** (calendar icon) - Placeholder/Future: View detailed schedule or request bookings.
+- **Account** (user icon) - Placeholder/Future: Manage account settings, payments, etc.
 
 ## File Structure
 
@@ -50,20 +49,21 @@ Each role has a consistent footer navigation menu:
 - `public/housekeeper/settings/settings.html` - Schedule configuration
 
 ### Homeowner Pages
-- `public/homeowner/dashboard.html` - Main bookings view
-- `public/homeowner/properties/properties.html` - Property management
-- `public/homeowner/bookings/bookings.html` - Booking details
-- `public/homeowner/settings/settings.html` - Preferences configuration
+- `public/homeowner/dashboard.html` - Unified main dashboard.
+- `public/homeowner/settings/settings.html` - Separate settings page (may be refactored into dashboard modals later).
 
 ## JavaScript Structure
 
 ### Common Scripts (shared between roles)
 - `public/common/js/firebase-config.js` - Firebase configuration
 - `public/common/js/firestore-service.js` - Centralized database service for CRUD operations.
+   Provides functions like `getHomeownerProfile`, `updateHomeownerProfile`, `updateHomeownerLocation`, `getHousekeeperProfile`, `linkHomeownerToHousekeeper`, `unlinkHomeownerFromHousekeeper`, `addBooking`, `getUpcomingHomeownerBookings`, `getPastHomeownerBookings`, etc.
 - `public/common/js/auth.js` - Authentication functionality (login, logout, password reset).
 - `public/common/js/auth-router.js` - Role-based routing logic after login.
 - `public/common/js/defaults.js` - Default app settings (may not be fully utilized).
 - `public/common/js/sample-data.js` - **DEPRECATED / Signup Support:** Contains logic to create the *initial minimal profile* for a user immediately after signup. (Previously used for broader sample data).
+- `public/common/js/maps-config.js` - **DO NOT COMMIT KEY:** Holds the Google Maps API Key. Must be added to `.gitignore`. (Currently loaded via inline script in HTML due to loading issues).
+
 
 ### Housekeeper Scripts
 - `public/housekeeper/js/schedule.js` - Schedule functionality, including booking creation and loading clients (now includes linked homeowners).
@@ -71,10 +71,8 @@ Each role has a consistent footer navigation menu:
 - `public/housekeeper/js/settings.js` - Settings functionality, using `firestore-service.js` as single source of truth.
 
 ### Homeowner Scripts
-- `public/homeowner/js/dashboard.js` - Main homeowner dashboard logic, including linking to housekeeper and displaying upcoming bookings.
-- `public/homeowner/js/properties.js` - Property management functionality.
-- `public/homeowner/js/bookings.js` - Booking management functionality (may be partially replaced by dashboard).
-- `public/homeowner/js/settings.js` - Settings functionality.
+- `public/homeowner/js/dashboard.js` - Handles the entire unified dashboard UI. Fetches homeowner profile, linked housekeeper info, upcoming/past bookings. Displays data. Handles modals for "Edit Profile" and "Edit Location" (including Google Places Autocomplete integration). Manages linking/unlinking actions.
+- `public/homeowner/js/settings.js` - Logic for the separate settings page (if still used).
 
 ### Authentication Scripts
 - `public/js/signup.js` - Signup logic with role selection, calls logic in `sample-data.js` upon success.
@@ -114,22 +112,21 @@ Each role has a consistent footer navigation menu:
 
 ### Homeowner Features
 
-#### Bookings
-- Schedule new cleanings
-- View booking history
-- Cancel or reschedule appointments
-- Select frequency (one-time, weekly, bi-weekly)
+#### Dashboard
+- **Linked View:**
+  - View linked housekeeper's name and company.
+  - View next upcoming cleaning details (date, time, service).
+  - View list of recent past cleanings.
+  - Edit profile information (name, phone, instructions) via modal.
+  - Edit location details (address, city, state, zip) via modal with Google Places Autocomplete validation.
+  - Unlink from the current housekeeper.
+- **Not Linked View:**
+  - Enter an invite code to link with a housekeeper.
 
-#### Properties
-- Add and manage multiple properties
-- Set access information
-- Special cleaning instructions
-- Property details (bedrooms, bathrooms, etc.)
-
-#### Settings
-- Notification preferences
-- Payment settings
-- Default property selection
+#### Settings (Separate Page - Potential Refactor)
+- Manage notification preferences (future).
+- Manage payment settings (future).
+- Account management (future).
 
 ## Database Integration
 All pages use the Firestore database through the `firestore-service.js`, which provides:

@@ -230,6 +230,19 @@
             </div>
         </div>
 
+        <!-- Time Zone Setting -->
+        <div class="bg-white rounded-lg p-4 shadow-sm">
+            <h3 class="text-lg font-medium text-gray-900 mb-2">Time Zone</h3>
+            <p class="text-sm text-gray-500 mb-4">Select the time zone you operate in. This ensures clients see your availability correctly.</p>
+            <div>
+                <label for="timezone" class="sr-only">Time Zone</label>
+                <select id="timezone" name="timezone" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md shadow-sm">
+                    <!-- Options will be populated by JS -->
+                    <option value="">Loading time zones...</option>
+                </select>
+            </div>
+        </div>
+
         <!-- Payment Settings -->
         <div class="bg-white rounded-lg p-4 shadow-sm">
             <h3 class="text-lg font-semibold text-gray-900 mb-4">Payment Settings</h3>
@@ -1468,22 +1481,6 @@
                     console.log('JOB COUNT FIX: Successfully patched save function');
                 }
             }, 1000);
-        });
-    </script>
-
-    <!-- Trigger settings loading on page load -->
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Allow some time for Firebase and settings.js to initialize
-            setTimeout(() => {
-                console.log('CRITICAL LOAD FIX: Triggering settings load from page');
-                if (typeof window.loadSettingsFromAllLocations === 'function') {
-                    console.log('CRITICAL LOAD FIX: Calling loadSettingsFromAllLocations()');
-                    window.loadSettingsFromAllLocations();
-                } else {
-                    console.warn('CRITICAL LOAD FIX: loadSettingsFromAllLocations function not found');
-                }
-            }, 1500);
         });
     </script>
 </body>
