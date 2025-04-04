@@ -78,8 +78,12 @@ const firestoreService = {
         try {
             const doc = await db.collection('homeowner_profiles').doc(userId).get();
             if (doc.exists) {
-                console.log('[Firestore] Homeowner profile found:', doc.data());
-                return doc.data();
+                const profileData = doc.data();
+                console.log('[Firestore] Raw homeowner profile data fetched:', profileData);
+                console.log('[Firestore] Checking linkedHousekeeperId within raw data:', profileData.linkedHousekeeperId);
+                
+                console.log('[Firestore] Homeowner profile found (returning):', profileData);
+                return profileData;
             } else {
                 console.warn('[Firestore] No homeowner profile found for ID:', userId);
                 // A profile document should have been created at signup. 
@@ -709,7 +713,61 @@ const firestoreService = {
         }
     },
 
-    // Retrieve upcoming homeowner bookings (Corrected + Limit)
+    // NEW: Get ALL bookings for a specific housekeeper within a date range
+    async getBookingsForHousekeeperInRange(housekeeperId, startDate, endDate) {
+        console.log(`[Firestore] Getting bookings for housekeeper ${housekeeperId} from ${startDate.toISOString()} to ${endDate.toISOString()}`);
+        if (!housekeeperId || !startDate || !endDate) {
+            console.error('[Firestore] getBookingsForHousekeeperInRange requires housekeeperId, startDate, and endDate.');
+            return [];
+        }
+
+        try {
+            const bookingsRef = db.collection('users').doc(housekeeperId).collection('bookings');
+            
+            // Convert JS Dates to Firestore Timestamps for querying
+            const startTimestamp = firebase.firestore.Timestamp.fromDate(startDate);
+            // For the end date, query up to the start of the *next* day to include bookings ON the end date.
+            const dayAfterEndDate = new Date(endDate); 
+            dayAfterEndDate.setDate(endDate.getDate() + 1); // Go to the next day
+            dayAfterEndDate.setHours(0, 0, 0, 0); // Set to the beginning of that next day
+            const endTimestamp = firebase.firestore.Timestamp.fromDate(dayAfterEndDate);
+
+            // Query based on the 'date' field (must be a Timestamp in Firestore)
+            const q = bookingsRef
+                .where('date', '>=', startTimestamp)
+                .where('date', '<', endTimestamp) // Use '<' to get dates *before* the start of the next day
+                .orderBy('date') // Order by date for consistency
+                .orderBy('startTime'); // Optional secondary sort
+
+            const querySnapshot = await q.get();
+            const bookings = [];
+            querySnapshot.forEach((doc) => {
+                const data = doc.data();
+                // Convert Firestore Timestamps back to JS Dates if needed by the frontend
+                if (data.date && data.date.toDate) {
+                    data.jsDate = data.date.toDate(); 
+                }
+                if (data.createdAt && data.createdAt.toDate) {
+                    data.jsCreatedAt = data.createdAt.toDate();
+                }
+                bookings.push({ id: doc.id, ...data });
+            });
+
+            console.log(`[Firestore] Found ${bookings.length} bookings in range for housekeeper ${housekeeperId}.`);
+            return bookings;
+
+        } catch (error) {
+            console.error(`[Firestore] Error getting bookings in range for housekeeper ${housekeeperId}:`, error);
+             if (error.code === 'permission-denied') {
+                 console.error('Permission denied fetching bookings. Check Firestore rules.');
+             } else if (error.code === 'failed-precondition') {
+                 console.warn('Firestore requires a composite index for this query (likely on date and startTime). Please create it using the link provided in the error message in the browser console.');
+            }
+            return []; // Return empty array on error
+        }
+    },
+    
+    // Get upcoming bookings for a specific homeowner linked to a specific housekeeper
     async getUpcomingHomeownerBookings(homeownerId, housekeeperId, limit = null) {
         console.log(`[Firestore] Getting upcoming bookings for homeowner ${homeownerId} linked to housekeeper ${housekeeperId}`);
         if (!homeownerId || !housekeeperId) {
@@ -814,58 +872,6 @@ const firestoreService = {
         } catch (error) {
             console.error('[Firestore] Error adding client:', error);
             return null;
-        }
-    },
-
-    // NEW: Get bookings for a specific housekeeper within a date range
-    async getBookingsForHousekeeperInRange(housekeeperId, startDate, endDate) {
-        console.log(`[Firestore] Getting bookings for housekeeper ${housekeeperId} from ${startDate.toISOString()} to ${endDate.toISOString()}`);
-        if (!housekeeperId || !startDate || !endDate) {
-            console.error('getBookingsForHousekeeperInRange requires housekeeperId, startDate, and endDate.');
-            return [];
-        }
-
-        try {
-            const bookingsRef = db.collection('users').doc(housekeeperId).collection('bookings');
-            
-            // Convert JS Dates to Firestore Timestamps for querying
-            const startTimestamp = firebase.firestore.Timestamp.fromDate(startDate);
-            // Firestore range queries are inclusive of start, exclusive of end.
-            // If we want bookings ON the endDate, we need to query up to the start of the NEXT day.
-            const endOfEndDate = new Date(endDate);
-            // endOfEndDate.setHours(23, 59, 59, 999); // Alternative: query up to end of day
-            const endTimestamp = firebase.firestore.Timestamp.fromDate(endOfEndDate);
-
-            // Query based on the 'date' field (assuming it's a Timestamp)
-            // Adjust field name if different (e.g., 'bookingDate')
-            const q = bookingsRef
-                .where('date', '>=', startTimestamp)
-                .where('date', '< ', endTimestamp) // Use '<' for exclusive end date query
-                .orderBy('date'); // Order by date for consistency
-
-            const querySnapshot = await q.get();
-            const bookings = [];
-            querySnapshot.forEach((doc) => {
-                const data = doc.data();
-                // Convert Firestore Timestamps back to JS Dates if needed by the frontend
-                if (data.date && data.date.toDate) {
-                    data.jsDate = data.date.toDate(); 
-                }
-                if (data.createdAt && data.createdAt.toDate) {
-                    data.jsCreatedAt = data.createdAt.toDate();
-                }
-                bookings.push({ id: doc.id, ...data });
-            });
-
-            console.log(`[Firestore] Found ${bookings.length} bookings in range.`);
-            return bookings;
-
-        } catch (error) {
-            console.error('[Firestore] Error getting bookings in range:', error);
-             if (error.code === 'permission-denied') {
-                 console.error('Permission denied fetching bookings. Check Firestore rules.');
-             }
-            return []; // Return empty array on error
         }
     },
 };

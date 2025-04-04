@@ -35,7 +35,7 @@
         <div class="loader ease-linear rounded-full border-8 border-t-8 border-gray-200 h-32 w-32"></div>
     </div>
 
-    <div class="container mx-auto px-4 pb-20"> <!-- Added pb-20 for bottom nav spacing -->
+    <div class="container mx-auto px-4 pb-24"> <!-- Increased pb-20 to pb-24 for bottom nav spacing -->
         <!-- Added margin-top to compensate for removed H1 -->
         <div class="mt-6">
              <!-- View for Homeowners NOT LINKED to a Housekeeper -->
@@ -121,12 +121,10 @@
                 <span class="text-xs font-medium">Home</span>
             </a>
             <!-- Schedule Tab -->
-            <a href="#" id="scheduleNavButton" class="text-center text-gray-500 hover:text-blue-600 p-2"> <!-- Placeholder href -->
+            <a href="/homeowner/schedule.html" class="text-center text-gray-500 hover:text-blue-600 p-2">
                 <svg class="w-6 h-6 mx-auto mb-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"> <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /> </svg>
                 <span class="text-xs font-medium">Schedule</span>
             </a>
-             <!-- Settings Tab (Removed from bottom nav as per design discussion) -->
-            <!-- Add other tabs if needed later -->
         </div>
     </nav>
 
@@ -231,24 +229,6 @@
     </div>
     <!-- Location Modal Backdrop -->
     <div id="locationEditModalBackdrop" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden transition-opacity duration-300"></div>
-
-    <!-- ADDED: Bottom Navigation Bar -->
-    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-md md:hidden z-50">
-        <div class="max-w-md mx-auto flex justify-around">
-            <a href="/homeowner/dashboard.html" class="flex flex-col items-center justify-center p-3 text-blue-600 font-medium"> <!-- Current page -->
-                <i class="fas fa-tachometer-alt text-xl"></i>
-                <span class="text-xs mt-1">Dashboard</span>
-            </a>
-            <a href="/homeowner/schedule.html" class="flex flex-col items-center justify-center p-3 text-gray-500 hover:text-blue-600">
-                <i class="fas fa-calendar-alt text-xl"></i>
-                <span class="text-xs mt-1">Schedule</span>
-            </a>
-            <a href="/homeowner/settings/settings.html" class="flex flex-col items-center justify-center p-3 text-gray-500 hover:text-blue-600">
-                <i class="fas fa-cog text-xl"></i>
-                <span class="text-xs mt-1">Settings</span>
-            </a>
-        </div>
-    </nav>
 
     <!-- Script Loading Order is Important -->
     <!-- 1. API Key defined directly below - DO NOT COMMIT ACTUAL KEY IN THIS FILE -->

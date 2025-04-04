@@ -1,7 +1,5 @@
 // Initialize the current week start date
-let currentWeekStart = new Date();
-// Set to today's date at midnight
-currentWeekStart.setHours(0, 0, 0, 0);
+let currentWeekStart; // Will be set after DOMContentLoaded
 
 // Global booking data
 let currentBookingData = {
@@ -39,28 +37,27 @@ function hideLoading() {
     }
 }
 
-// Function to check if a date is in the past
+// Function to check if a date is in the past (compares date part only)
 function isInPast(date) {
-    // Ensure date is a proper Date object
-    if (!(date instanceof Date)) {
-        date = new Date(date);
-    }
-    
-    // Create a new date object for today with time set to midnight
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    // Create a new date object for the input date with time set to midnight
-    const compareDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const compareDate = new Date(date);
     compareDate.setHours(0, 0, 0, 0);
     
-    // For debugging
-    console.log('Comparing dates in isInPast:');
-    console.log('Compare date:', compareDate.toString());
-    console.log('Today:', today.toString());
-    console.log('Is past?', compareDate < today);
-    
+    // console.log('Comparing dates in isInPast:', compareDate, today, compareDate < today);
     return compareDate < today;
+}
+
+// Function to check if a date is today (compares date part only)
+function isToday(date) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const compareDate = new Date(date);
+    compareDate.setHours(0, 0, 0, 0);
+    
+    return compareDate.getTime() === today.getTime();
 }
 
 // Function to update the navigation state
@@ -88,7 +85,7 @@ function updateNavigationState() {
     console.log('Navigation state updated, prev week button disabled:', prevWeekBtn.disabled);
 }
 
-// Function to update the week display
+// Function to update the week display (Monday - Sunday, with Year)
 function updateWeekDisplay() {
     try {
         const weekRangeElement = document.getElementById('week-range');
@@ -97,13 +94,17 @@ function updateWeekDisplay() {
             return;
         }
         
-        // Get the start and end of the current week
-        const weekStart = new Date(currentWeekStart);
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6);
+        // Ensure currentWeekStart is a Monday
+        if (!currentWeekStart || currentWeekStart.getDay() !== 1) {
+             currentWeekStart = getWeekStartDate(currentWeekStart || new Date());
+        }
         
-        // Format the dates
-        const options = { month: 'long', day: 'numeric', year: 'numeric' };
+        const weekStart = new Date(currentWeekStart); // Already should be Monday
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6); // Sunday is 6 days after Monday
+        
+        // Format the dates including year
+        const options = { month: 'short', day: 'numeric', year: 'numeric' };
         const startStr = weekStart.toLocaleDateString('en-US', options);
         const endStr = weekEnd.toLocaleDateString('en-US', options);
         
@@ -1190,68 +1191,48 @@ function logDeviceInfo() {
     return deviceInfo;
 }
 
+// Function to get Monday of the week for a given date
+function getWeekStartDate(date) {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0); // Ensure comparison at midnight
+    const day = d.getDay(); // 0 = Sunday, 1 = Monday, ...
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust to get Monday
+    return new Date(d.setDate(diff));
+}
+
 // Document ready function
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM content loaded');
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('Housekeeper schedule.js DOM loaded');
     
-    // Clean up any lingering backdrops from previous sessions
-    cleanupAllBackdrops();
+    // Initialize currentWeekStart to Monday of the current week
+    currentWeekStart = getWeekStartDate(new Date());
+    console.log('Initial currentWeekStart (Monday):', currentWeekStart);
     
-    // Log device info for debugging
-    const deviceInfo = logDeviceInfo();
-    console.log(`Running on ${deviceInfo.platform} with time zone ${deviceInfo.timeZone}`);
+    // Initial display update
+    updateWeekDisplay(); 
     
-    // Initialize booking modal
-    const modalInitialized = initializeBookingModal();
-    console.log('Booking modal initialized:', modalInitialized);
+    // Attach navigation listeners
+    const prevBtn = document.getElementById('prev-week');
+    const nextBtn = document.getElementById('next-week');
+    const todayBtn = document.getElementById('today-btn'); // Assuming an ID for the Today button
     
-    // Set up week navigation buttons
-    const prevWeekBtn = document.getElementById('prev-week');
-    const nextWeekBtn = document.getElementById('next-week');
-    const todayBtn = document.getElementById('today-btn');
+    if (prevBtn) prevBtn.addEventListener('click', navigateToPreviousWeek);
+    if (nextBtn) nextBtn.addEventListener('click', navigateToNextWeek);
+    if (todayBtn) todayBtn.addEventListener('click', navigateToCurrentWeek);
     
-    if (prevWeekBtn && nextWeekBtn && todayBtn) {
-        prevWeekBtn.addEventListener('click', function() {
-            navigateToPreviousWeek();
-        });
-        
-        nextWeekBtn.addEventListener('click', function() {
-            navigateToNextWeek();
-        });
-        
-        todayBtn.addEventListener('click', function() {
-            navigateToCurrentWeek();
-        });
-    } else {
-        console.error('Week navigation buttons not found');
-    }
+    // Setup booking modal and other initializations
+    initializeBookingModal();
     
-    // Initialize the week display
-    updateWeekDisplay();
-    
-    // Update navigation state
-    updateNavigationState();
-    
-    // Set up modal close button
-    const closeModalBtn = document.getElementById('closeBookingModal');
-    if (closeModalBtn) {
-        closeModalBtn.addEventListener('click', function() {
-            closeBookingModal();
-        });
-    }
-    
-    // Set up booking form handlers
-    setupBookingHandlers();
-    
-    // Initialize Firebase Auth
-    firebase.auth().onAuthStateChanged(function(user) {
+    // Authenticate and load initial data
+    firebase.auth().onAuthStateChanged(user => {
         if (user) {
-            console.log('User found after auth state change:', user.uid);
-            // Load the user schedule
+            console.log('User authenticated, loading initial schedule...');
             loadUserSchedule();
+            updateNavigationState(); // Update nav state after initial load
         } else {
-            console.log('No user found, redirecting to login');
-            window.location.href = 'login.html';
+            console.log('User not authenticated');
+            // Handle logged-out state (e.g., redirect or show message)
+            showLoading('Please log in.'); // Or redirect
         }
     });
 });
@@ -2914,113 +2895,35 @@ function showRescheduleOptions(booking) {
 
 // Function to navigate to the previous week
 function navigateToPreviousWeek() {
-    showLoading('Loading previous week...');
-    
-    try {
-        // Calculate the previous week's start date
-        const prevWeekStart = new Date(currentWeekStart);
-        prevWeekStart.setDate(currentWeekStart.getDate() - 7);
-        
-        // Check if the previous week is in the past
-        const todayForCheck = new Date();
-        todayForCheck.setHours(0, 0, 0, 0);
-        const isPast = prevWeekStart < todayForCheck;
-        
-        console.log('Previous week start:', prevWeekStart.toDateString(), 'Is past:', isPast);
-        
-        if (isPast) {
-            console.log('Cannot navigate to past weeks');
-            hideLoading();
-            showAlertModal('Cannot navigate to past weeks');
-            return;
-        }
-        
-        // Update the current week start date
-        currentWeekStart = prevWeekStart;
-        console.log('New week start date:', currentWeekStart.toDateString());
-        
-        // Update the week display in the UI
-        updateWeekDisplay();
-        
-        // Update navigation state
-        updateNavigationState();
-        
-        // Load the user schedule for the new week without showing another loading indicator
-        loadUserSchedule(false).finally(() => {
-            hideLoading();
-        });
-    } catch (error) {
-        console.error('Error navigating to previous week:', error);
-        hideLoading();
-        showAlertModal('Error navigating to previous week: ' + error.message);
-    }
+    if (!currentWeekStart) return;
+    console.log('Navigating to previous week');
+    currentWeekStart.setDate(currentWeekStart.getDate() - 7);
+    // Ensure it stays Monday (useful if DST changes happen, though less likely with setDate)
+    currentWeekStart = getWeekStartDate(currentWeekStart);
+    updateWeekDisplay();
+    loadUserSchedule(); // Reload schedule for the new week
+    updateNavigationState(); 
 }
 
 // Function to navigate to the next week
 function navigateToNextWeek() {
-    showLoading('Loading next week...');
-    
-    try {
-        // Calculate the next week's start date
-        const nextWeekStart = new Date(currentWeekStart);
-        nextWeekStart.setDate(currentWeekStart.getDate() + 7);
-        
-        // Update the current week start date
-        currentWeekStart = nextWeekStart;
-        console.log('New week start date:', currentWeekStart.toDateString());
-        
-        // Update the week display in the UI
-        updateWeekDisplay();
-        
-        // Update navigation state
-        updateNavigationState();
-        
-        // Load the user schedule for the new week without showing another loading indicator
-        loadUserSchedule(false).finally(() => {
-            hideLoading();
-        });
-    } catch (error) {
-        console.error('Error navigating to next week:', error);
-        hideLoading();
-        showAlertModal('Error navigating to next week: ' + error.message);
-    }
+    if (!currentWeekStart) return;
+    console.log('Navigating to next week');
+    currentWeekStart.setDate(currentWeekStart.getDate() + 7);
+    // Ensure it stays Monday
+    currentWeekStart = getWeekStartDate(currentWeekStart);
+    updateWeekDisplay();
+    loadUserSchedule(); // Reload schedule for the new week
+    updateNavigationState();
 }
 
 // Function to navigate to the current week
 function navigateToCurrentWeek() {
-    showLoading('Loading current week...');
-    
-    try {
-        // Set current week start date to today
-        const today = new Date();
-        currentWeekStart = new Date(today);
-        // Set to today's date at midnight
-        currentWeekStart.setHours(0, 0, 0, 0);
-        console.log('New week start date:', currentWeekStart.toDateString());
-        
-        // Update the week display in the UI
-        updateWeekDisplay();
-        
-        // Update navigation state
-        updateNavigationState();
-        
-        // Load the user schedule for the current week
-        const user = firebase.auth().currentUser;
-        if (!user) {
-            console.log('No user found, cannot load schedule');
-            hideLoading();
-            return;
-        }
-        
-        // Load user settings and generate schedule without showing another loading indicator
-        loadUserSchedule(false).finally(() => {
-            hideLoading();
-        });
-    } catch (error) {
-        console.error('Error navigating to current week:', error);
-        hideLoading();
-        showAlertModal('Error navigating to current week: ' + error.message);
-    }
+    console.log('Navigating to current week');
+    currentWeekStart = getWeekStartDate(new Date()); // Go to Monday of the current week
+    updateWeekDisplay();
+    loadUserSchedule(); // Reload schedule
+    updateNavigationState();
 }
 
 // Function to initialize booking modal

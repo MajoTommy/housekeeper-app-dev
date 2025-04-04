@@ -40,7 +40,7 @@
         }
     </script>
 </head>
-<body class="h-full pb-20">
+<body class="h-full pb-40">
     <!-- Header -->
     <div class="sticky top-0 z-40 bg-white border-b border-gray-200">
         <div class="flex items-center justify-between px-4 py-4">
@@ -51,19 +51,16 @@
 
     <div class="px-4 py-6 space-y-6">
         <!-- Profile Card -->
-        <div class="bg-white rounded-lg p-4 shadow-sm">
-            <div class="flex items-center gap-x-4">
-                <div class="h-16 w-16 rounded-full bg-primary-light flex items-center justify-center text-xl font-semibold text-primary">
-                    MG
-                </div>
-                <div class="flex-1">
-                    <h2 class="text-xl font-semibold text-gray-900">Maria Garcia</h2>
-                    <p class="text-sm text-gray-500">maria@example.com</p>
-                </div>
-                <a href="edit-profile.html" class="inline-flex items-center rounded-md bg-white px-2.5 py-1.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
-                    <i class="fas fa-edit mr-1.5"></i>
-                    Edit
-                </a>
+        <div id="profile-card" class="bg-white rounded-lg shadow p-4 flex items-center space-x-4">
+            <span class="inline-flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
+                <span id="user-initials" class="text-xl font-medium leading-none text-blue-700">MG</span> <!-- ID for initials -->
+            </span>
+            <div>
+                <h2 id="user-display-name" class="text-lg font-semibold text-gray-900">Loading...</h2> <!-- ID for Name -->
+                <p id="user-email" class="text-sm text-gray-500">Loading...</p> <!-- ID for Email -->
+            </div>
+            <div class="ml-auto">
+                 <!-- Edit button could go here if needed -->
             </div>
         </div>
 
@@ -259,8 +256,24 @@
         </div>
     </div>
 
+    <!-- Fixed Save Button Area -->
+    <!-- Positioned above the nav bar (approx 70px) -->
+    <div class="fixed bottom-[70px] inset-x-0 bg-white p-4 border-t border-gray-200 shadow-lg z-40"> <!-- Added bottom-[70px] -->
+        <div class="max-w-3xl mx-auto flex justify-end">
+            <button id="save-settings-button" 
+                    class="inline-flex items-center px-6 py-2 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50">
+                <i class="fas fa-save mr-2"></i> <!-- Optional icon -->
+                Save Settings
+            </button>
+            <!-- Saving Indicator (will be controlled by JS) -->
+            <div id="saving-indicator" class="ml-4 flex items-center text-sm">
+                 <!-- Content set by JS -->
+            </div>
+        </div>
+    </div>
+
     <!-- Mobile Footer Navigation -->
-    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30">
+    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30"> <!-- Stays at bottom-0 -->
         <div class="mx-auto max-w-7xl">
         <div class="flex justify-around">
                 <a href="../dashboard.html" class="flex flex-col items-center py-3 px-6 text-gray-500 hover:text-primary">
@@ -279,178 +292,6 @@
         </div>
     </div>
 
-    <!-- Auto-save script -->
-    <script>
-        // Global trigger function that can be called from other scripts
-        window.triggerSettingsSave = function() {
-            // If the auto-save is already initialized, use it
-            if (window.triggerDelayedSave) {
-                window.triggerDelayedSave();
-                return;
-            }
-            
-            // Fallback - show saving indicator directly if available
-            if (typeof window.showSavingIndicator === 'function') {
-                window.showSavingIndicator();
-            }
-            
-            // Call save function if available
-            if (typeof window.validateAndSaveSettings === 'function') {
-                window.validateAndSaveSettings();
-            }
-        };
-        
-        document.addEventListener('DOMContentLoaded', function() {
-            // Variables for auto-save
-            let saveTimeout = null;
-            const SAVE_DELAY = 1500; // 1.5 seconds
-            
-            // Immediately remove any existing error messages
-            function removeAllErrorMessages() {
-                // Remove any error popups with text "Error saving!"
-                const allErrorPopups = document.querySelectorAll('div');
-                allErrorPopups.forEach(popup => {
-                    if (popup.textContent && popup.textContent.trim() === 'Error saving!') {
-                        popup.remove();
-                    }
-                });
-                
-                // Also remove error notifications with text containing "Error"
-                const errorNotifications = document.querySelectorAll('[id^="save-notification"], .bg-red-500, .error');
-                errorNotifications.forEach(notification => notification.remove());
-                
-                // Also hide any error popups that might appear (like the one in the screenshot)
-                const errorPopups = document.querySelectorAll('div');
-                errorPopups.forEach(popup => {
-                    if (popup.textContent && (
-                        popup.textContent.includes('Error saving') || 
-                        popup.classList.contains('error') ||
-                        (popup.style && popup.style.backgroundColor === 'rgb(90, 149, 238)')
-                    )) {
-                        popup.remove();
-                    }
-                });
-            }
-            
-            // Call error removal immediately and periodically
-            removeAllErrorMessages();
-            
-            // Also set an interval to periodically check and remove error messages
-            setInterval(removeAllErrorMessages, 1000);
-            
-            // Patch saveSettings to handle errors gracefully
-            if (window.saveSettings) {
-                try {
-                    const originalSaveSettings = window.saveSettings;
-                    window.saveSettings = function() {
-                        try {
-                            return originalSaveSettings.call(this);
-                        } catch (err) {
-                            console.log('Error in saveSettings suppressed:', err);
-                            // Show a success message anyway to avoid confusing the user
-                            if (typeof showSavingIndicator === 'function') {
-                                showSavingIndicator();
-                            }
-                            return true;
-                        }
-                    };
-                } catch (e) {
-                    console.log('Error while patching saveSettings:', e);
-                }
-            }
-            
-            // Override the global showError function if it exists
-            if (window.showError) {
-                const originalShowError = window.showError;
-                window.showError = function() {
-                    console.log('Error suppressed');
-                    // Don't actually show any errors
-                    return;
-                };
-            }
-            
-            // Function to trigger save with delay
-            function triggerDelayedSave() {
-                // First, remove any error messages
-                removeAllErrorMessages();
-                
-                // Clear any existing timeout
-                if (saveTimeout) {
-                    clearTimeout(saveTimeout);
-                }
-                
-                // Set new timeout to save after delay
-                saveTimeout = setTimeout(() => {
-                    // First, remove any error messages again
-                    removeAllErrorMessages();
-                    
-                    // Try to find the saveSettings function in multiple ways
-                    const saveSettingsFunction = 
-                        (typeof saveSettings === 'function') ? saveSettings : 
-                        (window.saveSettings && typeof window.saveSettings === 'function') ? window.saveSettings : 
-                        null;
-                    
-                    if (saveSettingsFunction) {
-                        console.log('Auto-saving settings after user changes...');
-                        try {
-                            saveSettingsFunction();
-                            // Only use the original notification system
-                            if (typeof showSavingIndicator === 'function') {
-                                showSavingIndicator();
-                            }
-                        } catch (err) {
-                            console.error('Error while saving settings:', err);
-                            // Don't show error to user
-                        }
-                    } else {
-                        console.log('Settings will be saved when available');
-                        // Don't show error to user - silently ignore
-                    }
-                    
-                    // Remove any error messages one more time after save attempt
-                    setTimeout(removeAllErrorMessages, 500);
-                }, SAVE_DELAY);
-            }
-            
-            // Make the function available globally
-            window.triggerDelayedSave = triggerDelayedSave;
-            
-            // Attach auto-save to all input change events
-            
-            // Day toggles - specifically handle to prevent error messages
-            document.querySelectorAll('.day-toggle').forEach(toggle => {
-                toggle.addEventListener('change', function(e) {
-                    // First remove any existing error messages
-                    removeAllErrorMessages();
-                    
-                    // Then trigger the delayed save
-                    triggerDelayedSave();
-                });
-            });
-            
-            // Start time inputs
-            document.querySelectorAll('[data-start-time]').forEach(input => {
-                input.addEventListener('change', triggerDelayedSave);
-            });
-            
-            // Job selection buttons
-            document.querySelectorAll('[data-jobs]').forEach(button => {
-                button.addEventListener('click', triggerDelayedSave);
-            });
-            
-            // Time adjustment buttons
-            document.querySelectorAll('[data-action="increase-time"], [data-action="decrease-time"]').forEach(button => {
-                button.addEventListener('click', triggerDelayedSave);
-            });
-            
-            // Auto-send receipts toggle
-            const autoSendReceipts = document.getElementById('auto-send-receipts');
-            if (autoSendReceipts) {
-                autoSendReceipts.addEventListener('change', triggerDelayedSave);
-            }
-        });
-    </script>
-    
     <!-- Default Settings -->
     <script src="../../common/js/defaults.js"></script>
     
@@ -864,17 +705,6 @@
                         if (window.settingsWorkingDays) {
                             console.log(`FINAL STATE - day ${day}:`, JSON.stringify(window.settingsWorkingDays[day]));
                         }
-                        
-                        // CRITICAL FIX: Directly call window.saveSettings to ensure save happens
-                        if (typeof window.saveSettings === 'function') {
-                            console.log('CRITICAL FIX: Directly calling window.saveSettings()');
-                            window.saveSettings();
-                        } else if (typeof window.validateAndSaveSettings === 'function') {
-                            console.log('CRITICAL FIX: Directly calling window.validateAndSaveSettings()');
-                            window.validateAndSaveSettings();
-                        } else {
-                            console.error('CRITICAL ERROR: No global save function available');
-                        }
                     });
                 });
             }
@@ -972,13 +802,6 @@
                             window.workingDays[day].breakDurations[itemIndex] = durationMinutes;
                             console.log(`Updated ${day} break ${itemIndex+1} duration to ${durationMinutes} minutes`);
                         }
-                    }
-                    
-                    // Trigger save with proper notification
-                    if (window.triggerSettingsSave) {
-                        window.triggerSettingsSave();
-                    } else if (typeof window.validateAndSaveSettings === 'function') {
-                        window.validateAndSaveSettings();
                     }
                 }
                 

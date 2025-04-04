@@ -32,24 +32,33 @@ document.addEventListener('DOMContentLoaded', function() {
         const dayToggles = document.querySelectorAll('.day-toggle');
         const autoSendReceiptsToggle = document.getElementById('auto-send-receipts');
         const timezoneSelect = document.getElementById('timezone');
-        const savingIndicator = createSavingIndicator();
+        const userInitialsSpan = document.getElementById('user-initials');
+        const userDisplayNameH2 = document.getElementById('user-display-name');
+        const userEmailP = document.getElementById('user-email');
+        const saveSettingsButton = document.getElementById('save-settings-button');
+        const savingIndicatorContainer = document.getElementById('saving-indicator');
+
+        // Call the function to populate the dropdown
+        populateTimezoneOptions();
 
         // --- Core Functions (Defined Locally) ---
 
         function showSavingIndicator() {
             console.log('Showing saving indicator');
-            savingIndicator.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Saving...';
-            savingIndicator.classList.remove('translate-y-10', 'opacity-0');
+            if (!savingIndicatorContainer) return;
+            savingIndicatorContainer.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Saving...';
+            if(saveSettingsButton) saveSettingsButton.disabled = true;
         }
 
         function hideSavingIndicator(success = true) {
+            if (!savingIndicatorContainer) return;
             if (success) {
-                savingIndicator.innerHTML = '<i class="fas fa-check mr-2"></i> Saved!';
-                setTimeout(() => { savingIndicator.classList.add('translate-y-10', 'opacity-0'); }, 2000);
+                savingIndicatorContainer.innerHTML = '<i class="fas fa-check mr-2 text-green-500"></i> Saved!';
             } else {
-                savingIndicator.innerHTML = '<i class="fas fa-times mr-2"></i> Error saving!';
-                setTimeout(() => { savingIndicator.classList.add('translate-y-10', 'opacity-0'); }, 3000);
+                savingIndicatorContainer.innerHTML = '<i class="fas fa-times mr-2 text-red-500"></i> Error saving!';
             }
+            setTimeout(() => { savingIndicatorContainer.innerHTML = ''; }, 3000);
+            if(saveSettingsButton) saveSettingsButton.disabled = false;
         }
         
         function convertTo12HourFormat(timeStr) {
@@ -81,26 +90,42 @@ document.addEventListener('DOMContentLoaded', function() {
         function populateTimezoneOptions() {
             if (!timezoneSelect) return;
 
+            // Use a predefined list of North American timezones
+            const northAmericanTimezones = [
+                "America/New_York",    // Eastern Time (ET)
+                "America/Chicago",     // Central Time (CT)
+                "America/Denver",      // Mountain Time (MT)
+                "America/Phoenix",     // Mountain Time (Arizona - no DST)
+                "America/Los_Angeles", // Pacific Time (PT)
+                "America/Vancouver",   // Pacific Time (Canada)
+                "America/Edmonton",    // Mountain Time (Canada)
+                "America/Winnipeg",    // Central Time (Canada)
+                "America/Toronto",     // Eastern Time (Canada)
+                "America/Halifax",     // Atlantic Time (Canada)
+                "America/St_Johns",    // Newfoundland Time (Canada)
+                "America/Anchorage",   // Alaska Time (AKT)
+                "Pacific/Honolulu"     // Hawaii Time (HST - no DST)
+                // Add others like Mexico if needed
+                // "America/Mexico_City", // Central Time (Mexico)
+                // "America/Tijuana",     // Pacific Time (Mexico)
+                // "America/Chihuahua",   // Mountain Time (Mexico)
+            ];
+
             try {
-                const timezones = Intl.supportedValuesOf('timeZone');
-                timezoneSelect.innerHTML = '<option value="">Select your time zone</option>';
-                timezones.forEach(tz => {
+                // const timezones = Intl.supportedValuesOf('timeZone'); // Replaced with predefined list
+                timezoneSelect.innerHTML = '<option value="">Select Time Zone</option>'; // Changed placeholder
+                northAmericanTimezones.forEach(tz => {
                     const option = document.createElement('option');
                     option.value = tz;
-                    option.textContent = tz.replace(/_/g, ' ');
+                    // Format the display name nicely (e.g., America/New York -> New York)
+                    const displayName = tz.split('/').pop().replace(/_/g, ' '); 
+                    option.textContent = `${displayName} (${tz.startsWith('Pacific') || tz.startsWith('Atlantic') ? tz.split('/')[0] : 'America'})`; // Add region hint
                     timezoneSelect.appendChild(option);
                 });
             } catch (error) {
-                console.error("Error populating time zones (Intl API might not be fully supported or error occurred):", error);
-                const fallbackTimezones = ["America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "Europe/London", "UTC"];
-                timezoneSelect.innerHTML = '<option value="">Select your time zone</option>';
-                 fallbackTimezones.forEach(tz => {
-                    const option = document.createElement('option');
-                    option.value = tz;
-                    option.textContent = tz.replace(/_/g, ' ');
-                    timezoneSelect.appendChild(option);
-                });
-                 timezoneSelect.insertAdjacentHTML('beforeend', '<option value="">-- Other (See List) --</option>');
+                console.error("Error populating time zones:", error);
+                // Fallback in case of unexpected errors, though less likely with predefined list
+                timezoneSelect.innerHTML = '<option value="">Error loading timezones</option>';
             }
         }
 
@@ -132,7 +157,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Fix any data issues in loaded settings
                 console.log('Fixing any data issues in loaded settings...');
-                window.settingsModule.fixWorkingDaysData();
+                fixLoadedSettings(settings);
                 
                 // Initialize debugging for schedule.js
                 if (typeof window.debugWorkingDays === 'function') {
@@ -251,59 +276,87 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         async function saveSettings() {
-            console.log('[SAVE] saveSettings called');
+            console.log('saveSettings called');
+            showSavingIndicator();
+
             const user = firebase.auth().currentUser;
             if (!user) {
-                console.error('[SAVE] Cannot save settings, no user logged in');
+                console.error('Cannot save settings, no user logged in');
                 hideSavingIndicator(false);
                 return false;
             }
-            
-            showSavingIndicator();
-            try {
-                // Format settings using the local workingDays state
-                const formattedSettings = {
-                    workingDays: JSON.parse(JSON.stringify(workingDays)),
-                    autoSendReceipts: autoSendReceiptsToggle ? autoSendReceiptsToggle.checked : false,
-                    timezone: timezoneSelect ? timezoneSelect.value : null
-                };
+
+            const settingsToSave = {
+                workingDays: { ...workingDays }, // Save a copy
+                autoSendReceipts: autoSendReceiptsToggle ? autoSendReceiptsToggle.checked : false,
+                timezone: timezoneSelect ? timezoneSelect.value : null // Add selected timezone
+            };
+
+            // --- Data Formatting/Cleanup Before Save ---
+            dayNames.forEach(day => {
+                const dayData = settingsToSave.workingDays[day];
+                // ADDED: Log initial state for the day being processed
+                console.log(`[SAVE - ${day}] Initial dayData before format:`, JSON.stringify(dayData));
+                // END ADDED
                 
-                // Remove null timezone if not selected
-                if (formattedSettings.timezone === "") {
-                    delete formattedSettings.timezone;
-                }
-                
-                // Add compatibility layer for schedule.js
-                formattedSettings.workingDaysCompat = {};
-                dayNames.forEach((day, index) => {
-                    const dayIndex = (index + 1) % 7;
-                    formattedSettings.workingDaysCompat[dayIndex] = workingDays[day].isWorking === true;
-                });
-                
-                console.log('[SAVE] Formatted settings with compatibility layer:', formattedSettings);
-                
-                // ADDED: Check if firestoreService is available
-                if (!firestoreService || typeof firestoreService.updateUserSettings !== 'function') {
-                    console.error('[SAVE] firestoreService or updateUserSettings method not available');
-                    hideSavingIndicator(false);
-                    return false;
-                }
-                
-                console.log('[SAVE] Calling firestoreService.updateUserSettings...');
-                const success = await firestoreService.updateUserSettings(user.uid, formattedSettings);
-                console.log('[SAVE] firestoreService.updateUserSettings returned:', success);
-                
-                if (success) {
-                    console.log('[SAVE] Settings saved successfully');
-                    hideSavingIndicator(true);
-                    return true;
+                if (!dayData.isWorking) {
+                    // If not working, nullify time/job details for consistency
+                    dayData.startTime = null;
+                    dayData.jobsPerDay = null;
+                    dayData.breakTime = null;
+                    dayData.jobDurations = [];
+                    dayData.breakDurations = [];
                 } else {
-                    console.error('[SAVE] Error saving settings via firestoreService');
-                    hideSavingIndicator(false);
-                    return false;
+                    // Ensure times are in 12-hour format for storage consistency
+                    if (dayData.startTime) {
+                        dayData.startTime = convertTo12HourFormat(dayData.startTime);
+                    }
+                    // Ensure durations are numbers
+                    if (dayData.jobsPerDay !== null) dayData.jobsPerDay = parseInt(dayData.jobsPerDay, 10) || null;
+                    if (dayData.breakTime !== null) dayData.breakTime = parseInt(dayData.breakTime, 10) || null;
+
+                    // Ensure job/break arrays match job count
+                    const jobCount = dayData.jobsPerDay;
+                    if (jobCount > 0) {
+                        if (!Array.isArray(dayData.jobDurations) || dayData.jobDurations.length !== jobCount) {
+                            console.warn(`Job durations array length mismatch for ${day}, resetting.`);
+                            dayData.jobDurations = Array(jobCount).fill(DEFAULT_JOB_DURATION);
+                        }
+                        const breakCount = Math.max(0, jobCount - 1);
+                        if (!Array.isArray(dayData.breakDurations) || dayData.breakDurations.length !== breakCount) {
+                            console.warn(`Break durations array length mismatch for ${day}, resetting.`);
+                            dayData.breakDurations = Array(breakCount).fill(DEFAULT_BREAK_TIME);
+                        }
+                        // ADDED: Log durations before final map/parse
+                        console.log(`[SAVE - ${day}] Durations before final map:`, {
+                            jobs: JSON.stringify(dayData.jobDurations),
+                            breaks: JSON.stringify(dayData.breakDurations)
+                        });
+                        // Ensure all durations are numbers
+                        dayData.jobDurations = dayData.jobDurations.map(d => parseInt(d, 10) || DEFAULT_JOB_DURATION);
+                        dayData.breakDurations = dayData.breakDurations.map(d => parseInt(d, 10) || DEFAULT_BREAK_TIME);
+                    } else {
+                         dayData.jobDurations = [];
+                         dayData.breakDurations = [];
+                    }
                 }
+            });
+
+            console.log('Attempting to save settings:', JSON.stringify(settingsToSave, null, 2));
+
+            try {
+                await firestoreService.updateUserSettings(user.uid, settingsToSave);
+                console.log('Settings saved successfully via centralized service');
+                hideSavingIndicator(true);
+
+                 // Update debugging in schedule.js if available
+                 if (typeof window.debugWorkingDays === 'function') {
+                    window.debugWorkingDays(settingsToSave);
+                 }
+
+                return true;
             } catch (error) {
-                console.error('[SAVE] Error caught in saveSettings:', error, error.stack);
+                console.error('Error saving settings:', error);
                 hideSavingIndicator(false);
                 return false;
             }
@@ -436,7 +489,6 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log(`Updated ${day} break durations:`, workingDays[day].breakDurations);
 
             updateDayVisualIndicators(day); // Update UI
-            validateAndSaveSettings(); // Save changes
         }
 
         // NEW FUNCTION: Update job duration values
@@ -464,7 +516,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.log(`Updated ${day} job ${jobIndex+1} duration to ${durationMinutes} minutes`);
                 
                 updateDayVisualIndicators(day); // Update UI
-                validateAndSaveSettings(); // Save changes
                 return true;
             } else {
                 console.error(`Invalid job index ${jobIndex} for ${day}`);
@@ -498,7 +549,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.log(`Updated ${day} break ${breakIndex+1} duration to ${durationMinutes} minutes`);
                 
                 updateDayVisualIndicators(day); // Update UI
-                validateAndSaveSettings(); // Save changes
                 return true;
             } else {
                 console.error(`Invalid break index ${breakIndex} for ${day}`);
@@ -508,27 +558,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // --- Initialization & Event Listeners ---
 
-        function createSavingIndicator() {
-            const indicator = document.createElement('div');
-            indicator.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Saving...';
-            indicator.className = 'fixed bottom-4 right-4 bg-blue-500 text-white px-4 py-2 rounded shadow-lg transform transition-all duration-300 translate-y-10 opacity-0 z-50';
-            document.body.appendChild(indicator);
-            return indicator;
-        }
-
         function initializeUI() {
             console.log('Initializing UI event listeners...');
             // Day Toggles
-    dayToggles.forEach(toggle => {
-        toggle.addEventListener('change', function() {
-            const day = this.getAttribute('data-day-toggle');
-            const isWorking = this.checked;
+            dayToggles.forEach(toggle => {
+                toggle.addEventListener('change', function() {
+                    const day = this.getAttribute('data-day-toggle');
+                    const isWorking = this.checked;
                     console.log(`Toggle changed for ${day}: ${isWorking}`);
                     if (!workingDays[day]) { workingDays[day] = {}; }
-                workingDays[day].isWorking = isWorking;
-                
+                    workingDays[day].isWorking = isWorking;
+                    
                     // Ensure default values if turning ON
-                if (isWorking) {
+                    if (isWorking) {
                          if (workingDays[day].jobsPerDay === null) workingDays[day].jobsPerDay = DEFAULT_JOBS_PER_DAY;
                          if (workingDays[day].startTime === null) workingDays[day].startTime = DEFAULT_START_TIME;
                          if (workingDays[day].breakTime === null) workingDays[day].breakTime = DEFAULT_BREAK_TIME;
@@ -550,13 +592,12 @@ document.addEventListener('DOMContentLoaded', function() {
                      }
 
                     applyLoadedSettings({ workingDays: workingDays }); // Re-apply to update panel visibility and inputs
-                    validateAndSaveSettings();
-        });
-    });
+                });
+            });
 
             // Auto-Send Receipts Toggle
-                    if (autoSendReceiptsToggle) {
-                 autoSendReceiptsToggle.addEventListener('change', validateAndSaveSettings);
+            if (autoSendReceiptsToggle) {
+                 // No automatic save on toggle change now
             }
 
             // General input changes (e.g., start time)
@@ -570,7 +611,6 @@ document.addEventListener('DOMContentLoaded', function() {
                          if (workingDays[day]) {
                              workingDays[day].startTime = convertTo12HourFormat(this.value);
                              updateDayVisualIndicators(day); // Update timeline etc.
-                             validateAndSaveSettings();
                          }
                      });
                  }
@@ -593,16 +633,24 @@ document.addEventListener('DOMContentLoaded', function() {
                          if (workingDays[day]) {
                              workingDays[day].breakTime = parseInt(this.value);
                     updateDayVisualIndicators(day);
-                             validateAndSaveSettings();
                           }
                       });
                  }
                 // Add similar listeners for job duration controls if implemented
              });
 
-            // NEW: Add listener for Timezone Select
+            // Timezone Select listener
             if (timezoneSelect) {
-                timezoneSelect.addEventListener('change', validateAndSaveSettings);
+                // No automatic save on timezone change
+            }
+
+            // *** ADDED: Save Button Listener ***
+            if (saveSettingsButton) {
+                saveSettingsButton.addEventListener('click', () => {
+                    console.log('Save Settings button clicked.');
+                    // Directly call the validation and save function
+                    validateAndSaveSettings(); 
+                });
             }
         }
         
@@ -634,14 +682,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Apply updates to the day's settings
                 Object.assign(workingDays[day], updates);
                 
-                // Update UI and save
+                // Update UI 
                 updateDayVisualIndicators(day);
-                return validateAndSaveSettings();
+                return true; // Indicate success in updating local state
             },
             
             // Fix corrupted working days data
             fixWorkingDaysData: function() {
                 console.log('[FIX] Cleaning up potential data issues in workingDays');
+                let changesMade = false; // Track if fixes were applied
                 dayNames.forEach(day => {
                     if (!workingDays[day]) return;
                     
@@ -676,7 +725,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 });
                 
-                return validateAndSaveSettings();
+                return changesMade; // Return whether fixes were made
             }
         };
 
@@ -829,21 +878,46 @@ document.addEventListener('DOMContentLoaded', function() {
 
         createDiagnosticTool();
 
-        // Listen for auth state changes to load initial settings
+        // Listen for auth state changes to load initial settings AND user info
         firebase.auth().onAuthStateChanged(async user => {
             if (user) {
                 console.log('User logged in, loading initial settings...');
-                // MOVE POPULATE HERE: Ensure DOM is ready before populating
+                
+                // Fetch Firestore User Profile for name display
+                let displayName = "Name not set";
+                try {
+                    const userProfile = await firestoreService.getUserProfile(user.uid);
+                    if (userProfile) {
+                        // Prefer firstName + lastName, fallback to name, then default
+                        if (userProfile.firstName && userProfile.lastName) {
+                            displayName = `${userProfile.firstName} ${userProfile.lastName}`;
+                        } else if (userProfile.name) {
+                            displayName = userProfile.name;
+                        }
+                    }
+                } catch (profileError) {
+                    console.error("Error fetching user profile for display:", profileError);
+                }
+
+                // Populate User Info using Firestore name and Auth email/initials
+                if (userDisplayNameH2) userDisplayNameH2.textContent = displayName;
+                if (userEmailP) userEmailP.textContent = user.email || "Email not set"; // Still use Auth email
+                if (userInitialsSpan) {
+                    const nameForInitials = displayName !== "Name not set" ? displayName : (user.email || '');
+                    const initials = nameForInitials.split(' ').map(n => n[0]).join('').toUpperCase() || '?';
+                    userInitialsSpan.textContent = initials.substring(0, 2); // Max 2 initials
+                }
+
+                // Load settings etc.
                 populateTimezoneOptions(); 
                 await loadSettings(); // Call local loadSettings
-                // Setup listeners AFTER settings are loaded to avoid premature saves
-                // setupEventListeners();  <- We should ensure setupEventListeners is called AFTER loadSettings finishes
-                // It seems setupEventListeners might not be defined here, let's double check.
-                // Let's ensure initializeUI which contains setupEventListeners is called correctly.
-                // initializeUI() is called at the end, let's call it AFTER loadSettings. 
                 initializeUI(); // Call this after loading settings
             } else {
                 console.log('User logged out, settings UI inactive.');
+                // Clear user info fields
+                if (userDisplayNameH2) userDisplayNameH2.textContent = 'Logged Out';
+                if (userEmailP) userEmailP.textContent = '';
+                if (userInitialsSpan) userInitialsSpan.textContent = '-';
                 // Optionally clear UI or show logged-out state
                 applyLoadedSettings({ workingDays: {} }); // Clear UI by applying empty settings
             }
@@ -852,3 +926,86 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('Settings.js initialization complete.');
     } // End of Firebase initialized block
 }); 
+
+function fixLoadedSettings(settingsData) {
+    console.log('[FIX] Cleaning up potential data issues in workingDays');
+    let changesMade = false;
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    
+    if (!settingsData || !settingsData.workingDays) {
+        console.log('[FIX] No workingDays data found to fix.');
+        return; // Nothing to fix
+    }
+
+    days.forEach(day => {
+        const dayData = settingsData.workingDays[day];
+        if (!dayData) {
+            console.log(`[FIX] No data found for ${day}`);
+            return; // Skip if no data for the day
+        }
+
+        if (dayData.isWorking) {
+            // Ensure jobsPerDay is valid
+            if (!dayData.jobsPerDay || typeof dayData.jobsPerDay !== 'number' || dayData.jobsPerDay < 1 || dayData.jobsPerDay > 3) {
+                console.log(`[FIX - ${day}] Invalid jobsPerDay (${dayData.jobsPerDay}), setting to 2`);
+                dayData.jobsPerDay = 2;
+                changesMade = true;
+            }
+            
+            // Ensure jobDurations array exists and matches jobsPerDay
+            if (!dayData.jobDurations || !Array.isArray(dayData.jobDurations) || dayData.jobDurations.length !== dayData.jobsPerDay) {
+                const oldDurations = dayData.jobDurations || [];
+                dayData.jobDurations = Array(dayData.jobsPerDay).fill(0).map((_, i) => 
+                    i < oldDurations.length ? oldDurations[i] : DEFAULT_JOB_DURATION);
+                console.log(`[FIX - ${day}] Corrected jobDurations:`, dayData.jobDurations);
+                changesMade = true;
+            }
+
+            // Ensure breakDurations array exists and matches jobsPerDay - 1
+            if (dayData.jobsPerDay > 1) {
+                if (!dayData.breakDurations || !Array.isArray(dayData.breakDurations) || dayData.breakDurations.length !== dayData.jobsPerDay - 1) {
+                    const oldBreaks = dayData.breakDurations || [];
+                    dayData.breakDurations = Array(dayData.jobsPerDay - 1).fill(0).map((_, i) => 
+                        i < oldBreaks.length ? oldBreaks[i] : DEFAULT_BREAK_TIME);
+                    console.log(`[FIX - ${day}] Corrected breakDurations:`, dayData.breakDurations);
+                    changesMade = true;
+                }
+            } else {
+                // If only 1 job, ensure breakDurations is empty
+                if (dayData.breakDurations && dayData.breakDurations.length > 0) {
+                    console.log(`[FIX - ${day}] Clearing breakDurations for 1 job day`);
+                    dayData.breakDurations = [];
+                    changesMade = true;
+                }
+            }
+
+            // Ensure startTime is valid
+            if (!dayData.startTime || !/\d{1,2}:\d{2}\s*(AM|PM)/i.test(dayData.startTime)) {
+                console.log(`[FIX - ${day}] Invalid startTime (${dayData.startTime}), setting to default`);
+                dayData.startTime = '8:00 AM';
+                changesMade = true;
+            }
+        } else {
+            // If not working, clear potentially problematic fields
+            if (dayData.jobsPerDay !== null || dayData.startTime !== null || dayData.jobDurations?.length > 0 || dayData.breakDurations?.length > 0) {
+                console.log(`[FIX - ${day}] Clearing fields for non-working day`);
+                dayData.jobsPerDay = null;
+                dayData.startTime = null;
+                dayData.jobDurations = [];
+                dayData.breakDurations = [];
+                changesMade = true;
+            }
+        }
+    });
+
+    // // If changes were made by the fix function, trigger a save to ensure consistency
+    // // REMOVED THIS CALL - Saving should only happen via manual button click
+    // if (changesMade) {
+    //     console.log('[FIX] Changes were made during fix, triggering validation and save...');
+    //     validateAndSaveSettings(); 
+    // } else {
+    //     console.log('[FIX] No changes needed during fix routine.');
+    // }
+}
+
+// --- Saving Logic ---
