@@ -141,3 +141,17 @@ The application implements role-based authentication:
 - `auth-router.js` redirects users to the appropriate interface based on their role
 - Each interface only shows functionality relevant to that user role
 
+## Cloud Functions (`/functions`)
+
+Backend logic running in Firebase Cloud Functions, providing server-side capabilities and secure access to data.
+
+-   `index.js`: Main entry point for Cloud Functions.
+    -   **`getAvailableSlots`**: 
+        -   **Type:** HTTPS Callable Function.
+        -   **Purpose:** Calculates the actual availability slots for a specific housekeeper within a given date range, intended for display to homeowners.
+        -   **Why:** This function is crucial because calculating availability requires combining two dynamic data sources: the housekeeper's default working pattern/preferences (from `/users/{hkId}/settings/app`) and their existing commitments (from `/users/{hkId}/bookings`). Performing this complex calculation on the client-side would be inefficient, difficult to maintain, and potentially expose sensitive logic. This function centralizes the logic, ensures consistency, and provides a clean interface for the homeowner frontend (`homeowner/js/schedule.js`) to fetch accurate availability data. It handles merging default availability with actual booked times, ensuring homeowners only see slots that are truly open.
+-   `package.json`: Node.js dependencies for functions (`firebase-admin`, `firebase-functions`).
+-   `.eslintrc.js`: ESLint configuration for code quality.
+
+## Key Files & Responsibilities
+

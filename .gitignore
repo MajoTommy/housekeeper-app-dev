@@ -27,3 +27,10 @@ node_modules/
 .DS_Store
 Thumbs.db
 
+# Firebase Hosting
+.firebase/
+firebase.json
+# Ignore client-side config files containing secrets
+public/js/firebase-config.js # Ensure API keys aren't committed if not using reserved URLs
+public/common/js/maps-config.js # API Key for Google Maps
+

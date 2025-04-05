@@ -231,31 +231,37 @@
     <div id="locationEditModalBackdrop" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden transition-opacity duration-300"></div>
 
     <!-- Script Loading Order is Important -->
-    <!-- 1. API Key defined directly below - DO NOT COMMIT ACTUAL KEY IN THIS FILE -->
-    <!-- <script src="../common/js/maps-config.js"></script> <-- Removed this line -->
-    <!-- Removed the immediate log check script block -->
+    <!-- 1. Maps Config (Loads the API Key - MUST be before Maps API script) -->
+    <script src="/common/js/maps-config.js"></script>
 
-    <!-- 2. Load Google Maps API (references key defined below) -->
+    <!-- 2. Load Google Maps API (references key loaded above) -->
     <script id="maps-api-script"></script> 
     <script>
-      // !!! IMPORTANT: Replace 'YOUR_API_KEY_HERE' with your actual Google Maps API key. !!!
-      // !!! DO NOT COMMIT your actual key in this file to version control (e.g., Git). !!!
-      const apiKey = 'AIzaSyDlXNozm93VKcVRrPAC9Cr9QgIEvql6XUA'; 
-      
+      // Function to load the Maps API script using the key from maps-config.js
       function loadMapsApi() {
-        console.log('Checking key defined in script:', apiKey ? 'Found' : 'Missing');
-        if (!apiKey || apiKey === 'YOUR_API_KEY_HERE') {
-          console.warn('Google Maps API Key not found or is placeholder in dashboard.html. Autocomplete will not work.');
+        // Access the key loaded by maps-config.js
+        // Ensure maps-config.js defines GOOGLE_MAPS_API_KEY
+        if (typeof GOOGLE_MAPS_API_KEY === 'undefined' || !GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY.startsWith('YOUR_')) {
+          console.warn('Google Maps API Key not found or is placeholder in maps-config.js. Autocomplete will not work.');
           return; 
         }
         const script = document.getElementById('maps-api-script');
-        // Use the locally defined apiKey constant
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=initAutocomplete&async=1&defer=1`;
-        console.log('Loading Google Maps API...');
+        // Use the constant loaded from the config file
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places&callback=initAutocomplete&async=1&defer=1`;
+        console.log('Loading Google Maps API using key from config...');
       }
+      
+      // This function will be called by the Google Maps script once loaded
       window.initAutocomplete = () => {
         console.log("Google Maps API loaded and ready (callback executed).");
+         // Now that Maps is ready, potentially initialize any map-related functionality
+         // e.g., if dashboard.js needs to set up autocomplete, trigger it here or check a flag.
+         if (typeof window.initializeLocationAutocomplete === 'function') {
+             window.initializeLocationAutocomplete();
+         }
       }
+      
+      // Load the script
       loadMapsApi(); 
     </script>
 

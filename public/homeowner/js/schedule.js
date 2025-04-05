@@ -248,23 +248,37 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!scheduleContainer) return;
         scheduleContainer.innerHTML = ''; // Clear previous schedule
 
-        // Iterate through 7 days starting from weekStartDate
+        // Iterate through 7 days starting from weekStartDate (which is Monday 00:00 local)
         for (let i = 0; i < 7; i++) {
             const currentDayDate = new Date(weekStartDate);
             currentDayDate.setDate(weekStartDate.getDate() + i);
-            const dateString = currentDayDate.toISOString().split('T')[0]; // YYYY-MM-DD
-            const dayOfWeekIndex = currentDayDate.getDay();
             
-            // Get data for the specific date from the schedule object
+            // --- FIX: Use UTC date components to create the lookup key --- 
+            const year = currentDayDate.getUTCFullYear();
+            const month = (currentDayDate.getUTCMonth() + 1).toString().padStart(2, '0');
+            const day = currentDayDate.getUTCDate().toString().padStart(2, '0');
+            const dateString = `${year}-${month}-${day}`; // YYYY-MM-DD (UTC)
+            // --- END FIX ---
+            
+            const dayOfWeekIndex = currentDayDate.getDay(); // Still use local day for display name
+            
+            // Get data for the specific date (using UTC date string) from the schedule object
             const dayData = scheduleData[dateString];
 
             const dayCard = document.createElement('div');
             dayCard.className = 'bg-white p-4 rounded-lg shadow';
+             // Add date string as data attribute for potential future use
+             dayCard.dataset.date = dateString; 
 
             const dayHeader = document.createElement('h3');
             dayHeader.className = 'text-lg font-semibold mb-3 border-b pb-2 text-gray-700';
-            // Use day name from data if available, otherwise calculate
-            dayHeader.textContent = `${dayData ? dayData.dayName : dayNames[dayOfWeekIndex]} (${formatDate(currentDayDate)})`;
+            
+            // --- FIX: Display the date using the UTC date components --- 
+            // Construct a Date object interpreted as UTC for display formatting
+            const displayDate = new Date(Date.UTC(year, currentDayDate.getUTCMonth(), day));
+            // --- END FIX ---
+            
+            dayHeader.textContent = `${dayNames[dayOfWeekIndex]} (${formatDate(displayDate)})`; // Use formatDate which now includes year
             dayCard.appendChild(dayHeader);
 
             const slotsContainer = document.createElement('div');

@@ -1,6 +1,127 @@
-# Database Structure Documentation
+# Database Structure (Firestore)
 
-This document outlines the structure of the Firebase Firestore database used in the Housekeeping App.
+This document outlines the structure of the Firestore database for the Housekeeping App.
+
+## Root Collections
+
+-   `/users`: Stores user profile information for both housekeepers and homeowners.
+-   `/invites`: (If applicable) Stores invitation codes or pending invites.
+
+## `/users/{userId}` Document
+
+Contains basic profile information common to all users.
+
+```json
+{
+  "uid": "userId",
+  "email": "user@example.com",
+  "role": "housekeeper" | "homeowner",
+  "firstName": "Casey",
+  "lastName": "Keeper",
+  "createdAt": Timestamp,
+  // Other common fields...
+}
+```
+
+### Subcollections under `/users/{userId}`
+
+#### If `role` is "housekeeper":
+
+-   `/clients`: Stores information about clients managed *by this housekeeper*.
+    -   `/clients/{clientId}`:
+        ```json
+        {
+          "firstName": "Client",
+          "lastName": "Name",
+          "email": "client@example.com",
+          "phone": "555-1234",
+          "address": "123 Main St, Anytown, CA 90210",
+          "accessInfo": "Key under mat, code 1234",
+          "specialInstructions": "Beware of dog",
+          // Other client details...
+        }
+        ```
+-   `/bookings`: Stores *all* booking/appointment records for this housekeeper.
+    -   `/bookings/{bookingId}`:
+        ```json
+        {
+          "date": "YYYY-MM-DD", // String format for the date of the booking
+          "startTime": "HH:MM AM/PM", // String format (e.g., "9:00 AM", "1:30 PM")
+          "endTime": "HH:MM AM/PM", // String format
+          "clientId": "clientId | homeownerUserId", // Reference to /clients/{clientId} OR /users/{userId} if homeowner booked directly
+          "clientName": "Client Full Name", // Denormalized for easier display
+          "clientAddress": "Client Address", // Denormalized
+          "clientPhone": "Client Phone", // Denormalized
+          "accessInfo": "Access notes for this specific booking", // Denormalized or booking-specific
+          "status": "upcoming" | "done" | "cancelled",
+          "frequency": "one-time" | "weekly" | "bi-weekly" | "monthly", // Optional recurrence info
+          "createdAt": Timestamp,
+          "updatedAt": Timestamp
+          // Potentially price, job duration estimate, etc.
+        }
+        ```
+        *Note: The `date` field is currently stored/queried as a `YYYY-MM-DD` String.*
+-   `/settings`: Stores application-specific settings for the housekeeper.
+    -   `/settings/app`: (Single document for simplicity)
+        ```json
+        {
+          "workingDays": {
+            "monday": {
+              "isWorking": true,
+              "startTime": "HH:MM AM/PM", // e.g., "8:00 AM"
+              "jobsPerDay": 2, // Number of distinct job blocks
+              "jobDurations": [ 210, 210 ], // Array of job durations in minutes, length matches jobsPerDay
+              "breakDurations": [ 60 ] // Array of break durations in minutes, length is jobsPerDay - 1
+            },
+            "tuesday": { "isWorking": false, /* ... other fields null or default */ },
+            "wednesday": { /* ... */ },
+            "thursday": { /* ... */ },
+            "friday": { /* ... */ },
+            "saturday": { /* ... */ },
+            "sunday": { /* ... */ }
+          },
+          "timezone": "America/Winnipeg", // IANA Timezone string (e.g., "America/Los_Angeles")
+          "autoSendReceipts": false, // Example setting
+          "updatedAt": Timestamp
+        }
+        ```
+        *Note: This structure represents the housekeeper's **default** weekly availability pattern.*
+
+-   **(Planned) `/availabilityOverrides`**: Stores exceptions to the default weekly pattern.
+    -   `/availabilityOverrides/{overrideId}`:
+        ```json
+        {
+          "type": "block_day" | "block_time" | "add_working_day" | "modify_hours",
+          "startDate": "YYYY-MM-DD", // Start date of override
+          "endDate": "YYYY-MM-DD", // End date (can be same as start for single day)
+          "startTime": "HH:MM AM/PM", // Optional: For block_time or modify_hours
+          "endTime": "HH:MM AM/PM", // Optional: For block_time or modify_hours
+          "isWorking": boolean, // Optional: For add_working_day
+          "reason": "Vacation", // Optional description
+          "createdAt": Timestamp
+        }
+        ```
+        *Note: Structure is tentative. Needs to handle various override types.*
+
+#### If `role` is "homeowner":
+
+-   `/settings`: Stores application-specific settings for the homeowner.
+    -   `/settings/app`: (Single document)
+        ```json
+        {
+          "linkedHousekeeperId": "housekeeperUserId", // UID of the linked housekeeper
+          // Other homeowner settings...
+        }
+        ```
+-   `/bookings`: (Optional, could live under housekeeper only) Stores bookings *made by this homeowner*. Might duplicate data in housekeeper's bookings.
+    -   `/bookings/{bookingId}`: (Similar structure to housekeeper's booking, linking back to housekeeper)
+
+## Considerations
+
+-   **Denormalization:** Client details (`clientName`, `clientAddress`, etc.) are denormalized into booking records for efficient display on the housekeeper's schedule without requiring extra reads. Updates to client profiles would ideally trigger updates to future booking records (using Cloud Functions).
+-   **Date/Time Handling:** Storing dates as `YYYY-MM-DD` strings simplifies some queries but requires careful handling in Cloud Functions compared to Timestamps, especially regarding timezones and range queries. Storing times as `HH:MM AM/PM` strings requires parsing logic. Using minutes-since-midnight internally in functions can be more robust. Timezone information from housekeeper settings is crucial for interpreting these values correctly for display.
+-   **Scalability:** For very high booking volumes, sharding or different data modeling might be needed, but the current structure is suitable for typical use cases.
+-   **Overrides:** The planned override system adds complexity but provides necessary flexibility. Careful implementation is needed in the `getAvailableSlots` function to layer overrides onto default settings before subtracting bookings.
 
 ## Overview
 
