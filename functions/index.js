@@ -216,6 +216,22 @@ exports.getAvailableSlots = onCall(async (request) => {
         });
         logger.info(`Fetched and processed ${bookingsSnapshot.size} relevant bookings.`, { housekeeperId });
 
+        // *** NEW: 3b. Fetch Time Off Dates for the range ***
+        const timeOffPath = `users/${housekeeperId}/timeOffDates`;
+        const timeOffRef = db.collection(timeOffPath);
+        const timeOffSnapshot = await timeOffRef
+            .where(admin.firestore.FieldPath.documentId(), ">=", startDateStrQuery) // Query by document ID (YYYY-MM-DD)
+            .where(admin.firestore.FieldPath.documentId(), "<=", endDateStrQuery)
+            .get();
+            
+        const timeOffDates = new Set(); // Use a Set for efficient lookup
+        timeOffSnapshot.forEach(doc => {
+            if (doc.data()?.isTimeOff === true) { // Check the flag just in case
+                timeOffDates.add(doc.id); // Add the date string (doc ID) to the set
+            }
+        });
+        logger.info(`Fetched ${timeOffDates.size} time off dates in range.`, { housekeeperId });
+
         // 4. Calculate Availability Day by Day
         const schedule = {};
         const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -227,8 +243,39 @@ exports.getAvailableSlots = onCall(async (request) => {
             const month = (currentDateLoop.getUTCMonth() + 1).toString().padStart(2, "0");
             const day = currentDateLoop.getUTCDate().toString().padStart(2, "0");
             const currentDateStr = `${year}-${month}-${day}`;
-            const dayOfWeekIndex = currentDateLoop.getUTCDay();
-            const dayKey = dayNames[dayOfWeekIndex].toLowerCase();
+            const dayOfWeekIndexUTC = currentDateLoop.getUTCDay(); // Keep for reference
+            // const dayKey = dayNames[dayOfWeekIndexUTC].toLowerCase(); // OLD: Based on UTC
+
+            // *** NEW: Get day name in target timezone ***
+            let dayKey;
+            const housekeeperTimezone = settings.timezone || 'UTC'; // Get timezone from settings
+            try {
+                // Get the long weekday name (e.g., "Tuesday") in the specified timezone
+                const localDayName = currentDateLoop.toLocaleDateString('en-US', { weekday: 'long', timeZone: housekeeperTimezone });
+                dayKey = localDayName.toLowerCase(); // Convert to "tuesday"
+                logger.info(` [${currentDateStr}] Determined local day key as '${dayKey}' using timezone '${housekeeperTimezone}' (UTC day was ${dayNames[dayOfWeekIndexUTC]})`);
+            } catch (tzError) {
+                // Fallback to UTC day name if timezone is invalid
+                logger.error(` [${currentDateStr}] Error getting local day name for timezone '${housekeeperTimezone}'. Falling back to UTC day.`, tzError);
+                dayKey = dayNames[dayOfWeekIndexUTC].toLowerCase();
+            }
+            // *** END NEW ***
+
+            // *** NEW: Check for Time Off First ***
+            if (timeOffDates.has(currentDateStr)) {
+                logger.info(`Day ${currentDateStr} marked as Time Off, skipping further processing.`);
+                schedule[currentDateStr] = {
+                    date: currentDateStr,
+                    dayName: dayNames[dayOfWeekIndexUTC],
+                    status: 'not_working',
+                    message: 'Marked as Time Off',
+                    slots: [],
+                };
+                // Move to the next day
+                currentDateLoop.setUTCDate(currentDateLoop.getUTCDate() + 1);
+                continue; // Skip the rest of the loop for this day
+            }
+            // *** END Time Off Check ***
 
             // --- Settings and Bookings for the Day ---
             const daySettings = settings.workingDays[dayKey] || { isWorking: false };
@@ -327,39 +374,47 @@ exports.getAvailableSlots = onCall(async (request) => {
             // --- Sort and Finalize ---
             finalSlotsMinutes.sort((a, b) => a.startMinutes - b.startMinutes);
 
-            // Determine overall working status for display
-            const isWorkingForDisplay = finalSlotsMinutes.length > 0;
+            // --- REVISED: Determine overall status and prepare final structure ---
+            let overallStatus = 'not_working';
+            let statusMessage = 'Not scheduled to work';
+            let availableSlotsMinutes = [];
 
-            // Convert minutes back to time strings
-            const finalSlotsStrings = finalSlotsMinutes.map(slot => ({
-                startTime: minutesToTimeString(slot.startMinutes),
-                endTime: minutesToTimeString(slot.endMinutes),
-                status: slot.status,
-            }));
+            const hasAnyAvailableSlot = finalSlotsMinutes.some(slot => slot.status === 'available');
+            const isWorkingAnySlot = finalSlotsMinutes.length > 0;
 
-            // Add to the main schedule object
+            // Determine overall status
+            if (timeOffDates.has(currentDateStr)) { // Check Time Off first (redundant check, but safe)
+                overallStatus = 'not_working';
+                statusMessage = 'Marked as Time Off';
+            } else if (!isWorkingBasedOnSettings && !isWorkingAnySlot) { // Not working based on settings AND no slots generated
+                overallStatus = 'not_working';
+                statusMessage = 'Not scheduled to work';
+            } else if (isWorkingAnySlot && !hasAnyAvailableSlot) { // Slots exist, but none are available
+                overallStatus = 'fully_booked';
+                statusMessage = 'Fully Booked';
+            } else if (hasAnyAvailableSlot) { // At least one slot is available
+                overallStatus = 'available';
+                statusMessage = ''; // No message needed when available
+                // Filter for only available slots and format for frontend
+                availableSlotsMinutes = finalSlotsMinutes
+                    .filter(slot => slot.status === 'available')
+                    .map(slot => ({ start: slot.startMinutes })); // Only need start time
+            } else {
+                // Fallback case: If settings say working, but no slots generated (e.g., invalid start time)
+                overallStatus = 'not_working';
+                statusMessage = 'Configuration issue or no slots defined';
+                logger.warn(`Day ${currentDateStr} considered not_working due to fallback (settings working=${isWorkingBasedOnSettings}, slots=${finalSlotsMinutes.length})`);
+            }
+
+            // Add to the main schedule object using the NEW structure
             schedule[currentDateStr] = {
                 date: currentDateStr,
-                dayName: dayNames[dayOfWeekIndex],
-                isWorking: isWorkingForDisplay,
-                slots: finalSlotsStrings,
+                dayName: dayNames[dayOfWeekIndexUTC],
+                status: overallStatus,
+                message: statusMessage,
+                slots: availableSlotsMinutes, // Use the filtered array of start minutes
             };
-
-            // *** ADD DIAGNOSTIC LOG ***
-            if (currentDateStr === '2025-04-03') {
-                 logger.warn("DIAGNOSTIC - Final data for 2025-04-03:", {
-                     isWorkingBasedOnSettings,
-                     todaysBookingsCount: todaysBookings.length,
-                     potentialSlotsCount: potentialSlotsMinutes.length,
-                     finalSlotsMinutesCount: finalSlotsMinutes.length,
-                     isWorkingForDisplay,
-                     // Log first few slots if they exist for inspection
-                     finalSlotsStringsSample: finalSlotsStrings.slice(0, 3), 
-                     scheduleEntry: JSON.stringify(schedule[currentDateStr]) // Log the final object stringified
-                 });
-            }
-            // *** END DIAGNOSTIC LOG ***
-
+            
             // Move to the next day
             currentDateLoop.setUTCDate(currentDateLoop.getUTCDate() + 1);
         } // End daily loop

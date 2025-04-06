@@ -1,3 +1,5 @@
+import * as dateUtils from '/common/js/date-utils.js';
+
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Homeowner schedule script loaded.');
 
@@ -50,58 +52,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-     // Basic Date Formatting (Add more robust library like date-fns or moment later if needed)
-    function formatDate(date) {
-        // Ensure date is a Date object
-        if (!(date instanceof Date)) {
-             date = new Date(date);
-        }
-        if (isNaN(date.getTime())) return "Invalid Date";
-        // Include year in the format
-        return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-    }
-    
-     function getWeekStartDate(date) {
-         const d = new Date(date);
-         const day = d.getDay(); // 0 = Sunday, 1 = Monday, ...
-         // Adjust to get Monday as the start of the week
-         const diff = d.getDate() - day + (day === 0 ? -6 : 1); 
-         return new Date(d.setDate(diff));
-     }
-
     function updateWeekDisplay() {
         if (!currentWeekStartDate) return;
-        const endDate = new Date(currentWeekStartDate);
-        endDate.setDate(currentWeekStartDate.getDate() + 6);
-        weekDisplay.textContent = `${formatDate(currentWeekStartDate)} - ${formatDate(endDate)}`;
+        const endDate = dateUtils.addDays(currentWeekStartDate, 6);
+        // Use the new display formatter, providing the housekeeper's timezone
+        weekDisplay.textContent = `${dateUtils.formatDateForDisplay(currentWeekStartDate, housekeeperTimezone)} - ${dateUtils.formatDateForDisplay(endDate, housekeeperTimezone)}`;
 
         // Optional: Disable prev button if week starts before today (or some limit)
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         // prevWeekBtn.disabled = currentWeekStartDate <= today; // Might allow viewing past weeks?
-    }
-
-    // Time String Conversion Helpers (Needed by renderSchedule)
-    // These might be duplicates if defined in firestore-service. Move to shared utils later.
-    function timeStringToMinutes(timeStr) {
-        if (!timeStr || typeof timeStr !== 'string') return null;
-        const time = timeStr.match(/(\d+):(\d+)\s*(AM|PM)?/i);
-        if (!time) return null;
-        let hours = parseInt(time[1], 10);
-        const minutes = parseInt(time[2], 10);
-        const period = time[3] ? time[3].toUpperCase() : null;
-        if (period === 'PM' && hours !== 12) hours += 12;
-        if (period === 'AM' && hours === 12) hours = 0;
-        return hours * 60 + minutes;
-    }
-
-    function minutesToTimeString(totalMinutes) {
-        if (totalMinutes === null || totalMinutes === undefined || totalMinutes < 0) return '';
-        const hours24 = Math.floor(totalMinutes / 60) % 24;
-        const minutes = totalMinutes % 60;
-        const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
-        const period = hours24 < 12 ? 'AM' : 'PM';
-        return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
     }
 
     // --- Data Fetching ---
@@ -175,9 +135,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 return false; // Stop initialization if critical data fails
             }
             
-             // 3. Initialize week view
-             currentWeekStartDate = getWeekStartDate(new Date());
-             updateWeekDisplay();
+             // 3. Initialize week view - Use utility function
+             currentWeekStartDate = dateUtils.getWeekStartDate(new Date());
+             updateWeekDisplay(); // Update display now that timezone is known
 
             // 4. Load schedule for the current week using the Cloud Function
             await loadScheduleFromCloudFunction(currentWeekStartDate);
@@ -199,8 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const endDate = new Date(startDate);
-        endDate.setDate(startDate.getDate() + 6); // Get 6 days after start date
+        const endDate = dateUtils.addDays(startDate, 6); // Use utility function
         console.log(`Calling getAvailableSlots for ${linkedHousekeeperId} from ${startDate.toISOString()} to ${endDate.toISOString()}`);
 
         try {
@@ -208,8 +167,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const getAvailableSlots = functions.httpsCallable('getAvailableSlots');
             const result = await getAvailableSlots({
                 housekeeperId: linkedHousekeeperId,
-                startDateString: startDate.toISOString(),
-                endDateString: endDate.toISOString(),
+                startDateString: startDate.toISOString(), // ISO string is good
+                endDateString: endDate.toISOString(),   // ISO string is good
             });
 
             console.log('Cloud Function result:', result.data);
@@ -237,175 +196,166 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally {
             showLoading(false);
              // Ensure week display is updated even if there was an error
-             updateWeekDisplay();
+             updateWeekDisplay(); // updateWeekDisplay uses the new util function now
         }
     }
 
-    // --- Schedule Rendering ---
-    // Renders the schedule based on data received (likely from Cloud Function now)
+    // --- REWRITTEN renderSchedule function (v3) ---
     function renderSchedule(scheduleData, weekStartDate) {
-        console.log('Rendering schedule:', scheduleData);
-        if (!scheduleContainer) return;
-        scheduleContainer.innerHTML = ''; // Clear previous schedule
-
-        // Iterate through 7 days starting from weekStartDate (which is Monday 00:00 local)
-        for (let i = 0; i < 7; i++) {
-            const currentDayDate = new Date(weekStartDate);
-            currentDayDate.setDate(weekStartDate.getDate() + i);
-            
-            // --- FIX: Use UTC date components to create the lookup key --- 
-            const year = currentDayDate.getUTCFullYear();
-            const month = (currentDayDate.getUTCMonth() + 1).toString().padStart(2, '0');
-            const day = currentDayDate.getUTCDate().toString().padStart(2, '0');
-            const dateString = `${year}-${month}-${day}`; // YYYY-MM-DD (UTC)
-            // --- END FIX ---
-            
-            const dayOfWeekIndex = currentDayDate.getDay(); // Still use local day for display name
-            
-            // Get data for the specific date (using UTC date string) from the schedule object
+        console.log("Rendering schedule (v3 - Element Creation) for week starting:", weekStartDate);
+        if (!scheduleContainer) {
+            console.error("Schedule container element not found!");
+            return;
+        }
+    
+        // Clear previous content VERY explicitly
+        while (scheduleContainer.firstChild) {
+            scheduleContainer.removeChild(scheduleContainer.firstChild);
+        }
+        console.log("Cleared scheduleContainer children.");
+    
+        // Get the 7 dates for the current week
+        const weekDates = dateUtils.getWeekDates(weekStartDate);
+    
+        // Loop through each day of the week
+        weekDates.forEach((date, dayIndex) => {
+            const dateString = dateUtils.formatDateToISO(date);
             const dayData = scheduleData[dateString];
-
-            const dayCard = document.createElement('div');
-            dayCard.className = 'bg-white p-4 rounded-lg shadow';
-             // Add date string as data attribute for potential future use
-             dayCard.dataset.date = dateString; 
-
+            console.log(`[Day ${dayIndex}] Processing ${dateString}`);
+    
+            // --- Create Day Column Div ---
+            const dayColumn = document.createElement('div');
+            dayColumn.className = 'bg-white p-4 rounded-lg shadow flex flex-col'; // Added flex-col
+    
+            // --- Create and Append Header ---
             const dayHeader = document.createElement('h3');
-            dayHeader.className = 'text-lg font-semibold mb-3 border-b pb-2 text-gray-700';
-            
-            // --- FIX: Display the date using the UTC date components --- 
-            // Construct a Date object interpreted as UTC for display formatting
-            const displayDate = new Date(Date.UTC(year, currentDayDate.getUTCMonth(), day));
-            // --- END FIX ---
-            
-            dayHeader.textContent = `${dayNames[dayOfWeekIndex]} (${formatDate(displayDate)})`; // Use formatDate which now includes year
-            dayCard.appendChild(dayHeader);
-
-            const slotsContainer = document.createElement('div');
-            slotsContainer.className = 'space-y-2 mt-2'; // Added margin-top
-
-            if (dayData && dayData.isWorking && dayData.slots && dayData.slots.length > 0) {
-                dayData.slots.forEach(slot => {
-                    const slotElement = document.createElement('div');
-                    // Add data attributes for potential interaction
-                    slotElement.dataset.startTime = slot.startTime;
-                    slotElement.dataset.endTime = slot.endTime;
-                    slotElement.dataset.status = slot.status;
-                    slotElement.className = `p-3 rounded border text-sm ${getSlotStyle(slot.status)}`;
-                    slotElement.textContent = `${slot.startTime} - ${slot.endTime}`; 
-
-                    // Add visual indicator for status
-                     const statusIndicator = document.createElement('span');
-                     statusIndicator.className = `ml-2 text-xs font-medium px-2 py-0.5 rounded-full ${getStatusBadgeStyle(slot.status)}`;
-                     statusIndicator.textContent = slot.status.charAt(0).toUpperCase() + slot.status.slice(1);
-                     slotElement.appendChild(statusIndicator);
-
-                    // Add click listener for available slots (optional)
-                    if (slot.status === 'available') {
-                        slotElement.addEventListener('click', handleSlotClick);
-                    }
-                    slotsContainer.appendChild(slotElement);
-                });
-            } else if (dayData && dayData.isWorking) {
-                 const noSlotsText = document.createElement('p');
-                 noSlotsText.className = 'text-gray-500 italic text-sm';
-                 noSlotsText.textContent = 'No specific slots defined for this working day.';
-                 slotsContainer.appendChild(noSlotsText);
-            } else {
-                const notWorkingText = document.createElement('p');
-                notWorkingText.className = 'text-gray-500 italic text-sm';
-                notWorkingText.textContent = 'Not scheduled to work today.';
-                slotsContainer.appendChild(notWorkingText);
-            }
-            
-            dayCard.appendChild(slotsContainer);
-            scheduleContainer.appendChild(dayCard);
-        }
-    }
-    
-    // Helper for styling slots based on status
-    function getSlotStyle(status) {
-        switch (status) {
-            case 'available':
-                return 'bg-green-50 border-green-300 text-green-800 hover:bg-green-100 cursor-pointer';
-            case 'booked':
-                return 'bg-gray-100 border-gray-300 text-gray-500 opacity-75 cursor-not-allowed'; // Adjusted style
-            case 'unavailable': // For breaks etc.
-                return 'bg-orange-50 border-orange-300 text-orange-600 opacity-75 cursor-not-allowed'; // Adjusted style
-            default:
-                return 'bg-gray-50 border-gray-300 text-gray-600';
-        }
-    }
-    
-     // Helper for styling status badge
-    function getStatusBadgeStyle(status) {
-         switch (status) {
-             case 'available': return 'bg-green-100 text-green-800';
-             case 'booked': return 'bg-gray-200 text-gray-700';
-             case 'unavailable': return 'bg-orange-100 text-orange-800';
-             default: return 'bg-gray-100 text-gray-800';
-         }
-    }
-
-    // --- Event Handlers ---
-    function handleSlotClick(event) {
-        const target = event.currentTarget;
-        const status = target.dataset.status;
-        if (status === 'available') {
-            const startTime = target.dataset.startTime;
-            const endTime = target.dataset.endTime;
-            const date = target.closest('.day-card')?.dataset.date; // Assuming day card has data-date
-
-            console.log(`Available slot clicked: Date: ${date}, Time: ${startTime} - ${endTime}`);
-            // TODO: Implement booking logic - maybe open a confirmation modal?
-            alert(`You selected the available slot: ${startTime} - ${endTime}.\nBooking functionality not yet implemented.`);
-        }
-    }
-
-     // Setup button listeners
-     function setupEventListeners() {
-         if (prevWeekBtn) {
-            prevWeekBtn.addEventListener('click', () => {
-                if (currentWeekStartDate) {
-                    const newStartDate = new Date(currentWeekStartDate);
-                    newStartDate.setDate(currentWeekStartDate.getDate() - 7);
-                    currentWeekStartDate = newStartDate;
-                    loadScheduleFromCloudFunction(currentWeekStartDate); // Use updated function
-                    updateWeekDisplay();
-                }
+            const fullFormattedDate = dateUtils.formatDateForDisplay(date, housekeeperTimezone, {
+                weekday: 'long', month: 'short', day: 'numeric', year: 'numeric'
             });
-         }
-         
-         if (nextWeekBtn) {
-             nextWeekBtn.addEventListener('click', () => {
-                if (currentWeekStartDate) {
-                    const newStartDate = new Date(currentWeekStartDate);
-                    newStartDate.setDate(currentWeekStartDate.getDate() + 7);
-                    currentWeekStartDate = newStartDate;
-                    loadScheduleFromCloudFunction(currentWeekStartDate); // Use updated function
-                    updateWeekDisplay();
-                }
-             });
-         }
+            dayHeader.textContent = fullFormattedDate;
+            dayHeader.className = 'text-lg font-semibold mb-3 text-gray-700 flex-shrink-0'; // Added flex-shrink-0
+            dayColumn.appendChild(dayHeader);
+    
+            // --- Create Slots Container ---
+            const slotsContainer = document.createElement('div');
+            // Use flex-grow to allow it to take space, space-y for spacing between slots
+            slotsContainer.className = 'flex-grow space-y-2';
+    
+            // --- Populate Slots Container ---
+            if (!dayData || dayData.status === 'not_working') {
+                const statusP = document.createElement('p');
+                statusP.className = 'text-sm text-gray-500';
+                statusP.textContent = dayData?.message || 'Not scheduled to work';
+                slotsContainer.appendChild(statusP);
+            } else if (dayData.status === 'fully_booked') {
+                 const statusP = document.createElement('p');
+                 statusP.className = 'text-sm text-red-600 font-medium';
+                 statusP.textContent = dayData.message || 'Fully Booked';
+                 slotsContainer.appendChild(statusP);
+            } else if (dayData.status === 'available' && dayData.slots && dayData.slots.length > 0) {
+                dayData.slots.forEach((slot, slotIndex) => {
+                    const startTimeStr = dateUtils.minutesToTimeString(slot.start);
+                    if (startTimeStr) {
+                        // Using simple div again first
+                        const slotDiv = document.createElement('div');
+                        slotDiv.textContent = startTimeStr;
+                        // Add some basic styling for visibility
+                        slotDiv.className = 'p-2 bg-green-100 text-green-800 rounded text-sm';
+                        try {
+                            slotsContainer.appendChild(slotDiv);
+                        } catch (e) {
+                             console.error(`      [Slot ${slotIndex}] Error appending div: ${startTimeStr}`, e);
+                        }
+                    } else {
+                         console.warn(`    [Slot ${slotIndex}] Skipping slot with invalid start time:`, slot);
+                    }
+                });
+            } else {
+                // Fallback
+                 const statusP = document.createElement('p');
+                 statusP.className = 'text-sm text-gray-400';
+                 statusP.textContent = 'No available slots found.';
+                 slotsContainer.appendChild(statusP);
+            }
+    
+            // --- Append Slots Container to Day Column ---
+            dayColumn.appendChild(slotsContainer);
+    
+            // --- Append Day Column to Main Schedule Container ---
+            try {
+                scheduleContainer.appendChild(dayColumn);
+            } catch(e) {
+                console.error(`[Day ${dayIndex}] Error appending dayColumn for ${dateString}`, e);
+            }
+    
+        }); // End weekDates.forEach
+    
+        // Make container visible
+        scheduleContainer.classList.remove('hidden');
+    }
+    // --- End REWRITTEN renderSchedule ---
+    
+    // Click handler (currently not used as slots are disabled)
+    function handleSlotClick(event) {
+        const target = event.target;
+        if (target.tagName === 'BUTTON' && target.dataset.date && target.dataset.startTime) {
+            // Placeholder for future booking functionality
+            alert(`Booking slot on ${target.dataset.date} starting at ${dateUtils.minutesToTimeString(parseInt(target.dataset.startTime))}`);
+        }
+    }
+
+     // Setup Button Event Listeners
+     function setupEventListeners() {
+         prevWeekBtn.addEventListener('click', () => {
+             if (!currentWeekStartDate) return;
+             currentWeekStartDate = dateUtils.addDays(currentWeekStartDate, -7); // Use utility
+             updateWeekDisplay();
+             loadScheduleFromCloudFunction(currentWeekStartDate);
+         });
+
+         nextWeekBtn.addEventListener('click', () => {
+             if (!currentWeekStartDate) return;
+             currentWeekStartDate = dateUtils.addDays(currentWeekStartDate, 7); // Use utility
+             updateWeekDisplay();
+             loadScheduleFromCloudFunction(currentWeekStartDate);
+         });
      }
 
-    // --- Initialization ---
-    auth.onAuthStateChanged((user) => {
+    // --- Authentication Observer ---
+    auth.onAuthStateChanged(async (user) => {
         if (user) {
+            console.log('User is signed in:', user.uid);
             currentUser = user;
-            console.log('Auth state changed: User logged in', currentUser.uid);
-            fetchInitialData();
-            setupEventListeners(); 
+            const success = await fetchInitialData();
+            if(success) {
+                setupEventListeners(); // Only setup after successful load
+            }
         } else {
+            console.log('User is signed out.');
             currentUser = null;
-            console.log('Auth state changed: User logged out');
-            // Redirect to login or show a logged-out message
+            linkedHousekeeperId = null;
+            housekeeperSettings = null;
+            housekeeperTimezone = 'UTC';
+            housekeeperName = 'Housekeeper';
+            if (pageTitle) pageTitle.textContent = 'Schedule';
+            if (housekeeperTimezoneInfo) housekeeperTimezoneInfo.textContent = '';
+             // Redirect to login or show login prompt
+             // For now, just show error message
             showError('Please log in to view the schedule.');
-            // Maybe clear the schedule container?
-            if(scheduleContainer) scheduleContainer.innerHTML = '';
-             // Optionally redirect:
-             // window.location.href = '/login.html'; 
+            scheduleContainer.innerHTML = ''; // Clear schedule
+             // Disable nav buttons if needed
+            // prevWeekBtn.disabled = true;
+            // nextWeekBtn.disabled = true;
         }
     });
+
+    // Initial check in case auth state is already known
+    if (auth.currentUser) {
+         console.log('Auth state already known on load.');
+         // The onAuthStateChanged listener will handle the rest.
+    } else {
+         console.log('Waiting for auth state...');
+         showLoading(true); // Show loading initially until auth state is confirmed
+    }
 
 }); 

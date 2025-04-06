@@ -53,8 +53,8 @@
         </div>
         
         <!-- Schedule Container -->
-        <!-- Changed structure to simple div, JS will create day cards/columns -->
-        <main id="schedule-container" class="hidden space-y-4">
+        <!-- Changed structure to grid layout -->
+        <main id="schedule-container" class="hidden grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
             <!-- Schedule content will be dynamically generated here -->
         </main>
         
@@ -92,7 +92,7 @@
     <script src="/common/js/firestore-service.js" defer></script> 
     
     <!-- Page Specific Script -->
-    <script src="js/schedule.js" defer></script> 
+    <script type="module" src="js/schedule.js" defer></script> 
 
 </body>
 </html> 

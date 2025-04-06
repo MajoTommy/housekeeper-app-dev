@@ -54,7 +54,7 @@ const coreHousekeeperProfileData = {
         saturday: { available: false, startTime: '10:00', endTime: '14:00' },
         sunday: { available: false, startTime: '', endTime: '' }
     },
-    inviteCode: `COREKEEPER-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+    inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase()
 };
 
 const manualClientsData = [
@@ -123,6 +123,36 @@ const sampleBookingsData = (
     }
 ];
 
+// --- Helper Function to Delete Subcollections ---
+
+/**
+ * Deletes all documents within a given collection or subcollection.
+ * @param {firebase.firestore.CollectionReference} collectionRef - The reference to the collection to delete.
+ */
+async function deleteCollection(collectionRef) {
+    const snapshot = await collectionRef.get();
+    if (snapshot.empty) {
+        console.log(`   -> Subcollection ${collectionRef.path} is already empty.`);
+        return 0; // Return count of deleted docs
+    }
+    console.log(`   -> Deleting ${snapshot.size} documents from ${collectionRef.path}...`);
+    // Use Firestore batched writes for efficiency and atomicity (up to 500 ops per batch)
+    const batchSize = 499; // Firestore batch limit is 500 operations
+    let deletedCount = 0;
+    for (let i = 0; i < snapshot.docs.length; i += batchSize) {
+        const batch = collectionRef.firestore.batch();
+        const chunk = snapshot.docs.slice(i, i + batchSize);
+        console.log(`      Processing batch ${Math.floor(i/batchSize) + 1} (size: ${chunk.length})`);
+        chunk.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+        await batch.commit();
+        deletedCount += chunk.length;
+    }
+    console.log(`   -> Finished deleting ${deletedCount} documents from ${collectionRef.path}.`);
+    return deletedCount;
+}
+
 // --- Population Function ---
 
 async function populateCoreData(homeownerUid, housekeeperUid) {
@@ -152,11 +182,46 @@ async function populateCoreData(homeownerUid, housekeeperUid) {
     console.log(`--- Starting Sample Data Population ---`);
     console.log(`Homeowner UID: ${homeownerUid}`);
     console.log(`Housekeeper UID: ${housekeeperUid}`);
-    alert('Starting sample data population...');
+    alert('Starting sample data population (will delete existing sample data first)...');
 
     try {
+        // --- Phase 0: Delete Existing Sample Data ---
+        console.log('--- Starting Deletion Phase ---');
+        
+        // 0a. Delete Housekeeper Subcollections
+        console.log(`Deleting subcollections for housekeeper ${housekeeperUid}...`);
+        const housekeeperUserRef = db.collection('users').doc(housekeeperUid);
+        await deleteCollection(housekeeperUserRef.collection('bookings'));
+        await deleteCollection(housekeeperUserRef.collection('clients'));
+        await deleteCollection(housekeeperUserRef.collection('timeOffDates'));
+        await deleteCollection(housekeeperUserRef.collection('settings')); // Deletes settings/app etc.
+        console.log(' -> Housekeeper subcollections deleted.');
+
+        // 0b. Delete Housekeeper Profile
+        console.log(`Deleting housekeeper profile document (${housekeeperUid})...`);
+        await db.collection('housekeeper_profiles').doc(housekeeperUid).delete();
+        console.log(' -> Housekeeper profile deleted.');
+
+        // 0c. Delete Homeowner Profile
+        console.log(`Deleting homeowner profile document (${homeownerUid})...`);
+        await db.collection('homeowner_profiles').doc(homeownerUid).delete();
+        console.log(' -> Homeowner profile deleted.');
+
+        // 0d. Unlink Homeowner from Housekeeper (Update homeowner user doc)
+        console.log(`Unlinking homeowner ${homeownerUid} by removing linkedHousekeeperId...`);
+        await db.collection('users').doc(homeownerUid).update({
+            linkedHousekeeperId: firebase.firestore.FieldValue.delete() // Remove the field
+        });
+        console.log(' -> Homeowner unlinked.');
+
+        console.log('--- Finished Deletion Phase ---');
+        // --- End Deletion Phase ---
+
+        // --- Phase 1: Populate New Data ---
+        console.log('--- Starting Population Phase ---');
+
         // 1. Update Core Homeowner Base and Profile
-        console.log(`Updating homeowner user and profile for ${homeownerUid}...`);
+        console.log(`Creating/Updating homeowner user and profile for ${homeownerUid}...`);
         const homeownerProfileUpdateData = {
             ...coreHomeownerProfileData,
             linkedHousekeeperId: housekeeperUid, // Link to the core housekeeper
@@ -251,20 +316,50 @@ async function populateCoreData(homeownerUid, housekeeperUid) {
                 console.warn(`  -> Skipping booking for ${booking.clientName} due to unknown clientId.`);
             }
         }
+        console.log('Finished adding bookings.');
 
-        console.log(`--- Sample Data Population Complete ---`);
-        alert('Sample data population finished successfully! Check the console and Firestore.');
+        // 5. Add Sample Settings (Assuming settings need manual setup or separate update)
+        // Consider adding/updating the /users/{housekeeperUid}/settings/app document here
+        // if you want specific default settings applied during population.
+        // For example:
+        console.log(`Setting default settings for housekeeper ${housekeeperUid}...`);
+        const defaultHousekeeperSettings = {
+             workingDays: {
+                 monday: { isWorking: true, startTime: "08:00 AM", jobsPerDay: 2, jobDurations: [210, 210], breakDurations: [60] },
+                 tuesday: { isWorking: true, startTime: "08:00 AM", jobsPerDay: 2, jobDurations: [210, 210], breakDurations: [60] },
+                 wednesday: { isWorking: true, startTime: "08:00 AM", jobsPerDay: 1, jobDurations: [240], breakDurations: [] },
+                 thursday: { isWorking: false }, // Example: Initially off
+                 friday: { isWorking: true, startTime: "09:00 AM", jobsPerDay: 2, jobDurations: [180, 180], breakDurations: [90] },
+                 saturday: { isWorking: false },
+                 sunday: { isWorking: false }
+             },
+             timezone: "America/Los_Angeles", // Example timezone
+             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        await db.collection('users').doc(housekeeperUid).collection('settings').doc('app').set(defaultHousekeeperSettings, { merge: true });
+        console.log(' -> Default settings applied.');
+        
+        // *** NEW: 6. Add Sample Time Off Date ***
+        console.log(`Adding sample time off date for housekeeper ${housekeeperUid}...`);
+        const sampleTimeOffDate = '2025-07-26'; // Example future date
+        const timeOffRef = db.collection('users').doc(housekeeperUid).collection('timeOffDates').doc(sampleTimeOffDate);
+        try {
+            await timeOffRef.set({
+                isTimeOff: true,
+                reason: 'Sample Vacation Day'
+            });
+            console.log(` -> Added time off for ${sampleTimeOffDate}`);
+        } catch (timeOffError) {
+             console.error(` -> Error adding time off for ${sampleTimeOffDate}:`, timeOffError);
+        }
+        // *** END NEW SECTION ***
+
+        console.log(`--- Sample Data Population COMPLETE ---`);
+        alert('Sample data population finished! Check console for details.');
 
     } catch (error) {
-        console.error(`--- Sample Data Population Failed ---`, error);
-        // Check if it's a specific function call error
-        let specificError = '';
-        if (error instanceof TypeError && error.message.includes('is not a function')) {
-            specificError = ` Looks like a function (${error.message.split(' ')[0]}) doesn\'t exist on firestoreService.`;
-        } else if (error.code) { // Firestore specific errors often have codes
-             specificError = ` Firestore error: ${error.code} - ${error.message}`; 
-        }
-        alert(`Error populating sample data: ${error.message}.${specificError} Check console for details.`);
+        console.error('--- Sample Data Population FAILED ---:', error);
+        alert(`Sample data population FAILED: ${error.message}`);
     }
 }
 

@@ -38,6 +38,18 @@
     <div class="container mx-auto px-4 pb-24"> <!-- Increased pb-20 to pb-24 for bottom nav spacing -->
         <!-- Added margin-top to compensate for removed H1 -->
         <div class="mt-6">
+
+             <!-- NEW: View for Logged Out Users -->
+             <div id="loggedOutView" class="hidden bg-white p-6 rounded-lg shadow-md text-center">
+                 <h2 class="text-xl font-semibold mb-4 text-gray-700">Please Log In</h2>
+                 <p class="text-gray-600 mb-4">You need to be logged in to access your dashboard and link to your housekeeper.</p>
+                 <button id="loginRedirectButton"
+                         class="inline-flex items-center px-6 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                     Go to Login
+                 </button>
+             </div>
+             <!-- END: Logged Out View -->
+
              <!-- View for Homeowners NOT LINKED to a Housekeeper -->
              <div id="unlinkedView" class="hidden bg-white p-6 rounded-lg shadow-md mb-6">
                  <h2 class="text-xl font-semibold mb-4">Link to Your Housekeeper</h2>
@@ -47,6 +59,7 @@
                             class="block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm uppercase tracking-widest text-center"
                             placeholder="ABCDEF" required>
                      <button type="submit"
+                             id="submit-invite-code-btn"
                              class="inline-flex items-center px-6 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 whitespace-nowrap">
                          Link Account
                      </button>
@@ -150,6 +163,12 @@
                 <!-- Profile Form -->
                 <form id="profileEditForm" class="space-y-4">
                     <div>
+                        <label for="profileEmail" class="block text-sm font-medium text-gray-500">Email (Read-only)</label>
+                        <input type="email" name="profileEmail" id="profileEmail" 
+                               class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-100 text-gray-500 cursor-not-allowed focus:outline-none sm:text-sm" 
+                               disabled readonly>
+                    </div>
+                    <div>
                         <label for="profileFirstName" class="block text-sm font-medium text-gray-700">First Name</label>
                         <input type="text" name="profileFirstName" id="profileFirstName" autocomplete="given-name" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required>
                     </div>
@@ -166,9 +185,18 @@
                         <textarea id="profileSpecialInstructions" name="profileSpecialInstructions" rows="3" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="e.g., Key under the mat, focus on bathrooms..."></textarea>
                     </div>
 
-                    <div class="pt-2 flex justify-end space-x-3">
-                        <button type="button" id="cancelProfileEditButton" class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Cancel</button>
-                        <button type="submit" id="saveProfileButton" class="inline-flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Save Profile</button>
+                    <!-- Modal Actions -->
+                    <div class="pt-4 border-t border-gray-200 flex justify-between items-center">
+                         <!-- Logout Button -->
+                         <button type="button" id="logoutButton" 
+                                 class="text-sm font-medium text-red-600 hover:text-red-800 focus:outline-none">
+                             Logout
+                         </button>
+                         <!-- Save/Cancel Buttons -->
+                         <div class="flex justify-end space-x-3">
+                            <button type="button" id="cancelProfileEditButton" class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Cancel</button>
+                            <button type="submit" id="saveProfileButton" class="inline-flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Save Profile</button>
+                        </div>
                     </div>
                 </form>
                  <!-- Loading/Error State -->

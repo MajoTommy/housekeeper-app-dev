@@ -9,8 +9,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const upcomingBookingsList = document.getElementById('upcoming-bookings-list');
     const noUpcomingBookings = document.getElementById('no-upcoming-bookings');
     const inviteCodeForm = document.getElementById('invite-code-form');
+    console.log('[DEBUG] invite-code-form element:', inviteCodeForm);
     const inviteCodeInput = document.getElementById('invite-code-input');
     const submitInviteCodeBtn = document.getElementById('submit-invite-code-btn');
+    console.log('[DEBUG] submitInviteCodeBtn element:', submitInviteCodeBtn);
     const inviteErrorMessage = document.getElementById('invite-error-message');
 
     // Button references
@@ -38,27 +40,41 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location.href = 'properties/properties.html';
     });
 
-    // --- Invite Code Form Submission ---
-    inviteCodeForm?.addEventListener('submit', async (e) => {
-        e.preventDefault();
+    // --- Invite Code Button Click Handler ---
+    // Changed from form submit to button click
+    submitInviteCodeBtn?.addEventListener('click', async (e) => {
+        // No need for e.preventDefault() on button click
+        console.log('Link Account button clicked.'); // Add log to confirm listener fires
+        
+        // --- FIX: Get input element INSIDE handler ---
+        const inviteCodeInput = document.getElementById('inviteCodeInput'); 
+        // --- END FIX ---
+        
         if (!firebase.auth().currentUser) {
             console.error('No user logged in to link.');
             return;
         }
         const homeownerId = firebase.auth().currentUser.uid;
+        // Ensure inviteCodeInput is available
+        if (!inviteCodeInput) {
+             console.error('Invite code input element not found.');
+             return;
+        }
         const inviteCode = inviteCodeInput.value.trim();
 
         // Basic validation
         if (!inviteCode || inviteCode.length !== 6) {
-            inviteErrorMessage.textContent = 'Please enter a 6-character code.';
-            inviteErrorMessage.classList.remove('hidden');
+            if (inviteErrorMessage) { // Check if error element exists
+                inviteErrorMessage.textContent = 'Please enter a 6-character code.';
+                inviteErrorMessage.classList.remove('hidden');
+            }
             return;
         }
 
         // Disable button, clear error
         submitInviteCodeBtn.disabled = true;
         submitInviteCodeBtn.textContent = 'Linking...'; // Indicate loading
-        inviteErrorMessage.classList.add('hidden');
+        if (inviteErrorMessage) inviteErrorMessage.classList.add('hidden');
 
         try {
             const result = await firestoreService.linkHomeownerToHousekeeper(homeownerId, inviteCode);
@@ -71,14 +87,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 inviteCodeInput.value = ''; 
             } else {
                 console.error('Failed to link:', result.message);
-                inviteErrorMessage.textContent = result.message || 'Invalid code or error occurred.';
-                inviteErrorMessage.classList.remove('hidden');
+                 if (inviteErrorMessage) { // Check if error element exists
+                    inviteErrorMessage.textContent = result.message || 'Invalid code or error occurred.';
+                    inviteErrorMessage.classList.remove('hidden');
+                 }
             }
         } catch (error) {
             // Catch unexpected errors from the service call itself
             console.error('Unexpected error during linking:', error);
-            inviteErrorMessage.textContent = 'An unexpected error occurred. Please try again.';
-            inviteErrorMessage.classList.remove('hidden');
+            if (inviteErrorMessage) { // Check if error element exists
+                inviteErrorMessage.textContent = 'An unexpected error occurred. Please try again.';
+                inviteErrorMessage.classList.remove('hidden');
+            }
         } finally {
             // Re-enable button
             submitInviteCodeBtn.disabled = false;
@@ -165,8 +185,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // 4. Populate Homeowner Address (used in next cleaning card)
         populateHomeownerAddress(homeownerProfile);
         
-        // 5. Add Event Listeners for new buttons
-        addEventListeners();
+        // 5. Add Event Listeners for buttons
+        addEventListeners(userId); // Pass userId if needed for unlink
     }
 
     // NEW Function to populate housekeeper info
@@ -336,6 +356,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const profileLastNameInput = document.getElementById('profileLastName');
     const profilePhoneInput = document.getElementById('profilePhone');
     const profileSpecialInstructionsInput = document.getElementById('profileSpecialInstructions');
+    const profileEmailInput = document.getElementById('profileEmail'); // Get reference to new field
 
     // NEW: Location Modal Elements
     const locationEditModal = document.getElementById('locationEditModal');
@@ -354,43 +375,82 @@ document.addEventListener('DOMContentLoaded', () => {
     // Google Places Autocomplete Instance Variable
     let autocompleteInstance = null;
 
+    const loggedOutView = document.getElementById('loggedOutView');
+    const loginRedirectButton = document.getElementById('loginRedirectButton');
+
+    // **NEW: Loading Indicator Functions**
+    function showLoading() {
+        if (loadingIndicator) loadingIndicator.classList.remove('hidden');
+        // Optionally hide other views while loading
+        if (notLinkedView) notLinkedView.classList.add('hidden');
+        if (linkedView) linkedView.classList.add('hidden');
+        if (loggedOutView) loggedOutView.classList.add('hidden');
+    }
+
+    function hideLoading() {
+        if (loadingIndicator) loadingIndicator.classList.add('hidden');
+        // Don't show other views here, the auth listener will handle that
+    }
+    // **END NEW**
+
+    // Global state
+    let currentUser = null;
 
     // --- Modal Functions --- 
 
     const openProfileEditModal = async () => {
-        console.log('Opening profile edit modal...');
-        if (!profileEditModal || !profileEditModalBackdrop || !firebase.auth().currentUser) return;
+        const user = firebase.auth().currentUser;
+        if (!user) {
+             alert("Please log in to edit your profile.");
+             return;
+        }
+        
+        const profileFirstNameInput = document.getElementById('profileFirstName');
+        const profileLastNameInput = document.getElementById('profileLastName');
+        const profilePhoneInput = document.getElementById('profilePhone');
+        const profileSpecialInstructionsInput = document.getElementById('profileSpecialInstructions');
+        const profileEmailInput = document.getElementById('profileEmail'); // Get reference to new field
+        const profileEditStatus = document.getElementById('profileEditStatus');
+        const saveProfileButton = document.getElementById('saveProfileButton');
 
-        // 1. Populate Form with current data
-        profileEditStatus.textContent = 'Loading profile...';
-        profileEditStatus.className = 'text-gray-500';
-        saveProfileButton.disabled = true;
+        if (!profileFirstNameInput || !profileLastNameInput || !profilePhoneInput || !profileSpecialInstructionsInput || !profileEmailInput || !profileEditStatus || !saveProfileButton) {
+            console.error("One or more profile modal elements not found!");
+            return;
+        }
+
+        // Clear previous status and enable button
+        profileEditStatus.textContent = '';
+        saveProfileButton.disabled = false;
+
+        // --- Populate Email (Read-only) --- 
+        profileEmailInput.value = user.email || 'Email not available';
+
+        // --- Populate other fields from Firestore profile ---
         try {
-            const homeownerProfile = await firestoreService.getHomeownerProfile(firebase.auth().currentUser.uid);
-            if (homeownerProfile) {
-                profileFirstNameInput.value = homeownerProfile.firstName || '';
-                profileLastNameInput.value = homeownerProfile.lastName || '';
-                profilePhoneInput.value = homeownerProfile.phone || '';
-                profileSpecialInstructionsInput.value = homeownerProfile.specialInstructions || '';
-                profileEditStatus.textContent = ''; // Clear loading
-                saveProfileButton.disabled = false;
+            profileEditStatus.textContent = 'Loading current profile...';
+            const profileData = await firestoreService.getHomeownerProfile(user.uid);
+            if (profileData) {
+                profileFirstNameInput.value = profileData.firstName || '';
+                profileLastNameInput.value = profileData.lastName || '';
+                profilePhoneInput.value = profileData.phone || '';
+                profileSpecialInstructionsInput.value = profileData.specialInstructions || '';
+                profileEditStatus.textContent = ''; // Clear loading message
             } else {
-                profileEditStatus.textContent = 'Could not load profile.';
-                profileEditStatus.className = 'text-red-500';
+                 profileEditStatus.textContent = 'Could not load profile data.';
+                 profileEditStatus.className = 'text-red-500';
             }
         } catch (error) {
-            console.error("Error fetching profile for edit:", error);
+            console.error("Error fetching profile for editing:", error);
             profileEditStatus.textContent = 'Error loading profile.';
             profileEditStatus.className = 'text-red-500';
         }
         
-        // 2. Show modal and backdrop
-        profileEditModalBackdrop.classList.remove('hidden');
-        profileEditModal.classList.remove('hidden'); // Make it visible first
-        requestAnimationFrame(() => { // Allow reflow before starting transition
+        // Open the modal
+        if (profileEditModal && profileEditModalBackdrop) {
+            profileEditModalBackdrop.classList.remove('hidden');
             profileEditModalBackdrop.classList.add('opacity-100');
-            profileEditModal.classList.remove('translate-y-full'); // Slide in
-        });
+            profileEditModal.classList.remove('translate-y-full');
+        }
     };
 
     const closeProfileEditModal = () => {
@@ -524,206 +584,135 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-    // --- Event Listeners --- 
-    // ... (existing populate functions) ...
-    
-    // Updated function to add ALL event listeners
-    const addEventListeners = () => {
-        // Existing Buttons
-        const editProfileBtn = document.getElementById('editProfileButton');
-        const editLocationBtn = document.getElementById('editLocationButton');
-        const unlinkBtn = document.getElementById('unlinkButton');
-        const scheduleNavBtn = document.getElementById('scheduleNavButton'); 
+    // --- Event Listeners Setup ---
+    const addEventListeners = (userId) => {
+        const editProfileButton = document.getElementById('editProfileButton');
+        const editLocationButton = document.getElementById('editLocationButton');
+        const logoutButton = document.getElementById('logoutButton'); 
+        const unlinkButton = document.getElementById('unlinkButton'); // Get unlink button
 
-        // Profile Modal Buttons
-        const closeProfileBtn = document.getElementById('closeProfileEditModal');
-        const cancelProfileBtn = document.getElementById('cancelProfileEditButton');
-        const profileForm = document.getElementById('profileEditForm');
+        // Profile Edit
+        editProfileButton?.addEventListener('click', () => openProfileEditModal(userId));
+        closeProfileEditModalButton?.addEventListener('click', closeProfileEditModal);
+        cancelProfileEditButton?.addEventListener('click', closeProfileEditModal);
+        profileEditModalBackdrop?.addEventListener('click', closeProfileEditModal);
+        profileEditForm?.addEventListener('submit', (e) => handleProfileSave(e, userId));
 
-        // Location Modal Buttons
-        const closeLocationBtn = document.getElementById('closeLocationEditModal');
-        const cancelLocationBtn = document.getElementById('cancelLocationEditButton');
-        const locationForm = document.getElementById('locationEditForm');
-
-
-        if (editProfileBtn) {
-            editProfileBtn.addEventListener('click', openProfileEditModal);
-        }
-        if (editLocationBtn) {
-            editLocationBtn.addEventListener('click', () => {
-                console.log('Edit Location Details button clicked');
-                // alert('Open Edit Location Modal - TBD'); // Old
-                openLocationEditModal(); // NEW: Open the location modal
-            });
-        }
-        if (unlinkBtn) {
-            unlinkBtn.addEventListener('click', async () => {
-                console.log('Unlink button clicked');
-                if (confirm('Are you sure you want to unlink from this housekeeper?')) {
-                    const userId = firebase.auth().currentUser.uid;
-                    const success = await firestoreService.unlinkHomeownerFromHousekeeper(userId);
-                    if (success) {
-                        alert('Successfully unlinked.');
-                        loadDashboardData(firebase.auth().currentUser); // Reload dashboard
-                    } else {
-                         alert('Failed to unlink. Please try again.');
-                    }
-                }
-            });
-        }
-
-        // Profile Edit Modal Listeners
-        if (closeProfileBtn) {
-            closeProfileBtn.addEventListener('click', closeProfileEditModal);
-        }
-        if (cancelProfileBtn) {
-            cancelProfileBtn.addEventListener('click', closeProfileEditModal);
-        }
-        if (profileEditModalBackdrop) {
-            profileEditModalBackdrop.addEventListener('click', closeProfileEditModal);
-        }
-        if (profileForm) {
-            profileForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                console.log('Profile edit form submitted');
-                
-                const userId = firebase.auth().currentUser.uid;
-                if (!userId) {
-                    profileEditStatus.textContent = 'Error: Not logged in.';
-                    profileEditStatus.className = 'text-red-500';
-                    return;
-                }
-
-                const profileData = {
-                    firstName: profileFirstNameInput.value.trim(),
-                    lastName: profileLastNameInput.value.trim(),
-                    phone: profilePhoneInput.value.trim(),
-                    specialInstructions: profileSpecialInstructionsInput.value.trim(),
-                    // Ensure we add updatedAt timestamp in the service function
-                };
-                
-                // Basic validation (can be enhanced)
-                if (!profileData.firstName || !profileData.lastName) {
-                    profileEditStatus.textContent = 'First and Last Name are required.';
-                    profileEditStatus.className = 'text-red-500';
-                    return;
-                }
-
-                profileEditStatus.textContent = 'Saving...';
-                profileEditStatus.className = 'text-gray-500';
-                saveProfileButton.disabled = true;
-
-                try {
-                    // *** NEED NEW Service function: updateHomeownerProfile(userId, profileData) ***
-                    await firestoreService.updateHomeownerProfile(userId, profileData);
-                    
-                    profileEditStatus.textContent = 'Profile saved successfully!';
-                    profileEditStatus.className = 'text-green-600';
-
-                    // Optionally reload main dashboard data or just close
-                    // loadDashboardData(firebase.auth().currentUser); // Could reload everything
-                    // OR just update relevant displayed info if applicable
-
-                    setTimeout(() => { 
-                        closeProfileEditModal();
-                    }, 1500); // Close after a short delay
-
-                } catch (error) {
-                    console.error('Error saving profile:', error);
-                    profileEditStatus.textContent = 'Error saving profile. Please try again.';
-                    profileEditStatus.className = 'text-red-500';
-                } finally {
-                    saveProfileButton.disabled = false; 
-                }
-            });
-        }
+        // Location Edit
+        editLocationButton?.addEventListener('click', () => openLocationEditModal(userId));
+        closeLocationEditModalButton?.addEventListener('click', closeLocationEditModal);
+        cancelLocationEditButton?.addEventListener('click', closeLocationEditModal);
+        locationEditModalBackdrop?.addEventListener('click', closeLocationEditModal);
+        locationEditForm?.addEventListener('submit', (e) => handleLocationSave(e, userId));
         
-        // Location Edit Modal Listeners
-        if (closeLocationBtn) {
-            closeLocationBtn.addEventListener('click', closeLocationEditModal);
-        }
-        if (cancelLocationBtn) {
-            cancelLocationBtn.addEventListener('click', closeLocationEditModal);
-        }
-        if (locationEditModalBackdrop) {
-            locationEditModalBackdrop.addEventListener('click', closeLocationEditModal);
-        }
+        // Logout Button
+        logoutButton?.addEventListener('click', handleLogout);
         
-        if (locationForm) {
-            locationForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                console.log('Location edit form submitted');
+        // --- ADDED: Unlink Button Listener ---
+        unlinkButton?.addEventListener('click', async () => {
+            if (!userId) {
+                console.error('User ID not available for unlink operation.');
+                return;
+            }
+            if (confirm('Are you sure you want to unlink from this housekeeper? You will lose access to their schedule.')) {
+                console.log('Unlink confirmed by user.');
+                // Optionally show a temporary loading state on the button or view
+                unlinkButton.textContent = 'Unlinking...';
+                unlinkButton.disabled = true;
                 
-                const userId = firebase.auth().currentUser.uid;
-                if (!userId) {
-                    locationEditStatus.textContent = 'Error: Not logged in.';
-                    locationEditStatus.className = 'text-red-500';
-                    return;
-                }
-
-                const locationData = {
-                    address: locationAddressInput.value.trim(),
-                    city: locationCityInput.value.trim(),
-                    state: locationStateInput.value.trim(),
-                    zip: locationZipInput.value.trim(),
-                    // Ensure we add updatedAt timestamp in the service function
-                };
-                
-                // Basic validation
-                if (!locationData.address || !locationData.city || !locationData.state || !locationData.zip) {
-                    locationEditStatus.textContent = 'All location fields are required.';
-                    locationEditStatus.className = 'text-red-500';
-                    return;
-                }
-
-                locationEditStatus.textContent = 'Saving location...';
-                locationEditStatus.className = 'text-gray-500';
-                saveLocationButton.disabled = true;
-
                 try {
-                    // *** NEED NEW Service function: updateHomeownerLocation(userId, locationData) ***
-                    await firestoreService.updateHomeownerLocation(userId, locationData);
-                    
-                    locationEditStatus.textContent = 'Location saved successfully!';
-                    locationEditStatus.className = 'text-green-600';
-
-                    // Reload the main dashboard address display
-                    populateHomeownerAddress(locationData); 
-                    // Reload main dashboard data or just close?
-                    // loadDashboardData(firebase.auth().currentUser); 
-
-                    setTimeout(() => { 
-                        closeLocationEditModal();
-                    }, 1500); // Close after a short delay
-
+                    // Call the new service function (needs to be created)
+                    await firestoreService.unlinkHomeownerFromHousekeeper(userId);
+                    console.log('Unlink successful, reloading dashboard data.');
+                    // Reload the dashboard to show the unlinked view
+                    await loadDashboardData(firebase.auth().currentUser); 
                 } catch (error) {
-                    console.error('Error saving location:', error);
-                    locationEditStatus.textContent = 'Error saving location. Please try again.';
-                    locationEditStatus.className = 'text-red-500';
-                } finally {
-                    saveLocationButton.disabled = false; 
+                    console.error('Error during unlink operation:', error);
+                    alert(`Failed to unlink: ${error.message}`); // Show error to user
+                    // Re-enable button on error
+                    unlinkButton.textContent = 'Unlink from housekeeper';
+                    unlinkButton.disabled = false;
                 }
-            });
-        }
+                // No need to re-enable button on success as the view will change
+            }
+        });
+        // --- END ADDED ---
 
+        console.log('Adding event listeners for linked view...');
     };
+    
+    // --- Function to Handle Logout ---
+    const handleLogout = () => {
+        console.log('Logout initiated...');
+        firebase.auth().signOut().then(() => {
+            console.log('User signed out successfully.');
+            // Redirect to login page after sign-out
+            window.location.href = '/login.html'; // Adjust path if needed
+        }).catch((error) => {
+            console.error('Sign out error:', error);
+            alert('Error logging out. Please try again.'); // Simple feedback
+        });
+    };
+    
+    // --- Form Handlers & Unlink --- 
+    const handleProfileUpdate = async (event) => { /* ... existing ... */ };
+    const handleLocationUpdate = async (event) => { /* ... existing ... */ };
+    const handleUnlink = async (userId) => { /* ... existing ... */ };
+    
+    // --- Initialization ---
+    // Initial check to hide loading and setup listener
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    if (loadingIndicator) loadingIndicator.classList.add('hidden');
 
-    // --- Initialization --- 
-    // Make sure this runs AFTER the DOM is loaded
-    const loadingIndicatorInitial = document.getElementById('loadingIndicator');
-    if (!loadingIndicatorInitial) {
-         console.error("Loading indicator not found on initial load.");
-    }
+    firebase.auth().onAuthStateChanged(async (user) => {
+        hideLoading(); // Hide loading indicator once auth state is known
+        if (user) {
+            console.log('User is signed in:', user.uid);
 
-    // Listen for auth state changes to load data when user logs in
-    firebase.auth().onAuthStateChanged((user) => {
-         console.log('Auth state changed, user:', user ? user.uid : 'null');
-         // Ensure loadDashboardData is called *after* DOM is confirmed ready
-        if (document.readyState === 'loading') { // vielä latautuu
-            document.addEventListener('DOMContentLoaded', () => loadDashboardData(user));
-        } else { // DOM valmis
-            loadDashboardData(user);
+            // **NEW: Hide logged out view if user is signed in**
+            if(loggedOutView) loggedOutView.classList.add('hidden');
+
+            // Load user-specific data
+            const profile = await loadDashboardData(user);
+
+            // UI event listeners should be set up *after* data is loaded
+            // and the correct view (linked/unlinked) is displayed
+            addEventListeners(profile); // Corrected function name
+
+        } else {
+            currentUser = null;
+            console.log('User is signed out.');
+            // **Ensure correct views are hidden/shown**
+            if(unlinkedView) unlinkedView.classList.add('hidden'); // Corrected variable name
+            if(linkedView) linkedView.classList.add('hidden');
+            
+            // **REMOVED clearing of internal text elements - unnecessary when logged out**
+            // if(housekeeperNameEl) housekeeperNameEl.textContent = 'Loading...';
+            // if(housekeeperCompanyEl) housekeeperCompanyEl.textContent = '';
+            // if(nextCleaningDateTime) nextCleaningDateTime.textContent = 'Loading...';
+            // if(nextCleaningService) nextCleaningService.textContent = 'Loading service details...';
+            // if(nextCleaningAddress) nextCleaningAddress.textContent = 'Loading address...';
+            // if(recentHistoryList) recentHistoryList.innerHTML = '<p class="text-gray-500">Please log in.</p>';
+            
+            // Show the logged out view
+            if(loggedOutView) loggedOutView.classList.remove('hidden');
+            else console.error('#loggedOutView element not found in HTML');
         }
     });
+
+    // **NEW: Add listener for login redirect button**
+    if (loginRedirectButton) {
+        loginRedirectButton.addEventListener('click', () => {
+            window.location.href = '/login.html'; // Adjust path if your login page is different
+        });
+    } else {
+        console.error('#loginRedirectButton element not found in HTML');
+    }
+
+    // Check initial auth state (can sometimes speed up initial load)
+    if (!firebase.auth().currentUser) {
+        console.log("Waiting for auth state...");
+        showLoading();
+    }
 
 }); 

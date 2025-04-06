@@ -246,22 +246,31 @@ const firestoreService = {
 
     // NEW: Function to unlink homeowner
     async unlinkHomeownerFromHousekeeper(homeownerId) {
-        console.log(`[Link] Attempting to unlink homeowner ${homeownerId}`);
+        console.log(`[Firestore] Unlinking homeowner ${homeownerId}`);
         if (!homeownerId) {
-            console.error('[Link] Invalid homeownerId for unlinking.');
-            return false;
+            throw new Error('Missing homeowner ID for unlink operation.');
         }
+        
+        const homeownerProfileRef = db.collection('homeowner_profiles').doc(homeownerId);
+        
         try {
-            const homeownerProfileRef = db.collection('homeowner_profiles').doc(homeownerId);
+            // Use update to set linkedHousekeeperId to null or delete it
+            // Setting to null is often cleaner than deleting
             await homeownerProfileRef.update({
-                linkedHousekeeperId: firebase.firestore.FieldValue.delete(), // Delete the field
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                linkedHousekeeperId: null 
             });
-            console.log('[Link] Homeowner unlinked successfully.');
-            return true;
+            console.log(`[Firestore] Successfully unlinked homeowner ${homeownerId}.`);
+            return { success: true };
         } catch (error) {
-            console.error('[Link] Error unlinking homeowner:', error);
-            return false;
+            console.error(`[Firestore] Error unlinking homeowner ${homeownerId}:`, error);
+             // Provide a more specific error message if possible
+            if (error.code === 'not-found') {
+                throw new Error('Homeowner profile not found.');
+            } else if (error.code === 'permission-denied') {
+                 throw new Error('Permission denied to update profile.');
+            } else {
+                throw new Error('Failed to unlink homeowner due to a server error.');
+            }
         }
     },
 

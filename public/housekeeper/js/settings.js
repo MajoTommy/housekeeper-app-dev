@@ -10,21 +10,21 @@ document.addEventListener('DOMContentLoaded', function() {
         // --- Local State & Constants ---
         const workingDays = {};
         const dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-        const DEFAULT_JOBS_PER_DAY = 2;
+    const DEFAULT_JOBS_PER_DAY = 2;
         const DEFAULT_BREAK_TIME = 90;
-        const DEFAULT_START_TIME = '8:00 AM';
+    const DEFAULT_START_TIME = '8:00 AM';
         const DEFAULT_JOB_DURATION = 180;
 
         // Initialize local workingDays state
-        dayNames.forEach(day => {
-            workingDays[day] = {
-                isWorking: false,
+dayNames.forEach(day => {
+        workingDays[day] = {
+            isWorking: false,
                 jobsPerDay: null,
                 startTime: null,
                 breakTime: null,
-                breakDurations: [],
-                jobDurations: []
-            };
+            breakDurations: [],
+            jobDurations: []
+        };
         });
         console.log('Local workingDays initialized:', workingDays);
 
@@ -61,28 +61,28 @@ document.addEventListener('DOMContentLoaded', function() {
             if(saveSettingsButton) saveSettingsButton.disabled = false;
         }
         
-        function convertTo12HourFormat(timeStr) {
-            if (!timeStr) return '';
+function convertTo12HourFormat(timeStr) {
+    if (!timeStr) return '';
             if (timeStr.includes('AM') || timeStr.includes('PM')) return timeStr;
             try {
-                const [hours, minutes] = timeStr.split(':').map(Number);
-                const period = hours >= 12 ? 'PM' : 'AM';
-                const hours12 = hours % 12 || 12;
-                return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
+        const [hours, minutes] = timeStr.split(':').map(Number);
+        const period = hours >= 12 ? 'PM' : 'AM';
+        const hours12 = hours % 12 || 12;
+        return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
             } catch (error) { console.error('Error converting time format:', error); return timeStr; }
-        }
-        
-        function convertTo24HourFormat(timeStr) {
+}
+    
+function convertTo24HourFormat(timeStr) {
             if (!timeStr || (timeStr.includes(':') && !timeStr.includes('AM') && !timeStr.includes('PM'))) return timeStr;
             try {
-                const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM|am|pm)/i);
-                if (!match) return timeStr;
-                let hours = parseInt(match[1]);
-                const minutes = parseInt(match[2]);
-                const period = match[3].toUpperCase();
-                if (period === 'PM' && hours < 12) hours += 12;
-                if (period === 'AM' && hours === 12) hours = 0;
-                return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+        const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM|am|pm)/i);
+        if (!match) return timeStr;
+        let hours = parseInt(match[1]);
+        const minutes = parseInt(match[2]);
+        const period = match[3].toUpperCase();
+        if (period === 'PM' && hours < 12) hours += 12;
+        if (period === 'AM' && hours === 12) hours = 0;
+        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
             } catch (error) { console.error('Error converting to 24-hour format:', error); return timeStr; }
         }
 
@@ -275,6 +275,199 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('Settings successfully applied to UI');
         }
 
+        // --- Time Off Calendar Logic ---
+        let currentCalendarDate = new Date(); // Start with current month
+        let timeOffDataCache = new Set(); // Cache fetched time off dates (YYYY-MM-DD)
+        let pendingTimeOffAdditions = new Set(); // Track dates clicked ON during this session
+        let pendingTimeOffDeletions = new Set(); // Track dates clicked OFF during this session
+
+        const calendarGrid = document.getElementById('calendarGrid');
+        const currentMonthDisplay = document.getElementById('currentMonthDisplay');
+        const prevMonthBtn = document.getElementById('prevMonthBtn');
+        const nextMonthBtn = document.getElementById('nextMonthBtn');
+        const calendarError = document.getElementById('calendarError');
+
+        // Function to fetch time off dates for a given month/year
+        async function fetchTimeOffData(year, month) { // month is 0-indexed
+            const user = firebase.auth().currentUser;
+            if (!user) return; // Should not happen if page loaded
+            
+            // Calculate start and end dates for the query range (covering potential overlap)
+            // Extend query slightly beyond the month to handle edge cases? Or just fetch month?
+            const startDate = new Date(year, month, 1);
+            const endDate = new Date(year, month + 1, 0); // Last day of the month
+            const startDateStr = `${year}-${(month + 1).toString().padStart(2, '0')}-01`;
+            const endDateStr = `${year}-${(month + 1).toString().padStart(2, '0')}-${endDate.getDate().toString().padStart(2, '0')}`;
+
+            console.log(`Fetching time off dates between ${startDateStr} and ${endDateStr}`);
+            
+            // Clear cache for the new range? Or add to existing?
+            // For simplicity, let's clear and fetch month for now.
+            timeOffDataCache.clear(); 
+
+            try {
+                const timeOffRef = db.collection('users').doc(user.uid).collection('timeOffDates');
+                const snapshot = await timeOffRef
+                    .where(firebase.firestore.FieldPath.documentId(), '>=', startDateStr)
+                    .where(firebase.firestore.FieldPath.documentId(), '<=', endDateStr)
+                    .get();
+
+                snapshot.forEach(doc => {
+                    if (doc.data()?.isTimeOff === true) {
+                        timeOffDataCache.add(doc.id); // Add YYYY-MM-DD string
+                    }
+                });
+                console.log('Fetched time off dates:', timeOffDataCache);
+            } catch (error) {
+                console.error("Error fetching time off dates:", error);
+                if(calendarError) {
+                    calendarError.textContent = 'Error loading time off data.';
+                    calendarError.classList.remove('hidden');
+                }
+            }
+        }
+
+        // Function to render the calendar grid
+        async function renderCalendar(year, month) { // month is 0-indexed
+            if (!calendarGrid || !currentMonthDisplay) return;
+            
+            currentMonthDisplay.textContent = new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' });
+            calendarGrid.innerHTML = ''; // Clear previous grid
+            if(calendarError) calendarError.classList.add('hidden'); // Clear error
+            
+            // Fetch data for the month - This resets the cache
+            await fetchTimeOffData(year, month);
+            // Important: After fetching, clear pending changes for the *newly fetched* data
+            // This prevents conflicts if the user navigates away and back.
+            // However, we should NOT clear all pending changes, only those related to the fetched month?
+            // For simplicity now, let's NOT clear pending changes on render. They persist until save.
+            
+            const firstDayOfMonth = new Date(year, month, 1).getDay(); // 0=Sun, 1=Mon...
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); // For comparison
+
+            // Add empty cells for days before the first of the month
+            for (let i = 0; i < firstDayOfMonth; i++) {
+                const emptyCell = document.createElement('div');
+                calendarGrid.appendChild(emptyCell);
+            }
+
+            // Add cells for each day of the month
+            for (let day = 1; day <= daysInMonth; day++) {
+                const cell = document.createElement('div');
+                const currentDate = new Date(year, month, day);
+                currentDate.setHours(0,0,0,0);
+                const dateString = `${year}-${(month + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+                
+                cell.textContent = day;
+                cell.dataset.date = dateString; // Store YYYY-MM-DD
+                
+                // Determine visual state based on cache AND pending changes
+                const isCurrentlySavedAsOff = timeOffDataCache.has(dateString);
+                const isPendingAddition = pendingTimeOffAdditions.has(dateString);
+                const isPendingDeletion = pendingTimeOffDeletions.has(dateString);
+                
+                let isVisuallyOff = (isCurrentlySavedAsOff && !isPendingDeletion) || isPendingAddition;
+
+                let cellClasses = 'text-center p-2 border rounded-md cursor-pointer transition-colors duration-150 ';
+                const isPast = currentDate < today;
+
+                if (isPast) {
+                    cellClasses += 'text-gray-400 bg-gray-50 cursor-not-allowed '; // Style past days
+                } else if (isVisuallyOff) {
+                    cellClasses += 'bg-red-200 text-red-800 font-semibold hover:bg-red-300 '; // Style days marked off (saved or pending add)
+                     cell.title = 'Marked as Time Off. Click to remove.';
+                } else { // Visually ON (saved and pending delete, or never off)
+                     cellClasses += 'text-gray-700 bg-white hover:bg-blue-50 focus:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 '; // Style available days
+                     cell.title = 'Click to mark as Time Off';
+                }
+                
+                if (currentDate.getTime() === today.getTime()) {
+                    cellClasses += 'ring-2 ring-blue-500 '; // Highlight today
+                }
+                
+                cell.className = cellClasses.trim();
+
+                // Add click listener only for current/future dates
+                if (!isPast) {
+                    cell.addEventListener('click', handleDateClick);
+                }
+                
+                calendarGrid.appendChild(cell);
+            }
+        }
+        
+        // Handler for clicking a date cell (MODIFIED)
+        function handleDateClick(event) { // No longer async, no immediate save
+            const cell = event.currentTarget;
+            const dateString = cell.dataset.date;
+            if (!dateString) return;
+
+            const isCurrentlySavedAsOff = timeOffDataCache.has(dateString);
+            const isPendingAddition = pendingTimeOffAdditions.has(dateString);
+            const isPendingDeletion = pendingTimeOffDeletions.has(dateString);
+            let isVisuallyOff = (isCurrentlySavedAsOff && !isPendingDeletion) || isPendingAddition;
+
+            console.log(`Handling click for ${dateString}. Visually Off: ${isVisuallyOff}`);
+
+            // Toggle the state
+            if (isVisuallyOff) {
+                // --- Turning it ON (visually) --- 
+                // If it was saved as OFF, it must now be pending deletion
+                if (isCurrentlySavedAsOff) {
+                    pendingTimeOffDeletions.add(dateString);
+                }
+                // If it was pending addition, remove that pending addition
+                if (isPendingAddition) {
+                    pendingTimeOffAdditions.delete(dateString);
+                }
+                // Update visual style immediately
+                cell.className = 'text-center p-2 border rounded-md cursor-pointer transition-colors duration-150 text-gray-700 bg-white hover:bg-blue-50 focus:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-indigo-500';
+                cell.title = 'Click to mark as Time Off';
+                console.log(`Toggled ${dateString} visually ON (Pending Deletion: ${pendingTimeOffDeletions.has(dateString)})`);
+
+            } else {
+                // --- Turning it OFF (visually) --- 
+                // If it was saved as ON (i.e., not in cache), it must now be pending addition
+                if (!isCurrentlySavedAsOff) {
+                    pendingTimeOffAdditions.add(dateString);
+                }
+                // If it was pending deletion, remove that pending deletion
+                if (isPendingDeletion) {
+                    pendingTimeOffDeletions.delete(dateString);
+                }
+                // Update visual style immediately
+                cell.className = 'text-center p-2 border rounded-md cursor-pointer transition-colors duration-150 bg-red-200 text-red-800 font-semibold hover:bg-red-300';
+                cell.title = 'Marked as Time Off. Click to remove.';
+                 console.log(`Toggled ${dateString} visually OFF (Pending Addition: ${pendingTimeOffAdditions.has(dateString)})`);
+            }
+            
+            // TODO: Indicate that changes are unsaved? (Optional enhancement)
+        }
+
+        // Initialize calendar and add navigation listeners
+        function initializeTimeOffCalendar() {
+            if (!calendarGrid) { // Check if the section exists
+                 console.log("Time Off Calendar section not found in HTML, skipping initialization.");
+                 return;
+            }
+            
+            prevMonthBtn?.addEventListener('click', () => {
+                currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
+                renderCalendar(currentCalendarDate.getFullYear(), currentCalendarDate.getMonth());
+            });
+
+            nextMonthBtn?.addEventListener('click', () => {
+                currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
+                renderCalendar(currentCalendarDate.getFullYear(), currentCalendarDate.getMonth());
+            });
+
+            // Initial render
+            renderCalendar(currentCalendarDate.getFullYear(), currentCalendarDate.getMonth());
+        }
+        
+        // --- Main Save Function (MODIFIED) ---
         async function saveSettings() {
             console.log('saveSettings called');
             showSavingIndicator();
@@ -285,19 +478,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 hideSavingIndicator(false);
                 return false;
             }
-
+            
+            // Prepare main settings (workingDays, timezone, etc.)
             const settingsToSave = {
                 workingDays: { ...workingDays }, // Save a copy
                 autoSendReceipts: autoSendReceiptsToggle ? autoSendReceiptsToggle.checked : false,
-                timezone: timezoneSelect ? timezoneSelect.value : null // Add selected timezone
+                timezone: timezoneSelect ? timezoneSelect.value : null
             };
-
-            // --- Data Formatting/Cleanup Before Save ---
+            // Format/Cleanup main settings...
             dayNames.forEach(day => {
                 const dayData = settingsToSave.workingDays[day];
                 // ADDED: Log initial state for the day being processed
                 console.log(`[SAVE - ${day}] Initial dayData before format:`, JSON.stringify(dayData));
-                // END ADDED
                 
                 if (!dayData.isWorking) {
                     // If not working, nullify time/job details for consistency
@@ -341,23 +533,56 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
             });
+            console.log('Formatted main settings for save:', JSON.stringify(settingsToSave, null, 2));
+            
+            // Prepare Time Off Changes
+            const timeOffAddPromises = [];
+            pendingTimeOffAdditions.forEach(dateString => {
+                console.log(`Preparing to add time off for: ${dateString}`);
+                const timeOffDocRef = db.collection('users').doc(user.uid).collection('timeOffDates').doc(dateString);
+                timeOffAddPromises.push(timeOffDocRef.set({ isTimeOff: true, reason: "Marked via calendar" })); // Add reason maybe?
+            });
 
-            console.log('Attempting to save settings:', JSON.stringify(settingsToSave, null, 2));
+            const timeOffDeletePromises = [];
+            pendingTimeOffDeletions.forEach(dateString => {
+                console.log(`Preparing to delete time off for: ${dateString}`);
+                const timeOffDocRef = db.collection('users').doc(user.uid).collection('timeOffDates').doc(dateString);
+                timeOffDeletePromises.push(timeOffDocRef.delete());
+            });
 
             try {
-                await firestoreService.updateUserSettings(user.uid, settingsToSave);
-                console.log('Settings saved successfully via centralized service');
-                hideSavingIndicator(true);
+                console.log('Starting Firestore operations...');
+                // Perform all writes: main settings update AND time off changes
+                await Promise.all([
+                    firestoreService.updateUserSettings(user.uid, settingsToSave),
+                    ...timeOffAddPromises,
+                    ...timeOffDeletePromises
+                ]);
 
-                 // Update debugging in schedule.js if available
+                console.log('All settings (including time off) saved successfully.');
+                
+                // IMPORTANT: Clear pending changes ONLY after successful save
+                pendingTimeOffAdditions.clear();
+                pendingTimeOffDeletions.clear();
+
+                // Update cache with the new state reflecting saved changes
+                // Need to refetch or manually update timeOffDataCache here for consistency
+                // Simplest is to just re-render the current calendar month which includes fetch
+                console.log('Clearing pending changes and re-rendering calendar to reflect saved state.');
+                renderCalendar(currentCalendarDate.getFullYear(), currentCalendarDate.getMonth()); 
+
+                    hideSavingIndicator(true);
+
+                // Update debugging in schedule.js if available
                  if (typeof window.debugWorkingDays === 'function') {
                     window.debugWorkingDays(settingsToSave);
                  }
 
                 return true;
             } catch (error) {
-                console.error('Error saving settings:', error);
+                console.error('Error saving settings or time off changes:', error);
                 hideSavingIndicator(false);
+                // Do NOT clear pending changes on error, user needs to retry
                 return false;
             }
         }
@@ -561,16 +786,16 @@ document.addEventListener('DOMContentLoaded', function() {
         function initializeUI() {
             console.log('Initializing UI event listeners...');
             // Day Toggles
-            dayToggles.forEach(toggle => {
-                toggle.addEventListener('change', function() {
-                    const day = this.getAttribute('data-day-toggle');
-                    const isWorking = this.checked;
+    dayToggles.forEach(toggle => {
+        toggle.addEventListener('change', function() {
+            const day = this.getAttribute('data-day-toggle');
+            const isWorking = this.checked;
                     console.log(`Toggle changed for ${day}: ${isWorking}`);
                     if (!workingDays[day]) { workingDays[day] = {}; }
-                    workingDays[day].isWorking = isWorking;
-                    
+                workingDays[day].isWorking = isWorking;
+                
                     // Ensure default values if turning ON
-                    if (isWorking) {
+                if (isWorking) {
                          if (workingDays[day].jobsPerDay === null) workingDays[day].jobsPerDay = DEFAULT_JOBS_PER_DAY;
                          if (workingDays[day].startTime === null) workingDays[day].startTime = DEFAULT_START_TIME;
                          if (workingDays[day].breakTime === null) workingDays[day].breakTime = DEFAULT_BREAK_TIME;
@@ -592,11 +817,11 @@ document.addEventListener('DOMContentLoaded', function() {
                      }
 
                     applyLoadedSettings({ workingDays: workingDays }); // Re-apply to update panel visibility and inputs
-                });
-            });
+        });
+    });
 
             // Auto-Send Receipts Toggle
-            if (autoSendReceiptsToggle) {
+                    if (autoSendReceiptsToggle) {
                  // No automatic save on toggle change now
             }
 
@@ -711,7 +936,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             const oldJobDurations = workingDays[day].jobDurations || [];
                             workingDays[day].jobDurations = Array(jobCount).fill(0).map((_, i) => 
                                 i < oldJobDurations.length ? oldJobDurations[i] : DEFAULT_JOB_DURATION);
-                            console.log(`[FIX] Fixed ${day} job durations:`, workingDays[day].jobDurations);
+                            console.log(`[FIX - ${day}] Fixed ${day} job durations:`, workingDays[day].jobDurations);
                         }
                         
                         // Fix break durations
@@ -720,7 +945,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             const oldBreakDurations = workingDays[day].breakDurations || [];
                             workingDays[day].breakDurations = Array(expectedBreaks).fill(0).map((_, i) => 
                                 i < oldBreakDurations.length ? oldBreakDurations[i] : DEFAULT_BREAK_TIME);
-                            console.log(`[FIX] Fixed ${day} break durations:`, workingDays[day].breakDurations);
+                            console.log(`[FIX - ${day}] Fixed ${day} break durations:`, workingDays[day].breakDurations);
                         }
                     }
                 });
@@ -912,6 +1137,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 populateTimezoneOptions(); 
                 await loadSettings(); // Call local loadSettings
                 initializeUI(); // Call this after loading settings
+                onUserSettingsReady(); // <--- ADD THIS LINE
             } else {
                 console.log('User logged out, settings UI inactive.');
                 // Clear user info fields
@@ -925,6 +1151,219 @@ document.addEventListener('DOMContentLoaded', function() {
 
         console.log('Settings.js initialization complete.');
     } // End of Firebase initialized block
+
+    // --- Time Off Calendar Logic ---
+    let currentCalendarDate = new Date(); // Start with current month
+    let timeOffDataCache = new Set(); // Cache fetched time off dates (YYYY-MM-DD)
+    let pendingTimeOffAdditions = new Set(); // Track dates clicked ON during this session
+    let pendingTimeOffDeletions = new Set(); // Track dates clicked OFF during this session
+
+    const calendarGrid = document.getElementById('calendarGrid');
+    const currentMonthDisplay = document.getElementById('currentMonthDisplay');
+    const prevMonthBtn = document.getElementById('prevMonthBtn');
+    const nextMonthBtn = document.getElementById('nextMonthBtn');
+    const calendarError = document.getElementById('calendarError');
+
+    // Function to fetch time off dates for a given month/year
+    async function fetchTimeOffData(year, month) { // month is 0-indexed
+                const user = firebase.auth().currentUser;
+        if (!user) return; // Should not happen if page loaded
+        
+        // Calculate start and end dates for the query range (covering potential overlap)
+        // Extend query slightly beyond the month to handle edge cases? Or just fetch month?
+        const startDate = new Date(year, month, 1);
+        const endDate = new Date(year, month + 1, 0); // Last day of the month
+        const startDateStr = `${year}-${(month + 1).toString().padStart(2, '0')}-01`;
+        const endDateStr = `${year}-${(month + 1).toString().padStart(2, '0')}-${endDate.getDate().toString().padStart(2, '0')}`;
+
+        console.log(`Fetching time off dates between ${startDateStr} and ${endDateStr}`);
+        
+        // Clear cache for the new range? Or add to existing?
+        // For simplicity, let's clear and fetch month for now.
+        timeOffDataCache.clear(); 
+
+        try {
+            const timeOffRef = db.collection('users').doc(user.uid).collection('timeOffDates');
+            const snapshot = await timeOffRef
+                .where(firebase.firestore.FieldPath.documentId(), '>=', startDateStr)
+                .where(firebase.firestore.FieldPath.documentId(), '<=', endDateStr)
+                .get();
+
+            snapshot.forEach(doc => {
+                if (doc.data()?.isTimeOff === true) {
+                    timeOffDataCache.add(doc.id); // Add YYYY-MM-DD string
+                }
+            });
+            console.log('Fetched time off dates:', timeOffDataCache);
+        } catch (error) {
+            console.error("Error fetching time off dates:", error);
+            if(calendarError) {
+                calendarError.textContent = 'Error loading time off data.';
+                calendarError.classList.remove('hidden');
+            }
+        }
+    }
+
+    // Function to render the calendar grid
+    async function renderCalendar(year, month) { // month is 0-indexed
+        if (!calendarGrid || !currentMonthDisplay) return;
+        
+        currentMonthDisplay.textContent = new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' });
+        calendarGrid.innerHTML = ''; // Clear previous grid
+        if(calendarError) calendarError.classList.add('hidden'); // Clear error
+        
+        // Fetch data for the month - This resets the cache
+        await fetchTimeOffData(year, month);
+        // Important: After fetching, clear pending changes for the *newly fetched* data
+        // This prevents conflicts if the user navigates away and back.
+        // However, we should NOT clear all pending changes, only those related to the fetched month?
+        // For simplicity now, let's NOT clear pending changes on render. They persist until save.
+        
+        const firstDayOfMonth = new Date(year, month, 1).getDay(); // 0=Sun, 1=Mon...
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // For comparison
+
+        // Add empty cells for days before the first of the month
+        for (let i = 0; i < firstDayOfMonth; i++) {
+            const emptyCell = document.createElement('div');
+            calendarGrid.appendChild(emptyCell);
+        }
+
+        // Add cells for each day of the month
+        for (let day = 1; day <= daysInMonth; day++) {
+            const cell = document.createElement('div');
+            const currentDate = new Date(year, month, day);
+            currentDate.setHours(0,0,0,0);
+            const dateString = `${year}-${(month + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+            
+            cell.textContent = day;
+            cell.dataset.date = dateString; // Store YYYY-MM-DD
+            
+            // Determine visual state based on cache AND pending changes
+            const isCurrentlySavedAsOff = timeOffDataCache.has(dateString);
+            const isPendingAddition = pendingTimeOffAdditions.has(dateString);
+            const isPendingDeletion = pendingTimeOffDeletions.has(dateString);
+            
+            let isVisuallyOff = (isCurrentlySavedAsOff && !isPendingDeletion) || isPendingAddition;
+
+            let cellClasses = 'text-center p-2 border rounded-md cursor-pointer transition-colors duration-150 ';
+            const isPast = currentDate < today;
+
+            if (isPast) {
+                cellClasses += 'text-gray-400 bg-gray-50 cursor-not-allowed '; // Style past days
+            } else if (isVisuallyOff) {
+                cellClasses += 'bg-red-200 text-red-800 font-semibold hover:bg-red-300 '; // Style days marked off (saved or pending add)
+                 cell.title = 'Marked as Time Off. Click to remove.';
+            } else { // Visually ON (saved and pending delete, or never off)
+                 cellClasses += 'text-gray-700 bg-white hover:bg-blue-50 focus:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 '; // Style available days
+                 cell.title = 'Click to mark as Time Off';
+            }
+            
+            if (currentDate.getTime() === today.getTime()) {
+                cellClasses += 'ring-2 ring-blue-500 '; // Highlight today
+            }
+            
+            cell.className = cellClasses.trim();
+
+            // Add click listener only for current/future dates
+            if (!isPast) {
+                cell.addEventListener('click', handleDateClick);
+            }
+            
+            calendarGrid.appendChild(cell);
+        }
+    }
+    
+    // Handler for clicking a date cell (MODIFIED)
+    function handleDateClick(event) { // No longer async, no immediate save
+        const cell = event.currentTarget;
+        const dateString = cell.dataset.date;
+        if (!dateString) return;
+
+        const isCurrentlySavedAsOff = timeOffDataCache.has(dateString);
+        const isPendingAddition = pendingTimeOffAdditions.has(dateString);
+        const isPendingDeletion = pendingTimeOffDeletions.has(dateString);
+        let isVisuallyOff = (isCurrentlySavedAsOff && !isPendingDeletion) || isPendingAddition;
+
+        console.log(`Handling click for ${dateString}. Visually Off: ${isVisuallyOff}`);
+
+        // Toggle the state
+        if (isVisuallyOff) {
+            // --- Turning it ON (visually) --- 
+            // If it was saved as OFF, it must now be pending deletion
+            if (isCurrentlySavedAsOff) {
+                pendingTimeOffDeletions.add(dateString);
+            }
+            // If it was pending addition, remove that pending addition
+            if (isPendingAddition) {
+                pendingTimeOffAdditions.delete(dateString);
+            }
+            // Update visual style immediately
+            cell.className = 'text-center p-2 border rounded-md cursor-pointer transition-colors duration-150 text-gray-700 bg-white hover:bg-blue-50 focus:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-indigo-500';
+            cell.title = 'Click to mark as Time Off';
+            console.log(`Toggled ${dateString} visually ON (Pending Deletion: ${pendingTimeOffDeletions.has(dateString)})`);
+
+                } else {
+            // --- Turning it OFF (visually) --- 
+            // If it was saved as ON (i.e., not in cache), it must now be pending addition
+            if (!isCurrentlySavedAsOff) {
+                pendingTimeOffAdditions.add(dateString);
+            }
+            // If it was pending deletion, remove that pending deletion
+            if (isPendingDeletion) {
+                pendingTimeOffDeletions.delete(dateString);
+            }
+            // Update visual style immediately
+            cell.className = 'text-center p-2 border rounded-md cursor-pointer transition-colors duration-150 bg-red-200 text-red-800 font-semibold hover:bg-red-300';
+            cell.title = 'Marked as Time Off. Click to remove.';
+             console.log(`Toggled ${dateString} visually OFF (Pending Addition: ${pendingTimeOffAdditions.has(dateString)})`);
+        }
+        
+        // TODO: Indicate that changes are unsaved? (Optional enhancement)
+    }
+
+    // Initialize calendar and add navigation listeners
+    function initializeTimeOffCalendar() {
+        if (!calendarGrid) { // Check if the section exists
+             console.log("Time Off Calendar section not found in HTML, skipping initialization.");
+             return;
+        }
+        
+        prevMonthBtn?.addEventListener('click', () => {
+            currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
+            renderCalendar(currentCalendarDate.getFullYear(), currentCalendarDate.getMonth());
+        });
+
+        nextMonthBtn?.addEventListener('click', () => {
+            currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
+            renderCalendar(currentCalendarDate.getFullYear(), currentCalendarDate.getMonth());
+        });
+
+        // Initial render
+        renderCalendar(currentCalendarDate.getFullYear(), currentCalendarDate.getMonth());
+    }
+    
+    // --- Initialization Hook --- 
+    // Make sure this runs after Firebase is ready and user is loaded
+    function onUserSettingsReady() {
+         console.log('User settings ready, initializing Time Off Calendar...');
+         initializeTimeOffCalendar();
+    }
+    // We need to call onUserSettingsReady after settings have been loaded 
+    // Modify the existing DOMContentLoaded or auth state change listener to trigger this.
+    
+    // --- Existing Initialization --- 
+    // ... (DOMContentLoaded, onAuthStateChanged, loadSettings, etc.)... 
+    // FIND where loadSettings successfully completes and call onUserSettingsReady there.
+    // Example modification (adjust based on actual structure):
+    // Inside your auth state change listener or settings load success callback:
+    // if (/* settings loaded successfully */) {
+    //     onUserSettingsReady();
+    // } 
+
+    // --- Saving Logic --- 
+
 }); 
 
 function fixLoadedSettings(settingsData) {
