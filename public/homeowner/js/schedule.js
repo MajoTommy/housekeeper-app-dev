@@ -136,7 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
              // 3. Initialize week view - Use utility function
-             currentWeekStartDate = dateUtils.getWeekStartDate(new Date());
+             currentWeekStartDate = dateUtils.getStartOfWeek(new Date());
              updateWeekDisplay(); // Update display now that timezone is known
 
             // 4. Load schedule for the current week using the Cloud Function
@@ -219,7 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
         // Loop through each day of the week
         weekDates.forEach((date, dayIndex) => {
-            const dateString = dateUtils.formatDateToISO(date);
+            const dateString = dateUtils.formatDate(date, 'YYYY-MM-DD');
             const dayData = scheduleData[dateString];
             console.log(`[Day ${dayIndex}] Processing ${dateString}`);
     
@@ -254,11 +254,12 @@ document.addEventListener('DOMContentLoaded', () => {
                  slotsContainer.appendChild(statusP);
             } else if (dayData.status === 'available' && dayData.slots && dayData.slots.length > 0) {
                 dayData.slots.forEach((slot, slotIndex) => {
-                    const startTimeStr = dateUtils.minutesToTimeString(slot.start);
-                    if (startTimeStr) {
+                    const startTimeStr = slot.startTime; // Use the pre-formatted string
+                    if (startTimeStr && startTimeStr !== "Invalid Time") { // Check if valid
                         // Using simple div again first
                         const slotDiv = document.createElement('div');
-                        slotDiv.textContent = startTimeStr;
+                        // Display start and end time if available
+                        slotDiv.textContent = slot.endTime ? `${startTimeStr} - ${slot.endTime}` : startTimeStr;
                         // Add some basic styling for visibility
                         slotDiv.className = 'p-2 bg-green-100 text-green-800 rounded text-sm';
                         try {
@@ -267,7 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
                              console.error(`      [Slot ${slotIndex}] Error appending div: ${startTimeStr}`, e);
                         }
                     } else {
-                         console.warn(`    [Slot ${slotIndex}] Skipping slot with invalid start time:`, slot);
+                         console.warn(`    [Slot ${slotIndex}] Skipping slot with invalid/missing startTime:`, slot);
                     }
                 });
             } else {

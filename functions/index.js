@@ -377,7 +377,7 @@ exports.getAvailableSlots = onCall(async (request) => {
             // --- REVISED: Determine overall status and prepare final structure ---
             let overallStatus = 'not_working';
             let statusMessage = 'Not scheduled to work';
-            let availableSlotsMinutes = [];
+            let availableSlotsFormatted = [];
 
             const hasAnyAvailableSlot = finalSlotsMinutes.some(slot => slot.status === 'available');
             const isWorkingAnySlot = finalSlotsMinutes.length > 0;
@@ -396,9 +396,17 @@ exports.getAvailableSlots = onCall(async (request) => {
                 overallStatus = 'available';
                 statusMessage = ''; // No message needed when available
                 // Filter for only available slots and format for frontend
-                availableSlotsMinutes = finalSlotsMinutes
+                availableSlotsFormatted = finalSlotsMinutes
                     .filter(slot => slot.status === 'available')
-                    .map(slot => ({ start: slot.startMinutes })); // Only need start time
+                    .map(slot => {
+                        // Calculate duration (assuming job type)
+                        const duration = slot.endMinutes - slot.startMinutes;
+                        return {
+                            startTime: minutesToTimeString(slot.startMinutes), // Convert minutes to string
+                            endTime: minutesToTimeString(slot.endMinutes),     // Convert minutes to string
+                            durationMinutes: duration
+                        };
+                    });
             } else {
                 // Fallback case: If settings say working, but no slots generated (e.g., invalid start time)
                 overallStatus = 'not_working';
@@ -412,7 +420,7 @@ exports.getAvailableSlots = onCall(async (request) => {
                 dayName: dayNames[dayOfWeekIndexUTC],
                 status: overallStatus,
                 message: statusMessage,
-                slots: availableSlotsMinutes, // Use the filtered array of start minutes
+                slots: overallStatus === 'available' ? availableSlotsFormatted : [], // Use formatted slots if available
             };
             
             // Move to the next day

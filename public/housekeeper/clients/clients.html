@@ -53,14 +53,17 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
     
-    <!-- Your Firebase configuration -->
+    <!-- Firebase Config -->
     <script src="../../common/js/firebase-config.js"></script>
 
     <!-- Firestore Service -->
     <script src="../../common/js/firestore-service.js"></script>
+    
+    <!-- Date Utils -->
+    <script type="module" src="../../common/js/date-utils.js"></script>
     
     <!-- Auth Service -->
     <script src="../../common/js/auth.js"></script>
@@ -72,7 +75,7 @@
     <script src="../../common/js/sample-data.js"></script>
     
     <!-- Clients JS -->
-    <script src="../js/clients.js"></script>
+    <script src="clients.js"></script>
 </head>
 <body class="h-full pb-16">
     <!-- Header -->
@@ -166,11 +169,11 @@
     <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30">
         <div class="mx-auto max-w-7xl">
             <div class="flex justify-around">
-                <a href="../dashboard.html" class="flex flex-col items-center py-3 px-6 text-gray-500 hover:text-primary">
+                <a href="../schedule/schedule.html" class="flex flex-col items-center py-3 px-6 text-gray-500 hover:text-primary">
                     <i class="fas fa-calendar-alt text-xl"></i>
                     <span class="text-xs mt-1">Schedule</span>
                 </a>
-                <a href="clients.html" class="flex flex-col items-center py-3 px-6 text-primary">
+                <a href="../clients/clients.html" class="flex flex-col items-center py-3 px-6 text-primary">
                     <i class="fas fa-users text-xl"></i>
                     <span class="text-xs mt-1">Clients</span>
                 </a>

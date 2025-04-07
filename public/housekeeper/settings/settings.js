@@ -37,6 +37,8 @@ dayNames.forEach(day => {
         const userEmailP = document.getElementById('user-email');
         const saveSettingsButton = document.getElementById('save-settings-button');
         const savingIndicatorContainer = document.getElementById('saving-indicator');
+        const inviteCodeDisplaySpan = document.getElementById('invite-code-display');
+        const copyInviteCodeBtn = document.getElementById('copy-invite-code-btn');
 
         // Call the function to populate the dropdown
         populateTimezoneOptions();
@@ -143,14 +145,54 @@ function convertTo24HourFormat(timeStr) {
             
             try {
                 console.log('Loading settings from centralized service');
-                const settings = await firestoreService.getUserSettings(user.uid);
+                // Fetch settings and profile concurrently for efficiency
+                const [settings, profile] = await Promise.all([
+                    firestoreService.getUserSettings(user.uid),
+                    firestoreService.getHousekeeperProfile(user.uid) // Fetch profile for invite code
+                ]);
+
+                // --- Process Profile for Invite Code ---
+                if (profile && profile.inviteCode) {
+                    if (inviteCodeDisplaySpan) {
+                        inviteCodeDisplaySpan.textContent = profile.inviteCode;
+                        console.log('Invite code displayed:', profile.inviteCode);
+                    } else {
+                        console.warn('Invite code display element not found.');
+                    }
+                    // Add copy listener only if code is loaded
+                    if (copyInviteCodeBtn) {
+                         copyInviteCodeBtn.addEventListener('click', handleCopyInviteCode);
+                         console.log('Copy invite code listener attached.');
+                    }
+                } else {
+                    console.warn('Housekeeper profile or invite code not found.');
+                    if (inviteCodeDisplaySpan) {
+                        inviteCodeDisplaySpan.textContent = 'N/A';
+                        inviteCodeDisplaySpan.classList.remove('text-primary');
+                        inviteCodeDisplaySpan.classList.add('text-gray-500', 'text-lg'); // Adjust style for error
+                    }
+                    if (copyInviteCodeBtn) copyInviteCodeBtn.disabled = true;
+                }
+                // --- End Invite Code processing ---
                 
+                // --- Process Settings (existing logic) ---
                 if (!settings || !settings.workingDays) {
                     console.error('Failed to load settings or missing workingDays', settings);
-                    return false;
+                    // Decide how to handle this - maybe show error, use defaults?
+                     // For now, let existing logic handle defaults if needed, but log error
+                     // applyLoadedSettings({}); // Apply empty to potentially reset to defaults UI?
+                     // return false;
                 }
                 
                 console.log('Loaded settings:', JSON.stringify(settings, null, 2));
+                
+                // --- ADDED DEBUG LOG: Check Wednesday's raw loaded data ---
+                // if (settings && settings.workingDays && settings.workingDays.wednesday) {
+                //     console.log('[DEBUG LoadSettings] Raw Wednesday data loaded:', JSON.stringify(settings.workingDays.wednesday));
+                // } else {
+                //     console.log('[DEBUG LoadSettings] Wednesday data not found in loaded settings.');
+                // }
+                // --- END ADDED DEBUG LOG ---
                 
                 // Apply loaded settings to UI
                 applyLoadedSettings(settings);
@@ -167,7 +209,15 @@ function convertTo24HourFormat(timeStr) {
                 
                 return true;
             } catch (error) {
-                console.error('Error loading settings:', error);
+                console.error('Error loading settings or profile:', error);
+                // Update invite code display on error
+                 if (inviteCodeDisplaySpan) {
+                     inviteCodeDisplaySpan.textContent = 'Error';
+                     inviteCodeDisplaySpan.classList.remove('text-primary');
+                     inviteCodeDisplaySpan.classList.add('text-red-500', 'text-lg'); 
+                 }
+                 if (copyInviteCodeBtn) copyInviteCodeBtn.disabled = true;
+                 // Handle other settings loading errors if necessary
                 return false;
             }
         }
@@ -184,6 +234,15 @@ function convertTo24HourFormat(timeStr) {
                 const daySettings = settings.workingDays[day] || {};
                 const currentDayState = workingDays[day];
 
+                // --- ADDED DEBUG LOG: Check Wednesday's state before applying UI ---
+                // if (day === 'wednesday') {
+                //     console.log('[DEBUG ApplySettings - Wednesday] Received settings:', JSON.stringify(daySettings));
+                //     console.log('[DEBUG ApplySettings - Wednesday] Current local state (before apply):', JSON.stringify(currentDayState));
+                //     // Log the specific value about to be checked for visibility
+                //     console.log('[DEBUG ApplySettings - Wednesday] Value for isWorking check:', daySettings.isWorking === true);
+                // }
+                // --- END ADDED DEBUG LOG ---
+
                 // Apply all settings explicitly, handling potential missing fields
                 currentDayState.isWorking = daySettings.isWorking === true;
                 currentDayState.jobsPerDay = daySettings.jobsPerDay !== undefined ? daySettings.jobsPerDay : null;
@@ -192,39 +251,56 @@ function convertTo24HourFormat(timeStr) {
                 currentDayState.breakDurations = daySettings.breakDurations || [];
                 currentDayState.jobDurations = daySettings.jobDurations || [];
                 
-                // Log detailed information about each day's settings
-                console.log(`Day settings for ${day}:`, {
-                    isWorking: currentDayState.isWorking,
-                    jobsPerDay: currentDayState.jobsPerDay,
-                    startTime: currentDayState.startTime,
-                    breakTime: currentDayState.breakTime
-                });
-                // Ensure job/break arrays match job count if needed
-                 if (currentDayState.isWorking && currentDayState.jobsPerDay !== null) {
-                     const jobCount = currentDayState.jobsPerDay;
-                     if (!currentDayState.jobDurations || currentDayState.jobDurations.length !== jobCount) {
-                         currentDayState.jobDurations = Array(jobCount).fill(DEFAULT_JOB_DURATION);
+                // --- REVERT: Remove setTimeout wrapper ---
+                // setTimeout(() => { 
+                    // Log detailed information about each day's settings
+                    console.log(`Day settings for ${day}:`, {
+                        isWorking: currentDayState.isWorking,
+                        jobsPerDay: currentDayState.jobsPerDay,
+                        startTime: currentDayState.startTime,
+                        breakTime: currentDayState.breakTime
+                    });
+                    // Ensure job/break arrays match job count if needed
+                     if (currentDayState.isWorking && currentDayState.jobsPerDay !== null) {
+                         const jobCount = currentDayState.jobsPerDay;
+                         if (!currentDayState.jobDurations || currentDayState.jobDurations.length !== jobCount) {
+                             currentDayState.jobDurations = Array(jobCount).fill(DEFAULT_JOB_DURATION);
+                         }
+                         if (!currentDayState.breakDurations || currentDayState.breakDurations.length !== Math.max(0, jobCount - 1)) {
+                             currentDayState.breakDurations = Array(Math.max(0, jobCount - 1)).fill(DEFAULT_BREAK_TIME);
+                         }
+            } else {
+                         // Clear durations if not working or no jobs specified
+                         currentDayState.jobDurations = [];
+                         currentDayState.breakDurations = [];
                      }
-                     if (!currentDayState.breakDurations || currentDayState.breakDurations.length !== Math.max(0, jobCount - 1)) {
-                         currentDayState.breakDurations = Array(Math.max(0, jobCount - 1)).fill(DEFAULT_BREAK_TIME);
-                     }
-        } else {
-                     // Clear durations if not working or no jobs specified
-                     currentDayState.jobDurations = [];
-                     currentDayState.breakDurations = [];
-                 }
 
-                // Update UI
-                const toggle = document.querySelector(`[data-day-toggle="${day}"]`);
-                if (!toggle) {
-                    console.error(`Toggle for ${day} not found`);
-                    return;
-                }
-                toggle.checked = currentDayState.isWorking;
-                
-                const settingsPanel = document.querySelector(`[data-day-settings="${day}"]`);
-                if (settingsPanel) {
+                    // Update UI
+                    const toggle = document.querySelector(`[data-day-toggle="${day}"]`);
+                    if (!toggle) {
+                        console.error(`Toggle for ${day} not found`);
+                        return;
+                    }
+                    toggle.checked = currentDayState.isWorking;
+                    
+                    const settingsPanel = document.querySelector(`[data-day-settings="${day}"]`);
+                    // Add a check if settingsPanel is found
+                    if (!settingsPanel) {
+                        console.error(`Settings panel for ${day} not found!`);
+                        return; // Stop if panel doesn't exist
+                    }
+
                      if (currentDayState.isWorking) {
+                        // --- ADDED: Check if UI needs generation before showing --- 
+                        if (!settingsPanel.hasChildNodes() || settingsPanel.innerHTML.includes('<!--')) {
+                            console.log(`[ApplySettings] Generating UI for ${day} as it's empty.`);
+                            if (typeof createDayUI === 'function') {
+                                createDayUI(day);
+                            } else {
+                                console.error(`createDayUI function not found when trying to generate UI for ${day}!`);
+                            }
+                        }
+                        // --- END ADDED ---
                         settingsPanel.classList.remove('hidden');
                         // Update input elements inside the panel
                         const startTimeInput = settingsPanel.querySelector(`[data-start-time="${day}"]`);
@@ -241,11 +317,12 @@ function convertTo24HourFormat(timeStr) {
                              breakTimeInput.value = currentDayState.breakTime !== null ? currentDayState.breakTime : '';
                          }
                         // Update visual indicators (job buttons, timeline)
-                    updateDayVisualIndicators(day);
+                        updateDayVisualIndicators(day); // Ensure this function also handles potential null panel
                     } else {
                         settingsPanel.classList.add('hidden');
                     }
-                 }
+                // }, 0); // End of setTimeout with 0 delay
+                 // --- END REVERT ---
             });
 
             // Apply autoSendReceipts setting
@@ -331,6 +408,13 @@ function convertTo24HourFormat(timeStr) {
         async function renderCalendar(year, month) { // month is 0-indexed
             if (!calendarGrid || !currentMonthDisplay) return;
             
+            // --- DEBUG: Log input values ---
+            console.log(`[renderCalendar] Rendering for Year: ${year}, Month: ${month}`);
+            const firstDayOfMonth = new Date(year, month, 1).getDay(); // 0=Sun, 1=Mon...
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            console.log(`[renderCalendar] First day index: ${firstDayOfMonth}, Days in month: ${daysInMonth}`);
+            // --- END DEBUG ---
+            
             currentMonthDisplay.textContent = new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' });
             calendarGrid.innerHTML = ''; // Clear previous grid
             if(calendarError) calendarError.classList.add('hidden'); // Clear error
@@ -342,8 +426,6 @@ function convertTo24HourFormat(timeStr) {
             // However, we should NOT clear all pending changes, only those related to the fetched month?
             // For simplicity now, let's NOT clear pending changes on render. They persist until save.
             
-            const firstDayOfMonth = new Date(year, month, 1).getDay(); // 0=Sun, 1=Mon...
-            const daysInMonth = new Date(year, month + 1, 0).getDate();
             const today = new Date();
             today.setHours(0, 0, 0, 0); // For comparison
 
@@ -360,6 +442,12 @@ function convertTo24HourFormat(timeStr) {
                 currentDate.setHours(0,0,0,0);
                 const dateString = `${year}-${(month + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
                 
+                // --- DEBUG: Log last few days --- 
+                if (day > daysInMonth - 5) { // Log last 5 iterations
+                    console.log(`[renderCalendar] Loop Day ${day}, Date String: ${dateString}`);
+                }
+                // --- END DEBUG ---
+
                 cell.textContent = day;
                 cell.dataset.date = dateString; // Store YYYY-MM-DD
                 
@@ -396,7 +484,25 @@ function convertTo24HourFormat(timeStr) {
                 
                 calendarGrid.appendChild(cell);
             }
-        }
+
+            // --- FIX: Add trailing empty cells to fill the grid --- (Restore this block)
+            const totalCells = firstDayOfMonth + daysInMonth;
+            const remainingCells = (7 - (totalCells % 7)) % 7; // Calculate cells needed to fill the last row
+            // --- REMOVE DEBUG LOG --- 
+            // console.log(`[renderCalendar - Trailing Cells] About to add ${remainingCells} trailing cells. Total cells: ${totalCells}. First day: ${firstDayOfMonth}, Days: ${daysInMonth}`);
+            // --- END REMOVE DEBUG LOG ---
+            for (let i = 0; i < remainingCells; i++) {
+                // --- REMOVE DEBUG LOG --- 
+                // console.log(`[renderCalendar - Trailing Cells] Appending trailing empty cell #${i + 1}`);
+                // --- END REMOVE DEBUG LOG ---
+                const emptyCell = document.createElement('div');
+                // Optionally add some subtle styling to distinguish from leading padding
+                // emptyCell.className = 'border border-transparent'; 
+                calendarGrid.appendChild(emptyCell);
+            }
+            // --- END FIX ---
+
+        } // End renderCalendar function
         
         // Handler for clicking a date cell (MODIFIED)
         function handleDateClick(event) { // No longer async, no immediate save
@@ -1237,6 +1343,12 @@ function convertTo24HourFormat(timeStr) {
             currentDate.setHours(0,0,0,0);
             const dateString = `${year}-${(month + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
             
+            // --- DEBUG: Log last few days --- 
+            if (day > daysInMonth - 5) { // Log last 5 iterations
+                console.log(`[renderCalendar] Loop Day ${day}, Date String: ${dateString}`);
+            }
+            // --- END DEBUG ---
+
             cell.textContent = day;
             cell.dataset.date = dateString; // Store YYYY-MM-DD
             
@@ -1273,7 +1385,25 @@ function convertTo24HourFormat(timeStr) {
             
             calendarGrid.appendChild(cell);
         }
-    }
+
+        // --- FIX: Add trailing empty cells to fill the grid --- (Restore this block)
+        const totalCells = firstDayOfMonth + daysInMonth;
+        const remainingCells = (7 - (totalCells % 7)) % 7; // Calculate cells needed to fill the last row
+        // --- REMOVE DEBUG LOG --- 
+        // console.log(`[renderCalendar - Trailing Cells] About to add ${remainingCells} trailing cells. Total cells: ${totalCells}. First day: ${firstDayOfMonth}, Days: ${daysInMonth}`);
+        // --- END REMOVE DEBUG LOG ---
+        for (let i = 0; i < remainingCells; i++) {
+            // --- REMOVE DEBUG LOG --- 
+            // console.log(`[renderCalendar - Trailing Cells] Appending trailing empty cell #${i + 1}`);
+            // --- END REMOVE DEBUG LOG ---
+            const emptyCell = document.createElement('div');
+            // Optionally add some subtle styling to distinguish from leading padding
+            // emptyCell.className = 'border border-transparent'; 
+            calendarGrid.appendChild(emptyCell);
+        }
+        // --- END FIX ---
+
+    } // End renderCalendar function
     
     // Handler for clicking a date cell (MODIFIED)
     function handleDateClick(event) { // No longer async, no immediate save
@@ -1304,7 +1434,7 @@ function convertTo24HourFormat(timeStr) {
             cell.title = 'Click to mark as Time Off';
             console.log(`Toggled ${dateString} visually ON (Pending Deletion: ${pendingTimeOffDeletions.has(dateString)})`);
 
-                } else {
+            } else {
             // --- Turning it OFF (visually) --- 
             // If it was saved as ON (i.e., not in cache), it must now be pending addition
             if (!isCurrentlySavedAsOff) {
@@ -1448,3 +1578,46 @@ function fixLoadedSettings(settingsData) {
 }
 
 // --- Saving Logic ---
+
+        // --- ADD Copy Invite Code Handler ---
+        async function handleCopyInviteCode() {
+            if (!inviteCodeDisplaySpan || !copyInviteCodeBtn) return;
+
+            const codeToCopy = inviteCodeDisplaySpan.textContent;
+            if (!codeToCopy || codeToCopy === 'LOADING...' || codeToCopy === 'N/A' || codeToCopy === 'Error') {
+                console.warn('Attempted to copy invalid invite code text:', codeToCopy);
+                return; // Don't copy loading/error messages
+            }
+
+            try {
+                await navigator.clipboard.writeText(codeToCopy);
+                console.log('Invite code copied to clipboard:', codeToCopy);
+
+                // Provide visual feedback
+                const originalIcon = copyInviteCodeBtn.innerHTML; // Save original icon
+                copyInviteCodeBtn.innerHTML = '<i class="fas fa-check text-green-500"></i>'; // Show checkmark
+                copyInviteCodeBtn.disabled = true;
+
+                setTimeout(() => {
+                    copyInviteCodeBtn.innerHTML = originalIcon; // Restore icon
+                    copyInviteCodeBtn.disabled = false;
+                }, 2000); // Restore after 2 seconds
+
+            } catch (err) {
+                console.error('Failed to copy invite code:', err);
+                // Optionally show an error message to the user (e.g., using a small alert or changing text)
+                const originalText = inviteCodeDisplaySpan.textContent; // Save original code
+                inviteCodeDisplaySpan.textContent = 'Copy Failed';
+                inviteCodeDisplaySpan.classList.add('text-red-500');
+                setTimeout(() => {
+                     // Restore only if it wasn't changed again by loading
+                     if(inviteCodeDisplaySpan.textContent === 'Copy Failed') {
+                         inviteCodeDisplaySpan.textContent = originalText;
+                         inviteCodeDisplaySpan.classList.remove('text-red-500');
+                     }
+                }, 2500);
+            }
+        }
+        // --- END Copy Invite Code Handler ---
+
+        // --- Event Listeners ---

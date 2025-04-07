@@ -44,9 +44,9 @@ Each role has a consistent footer navigation menu:
 - `public/index.html` - Landing page that redirects based on role
 
 ### Housekeeper Pages
-- `public/housekeeper/dashboard.html` - Main schedule view
+- `public/housekeeper/schedule/schedule.html` - Main schedule view (formerly dashboard.html)
 - `public/housekeeper/clients/clients.html` - Client management
-- `public/housekeeper/settings/settings.html` - Schedule configuration
+- `public/housekeeper/settings/settings.html` - Schedule configuration and time off management
 
 ### Homeowner Pages
 - `public/homeowner/dashboard.html` - Unified main dashboard.
@@ -56,8 +56,7 @@ Each role has a consistent footer navigation menu:
 
 ### Common Scripts (shared between roles)
 - `public/common/js/firebase-config.js` - Firebase configuration
-- `public/common/js/firestore-service.js` - Centralized database service for CRUD operations.
-   Provides functions like `getHomeownerProfile`, `updateHomeownerProfile`, `updateHomeownerLocation`, `getHousekeeperProfile`, `linkHomeownerToHousekeeper`, `unlinkHomeownerFromHousekeeper`, `addBooking`, `getUpcomingHomeownerBookings`, `getPastHomeownerBookings`, etc.
+- `public/common/js/firestore-service.js` - Centralized database service for Firestore CRUD operations. Provides functions for managing user profiles, clients, settings, and bookings (e.g., `getHomeownerProfile`, `updateHomeownerProfile`, `updateHomeownerLocation`, `getHousekeeperProfile`, `getUserSettings`, `updateUserSettings`, `linkHomeownerToHousekeeper`, `unlinkHomeownerFromHousekeeper`, `addClient`, `getClients`, `addBooking`, `getBookingsForHousekeeperInRange`, `getUpcomingHomeownerBookings`, `getPastHomeownerBookings`, etc.). It does *not* handle complex availability calculations (see `getAvailableSlots` Cloud Function).
 - `public/common/js/auth.js` - Authentication functionality (login, logout, password reset).
 - `public/common/js/auth-router.js` - Role-based routing logic after login.
 - `public/common/js/defaults.js` - Default app settings (may not be fully utilized).
@@ -66,9 +65,9 @@ Each role has a consistent footer navigation menu:
 
 
 ### Housekeeper Scripts
-- `public/housekeeper/js/schedule.js` - Schedule functionality, including booking creation and loading clients (now includes linked homeowners).
-- `public/housekeeper/js/clients.js` - Client management functionality.
-- `public/housekeeper/js/settings.js` - Settings functionality, using `firestore-service.js` as single source of truth.
+- `public/housekeeper/schedule/schedule.js` - Handles the housekeeper's schedule view UI. Fetches availability data by calling the `getAvailableSlots` Cloud Function directly. Manages the booking modal workflow (client selection, frequency, confirmation) and calls `firestore-service.js` to save bookings.
+- `public/housekeeper/clients/clients.js` - Client management functionality.
+- `public/housekeeper/settings/settings.js` - Settings functionality (work schedule, time off, invite code), using `firestore-service.js` as single source of truth.
 
 ### Homeowner Scripts
 - `public/homeowner/js/dashboard.js` - Handles the entire unified dashboard UI. Fetches homeowner profile, linked housekeeper info, upcoming/past bookings. Displays data. Handles modals for "Edit Profile" and "Edit Location" (including Google Places Autocomplete integration). Manages linking/unlinking actions.
@@ -148,10 +147,7 @@ Backend logic running in Firebase Cloud Functions, providing server-side capabil
 -   `index.js`: Main entry point for Cloud Functions.
     -   **`getAvailableSlots`**: 
         -   **Type:** HTTPS Callable Function.
-        -   **Purpose:** Calculates the actual availability slots for a specific housekeeper within a given date range, intended for display to homeowners.
-        -   **Why:** This function is crucial because calculating availability requires combining two dynamic data sources: the housekeeper's default working pattern/preferences (from `/users/{hkId}/settings/app`) and their existing commitments (from `/users/{hkId}/bookings`). Performing this complex calculation on the client-side would be inefficient, difficult to maintain, and potentially expose sensitive logic. This function centralizes the logic, ensures consistency, and provides a clean interface for the homeowner frontend (`homeowner/js/schedule.js`) to fetch accurate availability data. It handles merging default availability with actual booked times, ensuring homeowners only see slots that are truly open.
--   `package.json`: Node.js dependencies for functions (`firebase-admin`, `firebase-functions`).
--   `.eslintrc.js`: ESLint configuration for code quality.
-
-## Key Files & Responsibilities
-
+        -   **Purpose:** Calculates the actual availability status and slots for a specific housekeeper within a given date range. It is the **single source of truth** for schedule availability, used by **both** the homeowner and housekeeper schedule views.
+        -   **Why:** Centralizes the complex logic of combining default settings (`/users/{hkId}/settings/app`), existing bookings (`/users/{hkId}/bookings`), and time off (`/users/{hkId}/timeOffDates`) to determine true availability. This avoids client-side complexity and ensures consistency.
+        -   **Usage:** Called directly via `firebase.functions().httpsCallable('getAvailableSlots')` from both `public/homeowner/js/schedule.js` and `public/housekeeper/js/schedule.js`.
+        -   **Output Structure:** Returns an object like `{ schedule: { "YYYY-MM-DD": { status: "available|fully_booked|not_working", message: "...", slots: [...] } } }`. When `status` is `"available"`, the `

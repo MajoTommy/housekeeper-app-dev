@@ -24,29 +24,54 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-functions-compat.js"></script>
     
-    <!-- Your Firebase configuration -->
-    <script src="../common/js/firebase-config.js"></script>
+    <!-- Firebase Config -->
+    <script src="../../common/js/firebase-config.js"></script>
     
     <!-- Firestore Service -->
-    <script src="../common/js/firestore-service.js"></script>
+    <script src="../../common/js/firestore-service.js"></script>
 
     <!-- Auth Service -->
-    <script src="../common/js/auth.js"></script>
+    <script src="../../common/js/auth.js"></script>
 
     <!-- Auth Router -->
-    <script src="../common/js/auth-router.js"></script>
+    <script src="../../common/js/auth-router.js"></script>
 
     <!-- Default Settings -->
-    <script src="../common/js/defaults.js"></script>
+    <script src="../../common/js/defaults.js"></script>
 
     <!-- Sample Data Generator (for development) -->
-    <script src="../common/js/sample-data.js"></script>
+    <script src="../../common/js/sample-data.js"></script>
 
-    <!-- Schedule Service -->
-    <script src="js/schedule.js"></script>
+    <!-- Date Utils -->
+    <script type="module" src="../../common/js/date-utils.js"></script>
+    
+    <!-- Schedule JS -->
+    <script type="module" src="schedule.js"></script>
+
+    <!-- Emergency Button Script -->
+    <script>
+        function handleLogout() {
+            console.log('Logout clicked');
+            if (firebase.auth) {
+                firebase.auth().signOut()
+                    .then(() => {
+                        console.log('Logout successful');
+                        window.location.href = '../login.html';
+                    })
+                    .catch((error) => {
+                        console.error('Logout error:', error);
+                        alert('Error signing out: ' + error.message);
+                    });
+            } else {
+                console.error('Firebase auth not available');
+                alert('Authentication service not available');
+            }
+        }
+    </script>
 </head>
 <body class="h-full pb-16">
     <!-- Personalized Header with Settings Icon and Logout -->
@@ -112,7 +137,11 @@
     </div>
 
     <!-- Main Content -->
-    <div class="p-4">
+    <div class="p-4 relative" id="schedule-container">
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10 hidden">
+            <i class="fas fa-circle-notch fa-spin text-primary text-3xl"></i>
+        </div>
         <!-- Schedule will be dynamically generated here -->
     </div>
 
@@ -120,15 +149,15 @@
     <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30">
         <div class="mx-auto max-w-7xl">
             <div class="flex justify-around">
-                <a href="dashboard.html" class="flex flex-col items-center py-3 px-6 text-primary">
+                <a href="../schedule/schedule.html" class="flex flex-col items-center py-3 px-6 text-primary">
                     <i class="fas fa-calendar-alt text-xl"></i>
                     <span class="text-xs mt-1">Schedule</span>
                 </a>
-                <a href="clients/clients.html" class="flex flex-col items-center py-3 px-6 text-gray-500 hover:text-primary">
+                <a href="../clients/clients.html" class="flex flex-col items-center py-3 px-6 text-gray-500 hover:text-primary">
                     <i class="fas fa-users text-xl"></i>
                     <span class="text-xs mt-1">Clients</span>
                 </a>
-                <a href="settings/settings.html" class="flex flex-col items-center py-3 px-6 text-gray-500 hover:text-primary">
+                <a href="../settings/settings.html" class="flex flex-col items-center py-3 px-6 text-gray-500 hover:text-primary">
                     <i class="fas fa-cog text-xl"></i>
                     <span class="text-xs mt-1">Settings</span>
                 </a>

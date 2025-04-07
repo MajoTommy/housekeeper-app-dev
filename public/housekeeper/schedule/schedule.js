@@ -1,3 +1,5 @@
+import * as dateUtils from '/common/js/date-utils.js'; // <-- ADD THIS LINE
+
 // Initialize the current week start date
 let currentWeekStart; // Will be set after DOMContentLoaded
 
@@ -13,51 +15,37 @@ let bookingHandlersInitialized = false;
 
 // Global loading indicator functions
 function showLoading(message = 'Loading...') {
-    const existingOverlay = document.getElementById('loadingOverlay');
-    if (existingOverlay) {
-        existingOverlay.classList.remove('hidden');
+    const loadingOverlay = document.getElementById('loading-overlay'); // Target existing overlay
+    if (loadingOverlay) {
+        // Optional: Update message if needed, though the current one is just an icon
+        loadingOverlay.classList.remove('hidden');
     } else {
-        const loadingOverlay = document.createElement('div');
-        loadingOverlay.id = 'loadingOverlay';
-        loadingOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
-        loadingOverlay.innerHTML = `
-            <div class="bg-white p-4 rounded-lg shadow-lg flex items-center">
-                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-3"></div>
-                <p class="text-gray-700">${message}</p>
-        </div>
-    `;
-        document.body.appendChild(loadingOverlay);
+        console.error('#loading-overlay element not found in the HTML!');
     }
 }
 
 function hideLoading() {
-    const loadingOverlay = document.getElementById('loadingOverlay');
+    const loadingOverlay = document.getElementById('loading-overlay'); // Target existing overlay
     if (loadingOverlay) {
-        loadingOverlay.remove();
+        loadingOverlay.classList.add('hidden');
+    } else {
+        console.error('#loading-overlay element not found in the HTML!');
     }
 }
 
 // Function to check if a date is in the past (compares date part only)
 function isInPast(date) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const compareDate = new Date(date);
-    compareDate.setHours(0, 0, 0, 0);
-    
-    // console.log('Comparing dates in isInPast:', compareDate, today, compareDate < today);
-    return compareDate < today;
+    // Use dateUtils for robust comparison
+    const todayStart = dateUtils.startOfDay(new Date());
+    const compareDateStart = dateUtils.startOfDay(new Date(date));
+    // console.log('Comparing dates in isInPast (using dateUtils):', compareDateStart, todayStart, compareDateStart < todayStart);
+    return compareDateStart < todayStart;
 }
 
 // Function to check if a date is today (compares date part only)
 function isToday(date) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const compareDate = new Date(date);
-    compareDate.setHours(0, 0, 0, 0);
-    
-    return compareDate.getTime() === today.getTime();
+    // Use dateUtils for robust comparison
+    return dateUtils.isSameDate(new Date(date), new Date());
 }
 
 // Function to update the navigation state
@@ -68,14 +56,12 @@ function updateNavigationState() {
         return;
     }
     
-    // Check if the previous week is in the past
-    const prevWeekDate = new Date(currentWeekStart);
-    prevWeekDate.setDate(prevWeekDate.getDate() - 7);
-    
-    // Check if previous week is in the past
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const isPast = prevWeekDate < today;
+    // Use dateUtils to calculate the start of the previous week
+    const prevWeekStartDate = dateUtils.subtractDays(currentWeekStart, 7);
+
+    // Check if the start of the previous week is before the start of today
+    const todayStart = dateUtils.startOfDay(new Date());
+    const isPast = dateUtils.startOfDay(prevWeekStartDate) < todayStart;
     
     // Disable the previous week button if the previous week is in the past
     prevWeekBtn.disabled = isPast;
@@ -94,19 +80,19 @@ function updateWeekDisplay() {
             return;
         }
         
-        // Ensure currentWeekStart is a Monday
-        if (!currentWeekStart || currentWeekStart.getDay() !== 1) {
-             currentWeekStart = getWeekStartDate(currentWeekStart || new Date());
+        // Ensure currentWeekStart is set and is a Monday using dateUtils
+        if (!currentWeekStart) {
+            currentWeekStart = dateUtils.getStartOfWeek(new Date()); // Default to current week's Monday
+        } else {
+            currentWeekStart = dateUtils.getStartOfWeek(currentWeekStart); // Ensure it's Monday
         }
-        
-        const weekStart = new Date(currentWeekStart); // Already should be Monday
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6); // Sunday is 6 days after Monday
-        
-        // Format the dates including year
-        const options = { month: 'short', day: 'numeric', year: 'numeric' };
-        const startStr = weekStart.toLocaleDateString('en-US', options);
-        const endStr = weekEnd.toLocaleDateString('en-US', options);
+
+        // Get week end (Sunday) using dateUtils
+        const weekEnd = dateUtils.getEndOfWeek(currentWeekStart);
+
+        // Format the dates including year using dateUtils
+        const startStr = dateUtils.formatDate(currentWeekStart, 'short-numeric'); // e.g., "Apr 8, 2025"
+        const endStr = dateUtils.formatDate(weekEnd, 'short-numeric'); // e.g., "Apr 14, 2025"
         
         // Update the week range display
         weekRangeElement.textContent = `${startStr} - ${endStr}`;
@@ -166,7 +152,7 @@ async function loadUserSchedule(showLoadingIndicator = true) {
     console.log('loadUserSchedule called');
     
     if (showLoadingIndicator) {
-        showLoading('Loading your schedule...');
+        showLoading(); // Use updated showLoading
     }
 
     try {
@@ -174,954 +160,266 @@ async function loadUserSchedule(showLoadingIndicator = true) {
         console.log('Current user:', user);
         if (!user) {
             console.error('No user found');
-            hideLoading();
+            if (showLoadingIndicator) hideLoading(); // Hide loading on error
             return;
         }
 
         // Get user settings from Firestore
         console.log('Fetching user settings from Firestore...');
-        const userDoc = await firebase.firestore().collection('users').doc(user.uid).get();
-        let settings = DEFAULT_SETTINGS;
-        console.log('Default settings:', DEFAULT_SETTINGS);
-
-        if (userDoc.exists) {
-            const userData = userDoc.data();
-            console.log('User data from Firestore:', userData);
-            
-            // Check if settings are in a nested 'settings' field or directly in the document
-            if (userData.settings) {
-                // Settings are in a nested 'settings' field
-                settings = { ...DEFAULT_SETTINGS, ...userData.settings };
-                console.log('Using nested settings from Firestore');
-            } else {
-                // Settings might be directly in the document (old format)
-                settings = { ...DEFAULT_SETTINGS, ...userData };
-                console.log('Using direct settings from Firestore');
-            }
-            
-            // IMPORTANT FIX: Use the compatibility layer if available
-            if (settings.workingDaysCompat) {
-                console.log('Using workingDaysCompat for schedule:', settings.workingDaysCompat);
-                // Keep the original workingDays for reference
-                settings.originalWorkingDays = settings.workingDays;
-                settings.workingDays = settings.workingDaysCompat;
-            } 
-            // Fallback if compatibility layer isn't available
-            else if (settings.workingDays && typeof settings.workingDays === 'object') {
-                // Check if we have named days format (like {monday: {isWorking: true}})
-                if (settings.workingDays.monday || settings.workingDays.saturday) {
-                    console.log('Converting named days format to numeric format');
-                    
-                    // Create compatibility layer
-                    settings.workingDaysCompat = {
-                        0: settings.workingDays.sunday?.isWorking === true,
-                        1: settings.workingDays.monday?.isWorking === true,
-                        2: settings.workingDays.tuesday?.isWorking === true, 
-                        3: settings.workingDays.wednesday?.isWorking === true,
-                        4: settings.workingDays.thursday?.isWorking === true,
-                        5: settings.workingDays.friday?.isWorking === true,
-                        6: settings.workingDays.saturday?.isWorking === true
-                    };
-                    
-                    // Keep the original but use the compatible version
-                    settings.originalWorkingDays = settings.workingDays;
-                    settings.workingDays = settings.workingDaysCompat;
-                }
-            }
-            
-            // Ensure workingDays is properly formatted
-            if (!settings.workingDays) {
-                console.log('No workingDays found, using defaults');
-                settings.workingDays = DEFAULT_SETTINGS.workingDays;
-            } else {
-                // Log the working days for debugging
-                console.log('Working days before processing:', settings.workingDays);
-                
-                // Ensure workingDays has proper boolean values
-                const processedWorkingDays = {};
-                for (let i = 0; i < 7; i++) {
-                    // Convert to boolean using double negation
-                    processedWorkingDays[i] = !!settings.workingDays[i];
-                }
-                settings.workingDays = processedWorkingDays;
-                
-                console.log('Working days after processing:', settings.workingDays);
-            }
-            
-            console.log('Merged settings:', settings);
+        // --- Using firestoreService now --- 
+        let settings = await firestoreService.getUserSettings(user.uid);
+        
+        // Use defaults if no settings found
+        if (!settings) {
+            console.log('No settings found in Firestore, using default settings');
+            settings = DEFAULT_SETTINGS;
         } else {
-            console.log('User document does not exist, using default settings');
+            console.log('User settings from Firestore:', settings);
+            // Merge with defaults to ensure all properties exist
+            settings = { ...DEFAULT_SETTINGS, ...settings };
+            console.log('Merged settings:', settings);
         }
+        // --- End firestoreService usage --- 
+
+        // --- Process workingDays (Handle potential structure differences) ---
+        // Check if workingDays exists and has the named format
+        if (settings.workingDays && typeof settings.workingDays === 'object' && settings.workingDays.monday !== undefined) {
+            console.log('Detected named workingDays format, creating compatibility layer.');
+            // Create compatibility layer
+            settings.workingDaysCompat = {
+                0: settings.workingDays.sunday?.isWorking === true,
+                1: settings.workingDays.monday?.isWorking === true,
+                2: settings.workingDays.tuesday?.isWorking === true, 
+                3: settings.workingDays.wednesday?.isWorking === true,
+                4: settings.workingDays.thursday?.isWorking === true,
+                5: settings.workingDays.friday?.isWorking === true,
+                6: settings.workingDays.saturday?.isWorking === true
+            };
+            // Use the compatibility layer for schedule generation
+            settings.processedWorkingDays = settings.workingDaysCompat;
+        } else if (settings.workingDays && typeof settings.workingDays === 'object') {
+            // Assume numeric format (0-6), ensure boolean values
+            console.log('Detected numeric workingDays format, ensuring boolean values.');
+            const processed = {};
+            for (let i = 0; i < 7; i++) {
+                processed[i] = !!settings.workingDays[i]; // Convert to boolean
+            }
+            settings.processedWorkingDays = processed;
+        } else {
+            console.warn('workingDays format not recognized or missing, using default processed values.');
+            settings.processedWorkingDays = { ...DEFAULT_SETTINGS.workingDays }; // Use default numeric format
+        }
+        console.log('Processed working days for schedule generation:', settings.processedWorkingDays);
+        // --- End workingDays processing ---
 
         // Debug working days
-        debugWorkingDays(settings);
+        // debugWorkingDays(settings);
 
-        // SIMPLIFICATION: Always calculate time slots on demand
-        // This ensures we're always using the most up-to-date settings
-        console.log('Using on-demand time slot calculation');
+        // Call generateSchedule with the processed settings
+        await generateSchedule(settings);
         
-        try {
-            if (typeof window.getCalculatedTimeSlots === 'function') {
-                console.log('Using global getCalculatedTimeSlots() function');
-                settings.calculatedTimeSlots = window.getCalculatedTimeSlots();
-            } else {
-                console.log('Using local calculateAvailableTimeSlots() function');
-                settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
-            }
-        } catch (error) {
-            console.error('Error calculating time slots:', error);
-            settings.calculatedTimeSlots = calculateAvailableTimeSlots(settings);
-        }
-        
-        console.log('Final calculated time slots:', settings.calculatedTimeSlots);
+        if (showLoadingIndicator) hideLoading(); // Hide loading after successful generation
 
-        // Before using calculatedTimeSlots
-        if (settings.calculatedTimeSlots) {
-          debugTimeSlotData(settings.calculatedTimeSlots, 'Before Processing');
-        }
-
-        // Generate the schedule with the settings
-        console.log('Calling generateSchedule with settings:', settings);
-        generateSchedule(settings);
     } catch (error) {
-        console.error('Error loading user schedule:', error);
-        hideLoading();
-        
-        // Show error message to user
-        const container = document.querySelector('.p-4');
-        if (container) {
-            container.innerHTML = `
-                <div class="text-center py-8">
-                    <div class="bg-red-100 text-red-700 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                        <i class="fas fa-exclamation-triangle text-2xl"></i>
-                    </div>
-                    <h3 class="text-xl font-bold mb-2">Error Loading Schedule</h3>
-                    <p class="text-gray-600 mb-6">${error.message || 'There was an error loading your schedule. Please try again.'}</p>
-                    <button id="retryBtn" class="bg-primary text-white py-3 px-6 rounded-lg font-medium hover:bg-primary-dark">
-                        Retry
-                    </button>
-                </div>
-            `;
-            
-            document.getElementById('retryBtn').addEventListener('click', function() {
-                loadUserSchedule();
-            });
-        }
+        console.error('Error loading user schedule or settings:', error);
+        // TODO: Show error message to user?
+        if (showLoadingIndicator) hideLoading(); // Hide loading on error
     }
-}
-
-// Function to calculate available time slots
-function calculateAvailableTimeSlots(settings) {
-    const slots = [];
-    
-    // Ensure settings exists
-    if (!settings) {
-        console.error('Invalid settings provided to calculateAvailableTimeSlots:', settings);
-        return slots;
-    }
-    
-    // Check if we have day-specific settings
-    if (settings.workingDays && typeof settings.workingDays === 'object' && 
-        settings.workingDays.monday && typeof settings.workingDays.monday === 'object') {
-        console.log('Using day-specific settings for time slots');
-        
-        // For each day of the week, calculate slots based on day-specific settings
-        const dayMapping = {
-            0: 'sunday',
-            1: 'monday',
-            2: 'tuesday',
-            3: 'wednesday',
-            4: 'thursday',
-            5: 'friday',
-            6: 'saturday'
-        };
-        
-        // For each day, calculate slots if it's a working day
-        for (let i = 0; i < 7; i++) {
-            const dayName = dayMapping[i];
-            const daySettings = settings.workingDays[dayName];
-            
-            if (daySettings && daySettings.isWorking) {
-                const daySlots = calculateDayTimeSlots(daySettings);
-                slots.push({
-                    day: i,
-                    slots: daySlots
-                });
-            }
-        }
-        
-        return slots;
-    }
-    
-    // Fall back to old method if no day-specific settings
-    console.log('Using global settings for time slots');
-    
-    // Convert time format if needed (handle both "09:00" and "09:00 AM" formats)
-    let startTimeStr = settings.workingHours?.start || "8:00 AM";
-    let endTimeStr = settings.workingHours?.end || "5:00 PM";
-    
-    console.log('Original time settings:', startTimeStr, endTimeStr);
-    
-    // Handle 24-hour format like "15:00"
-    if (startTimeStr.includes(':') && !startTimeStr.includes('AM') && !startTimeStr.includes('PM')) {
-        const [startHours, startMinutes] = startTimeStr.split(':').map(Number);
-        const startPeriod = startHours >= 12 ? 'PM' : 'AM';
-        const startHours12 = startHours % 12 || 12;
-        startTimeStr = `${startHours12}:${startMinutes.toString().padStart(2, '0')} ${startPeriod}`;
-    }
-    
-    if (endTimeStr.includes(':') && !endTimeStr.includes('AM') && !endTimeStr.includes('PM')) {
-        const [endHours, endMinutes] = endTimeStr.split(':').map(Number);
-        const endPeriod = endHours >= 12 ? 'PM' : 'AM';
-        const endHours12 = endHours % 12 || 12;
-        endTimeStr = `${endHours12}:${endMinutes.toString().padStart(2, '0')} ${endPeriod}`;
-    }
-    
-    console.log('Converted time formats:', startTimeStr, endTimeStr);
-    
-    // Create date objects for start and end times
-    const startTime = new Date('2000-01-01 ' + startTimeStr);
-    const endTime = new Date('2000-01-01 ' + endTimeStr);
-    
-    // Log the created date objects for debugging
-    console.log('Start time date object:', startTime.toString());
-    console.log('End time date object:', endTime.toString());
-    
-    // Get settings with defaults
-    const cleaningsPerDay = settings.cleaningsPerDay || 2;
-    const cleaningDuration = settings.cleaningDuration || 120; // Default 2 hours (120 minutes)
-    const breakTime = settings.breakTime || 90; // Default 1.5 hours (90 minutes)
-    const maxHours = settings.maxHours || 8 * 60; // Default 8 hours (in minutes)
-    
-    console.log('Settings for time slots:', {
-        cleaningsPerDay,
-        cleaningDuration: `${cleaningDuration} minutes (${cleaningDuration/60} hours)`,
-        breakTime: `${breakTime} minutes (${breakTime/60} hours)`,
-        maxHours: `${maxHours} minutes (${maxHours/60} hours)`
-    });
-    
-    // Calculate total working minutes
-    const totalWorkingMinutes = Math.min((endTime - startTime) / 60000, maxHours); // Convert milliseconds to minutes, cap at max hours
-    console.log('Total working minutes:', totalWorkingMinutes);
-    
-    // Calculate time needed for each cleaning + break
-    const timePerCleaning = cleaningDuration + breakTime;
-    console.log('Time per cleaning (including break):', timePerCleaning, 'minutes');
-    
-    // Check if we can fit all cleanings within the working hours
-    const totalTimeNeeded = (cleaningDuration * cleaningsPerDay) + (breakTime * (cleaningsPerDay - 1));
-    console.log('Total time needed for all cleanings:', totalTimeNeeded, 'minutes');
-    
-    if (totalTimeNeeded > totalWorkingMinutes) {
-        console.warn(`Not enough time for ${cleaningsPerDay} cleanings. Adjusting number of slots.`);
-        // Calculate how many cleanings we can actually fit
-        const maxCleanings = Math.floor((totalWorkingMinutes + breakTime) / timePerCleaning);
-        console.log('Adjusted to fit', maxCleanings, 'cleanings');
-        
-        // Generate time slots based on adjusted cleanings count
-        for (let i = 0; i < maxCleanings; i++) {
-            const slotStart = new Date(startTime.getTime() + (i * timePerCleaning * 60000));
-            const slotEnd = new Date(slotStart.getTime() + (cleaningDuration * 60000));
-            
-            // Only add the slot if it ends before or at the end time
-            if (slotEnd <= endTime) {
-                // Format times in the standardized format
-                const startFormatted = normalizeTimeFormat(slotStart.toLocaleTimeString('en-US', { 
-                    hour: 'numeric', 
-                    minute: '2-digit', 
-                    hour12: true 
-                }));
-                
-                const endFormatted = normalizeTimeFormat(slotEnd.toLocaleTimeString('en-US', { 
-                    hour: 'numeric', 
-                    minute: '2-digit', 
-                    hour12: true 
-                }));
-                
-                slots.push({
-                    start: startFormatted,
-                    end: endFormatted,
-                    durationMinutes: cleaningDuration
-                });
-            }
-        }
-    } else {
-        // We can fit all cleanings, so distribute them evenly
-        console.log('Can fit all cleanings. Distributing evenly.');
-        
-        // Generate time slots based on cleaningsPerDay
-        for (let i = 0; i < cleaningsPerDay; i++) {
-            const slotStart = new Date(startTime.getTime() + (i * timePerCleaning * 60000));
-            const slotEnd = new Date(slotStart.getTime() + (cleaningDuration * 60000));
-            
-            // Only add the slot if it ends before or at the end time
-            if (slotEnd <= endTime) {
-                // Format times in the standardized format
-                const startFormatted = normalizeTimeFormat(slotStart.toLocaleTimeString('en-US', { 
-                    hour: 'numeric', 
-                    minute: '2-digit', 
-                    hour12: true 
-                }));
-                
-                const endFormatted = normalizeTimeFormat(slotEnd.toLocaleTimeString('en-US', { 
-                    hour: 'numeric', 
-                    minute: '2-digit', 
-                    hour12: true 
-                }));
-                
-                slots.push({
-                    start: startFormatted,
-                    end: endFormatted,
-                    durationMinutes: cleaningDuration
-                });
-            }
-        }
-    }
-    
-    // If no slots were generated, create at least one default slot
-    if (slots.length === 0) {
-        console.warn('No slots were generated, creating default slot');
-        const defaultSlotEnd = new Date(startTime.getTime() + (cleaningDuration * 60000));
-        
-        // Only add the default slot if it ends before or at the end time
-        if (defaultSlotEnd <= endTime) {
-            // Format times in the standardized format
-            const startFormatted = normalizeTimeFormat(startTime.toLocaleTimeString('en-US', { 
-                hour: 'numeric', 
-                minute: '2-digit', 
-                hour12: true 
-            }));
-            
-            const endFormatted = normalizeTimeFormat(defaultSlotEnd.toLocaleTimeString('en-US', { 
-                hour: 'numeric', 
-                minute: '2-digit', 
-                hour12: true 
-            }));
-            
-            slots.push({
-                start: startFormatted,
-                end: endFormatted,
-                durationMinutes: cleaningDuration
-            });
-        }
-    }
-    
-    console.log('Generated slots:', slots);
-    return slots;
-}
-
-// Helper function to calculate time slots for a specific day
-function calculateDayTimeSlots(daySettings) {
-    const daySlots = [];
-    
-    // Create date objects for start and end times
-    const startTime = new Date('2000-01-01 ' + daySettings.startTime);
-    const endTime = new Date('2000-01-01 ' + daySettings.endTime);
-    
-    // Get settings with defaults
-    const cleaningsPerDay = daySettings.jobsPerDay || 2;
-    const cleaningDuration = daySettings.cleaningDuration || 180; // Default 3 hours (180 minutes)
-    const breakTime = daySettings.breakTime || 90; // Default 1.5 hours (90 minutes)
-    const maxHours = daySettings.maxHours || 7 * 60; // Default 7 hours (in minutes)
-    
-    // Calculate total working minutes
-    const totalWorkingMinutes = Math.min((endTime - startTime) / 60000, maxHours); // Convert milliseconds to minutes, cap at max hours
-    
-    // Calculate time needed for each cleaning + break
-    const timePerCleaning = cleaningDuration + breakTime;
-    
-    // Check if we can fit all cleanings within the working hours
-    const totalTimeNeeded = (cleaningDuration * cleaningsPerDay) + (breakTime * (cleaningsPerDay - 1));
-    
-    if (totalTimeNeeded > totalWorkingMinutes) {
-        // Calculate how many cleanings we can actually fit
-        const maxCleanings = Math.floor((totalWorkingMinutes + breakTime) / timePerCleaning);
-        
-        // Generate time slots based on adjusted cleanings count
-        for (let i = 0; i < maxCleanings; i++) {
-            const slotStart = new Date(startTime.getTime() + (i * timePerCleaning * 60000));
-            const slotEnd = new Date(slotStart.getTime() + (cleaningDuration * 60000));
-            
-            // Only add the slot if it ends before or at the end time
-            if (slotEnd <= endTime) {
-                // Format times in the standardized format
-                const startFormatted = normalizeTimeFormat(slotStart.toLocaleTimeString('en-US', { 
-                    hour: 'numeric', 
-                    minute: '2-digit', 
-                    hour12: true 
-                }));
-                
-                const endFormatted = normalizeTimeFormat(slotEnd.toLocaleTimeString('en-US', { 
-                    hour: 'numeric', 
-                    minute: '2-digit', 
-                    hour12: true 
-                }));
-                
-                daySlots.push({
-                    start: startFormatted,
-                    end: endFormatted,
-                    durationMinutes: cleaningDuration
-                });
-            }
-        }
-    } else {
-        // We can fit all cleanings, so distribute them evenly
-        
-        // Generate time slots based on cleaningsPerDay
-        for (let i = 0; i < cleaningsPerDay; i++) {
-            const slotStart = new Date(startTime.getTime() + (i * timePerCleaning * 60000));
-            const slotEnd = new Date(slotStart.getTime() + (cleaningDuration * 60000));
-            
-            // Only add the slot if it ends before or at the end time
-            if (slotEnd <= endTime) {
-                // Format times in the standardized format
-                const startFormatted = normalizeTimeFormat(slotStart.toLocaleTimeString('en-US', { 
-                    hour: 'numeric', 
-                    minute: '2-digit', 
-                    hour12: true 
-                }));
-                
-                const endFormatted = normalizeTimeFormat(slotEnd.toLocaleTimeString('en-US', { 
-                    hour: 'numeric', 
-                    minute: '2-digit', 
-                    hour12: true 
-                }));
-                
-                daySlots.push({
-                    start: startFormatted,
-                    end: endFormatted,
-                    durationMinutes: cleaningDuration
-                });
-            }
-        }
-    }
-    
-    // If no slots were generated, create at least one default slot
-    if (daySlots.length === 0) {
-        const defaultSlotEnd = new Date(startTime.getTime() + (cleaningDuration * 60000));
-        
-        // Only add the default slot if it ends before or at the end time
-        if (defaultSlotEnd <= endTime) {
-            // Format times in the standardized format
-            const startFormatted = normalizeTimeFormat(startTime.toLocaleTimeString('en-US', { 
-                hour: 'numeric', 
-                minute: '2-digit', 
-                hour12: true 
-            }));
-            
-            const endFormatted = normalizeTimeFormat(defaultSlotEnd.toLocaleTimeString('en-US', { 
-                hour: 'numeric', 
-                minute: '2-digit', 
-                hour12: true 
-            }));
-            
-            daySlots.push({
-                start: startFormatted,
-                end: endFormatted,
-                durationMinutes: cleaningDuration
-            });
-        }
-    }
-    
-    return daySlots;
-}
-
-// Function to detect if we're on a mobile device
-function isMobileDevice() {
-    const userAgent = navigator.userAgent || navigator.vendor || window.opera;
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
-    console.log('Device detection:', { userAgent, isMobile });
-    return isMobile;
 }
 
 // Function to generate schedule
-function generateSchedule(settings) {
-    console.log('generateSchedule called with settings:', settings);
-    
-    // Use compatibility layer if available, otherwise use original workingDays
-    const workingDaysForSchedule = settings.workingDaysCompat || settings.workingDays;
-    console.log('Working days configuration for schedule:', workingDaysForSchedule);
-    
-    // Add detailed debug for all working days configuration formats
-    console.log('DETAILED WORKING DAYS DEBUG:');
-    console.log('workingDays (object format):', settings.workingDays);
-    console.log('workingDaysCompat (numeric format):', settings.workingDaysCompat);
-    if (settings.workingDays && typeof settings.workingDays === 'object') {
-        if (settings.workingDays.wednesday) {
-            console.log('Wednesday detailed (object format):', settings.workingDays.wednesday);
-        }
-        // Check numeric representation
-        if (settings.workingDays['3']) {
-            console.log('Wednesday (numeric key 3):', settings.workingDays['3']);
-        }
-    }
-    
-    // Specific debug for Wednesday (day 3)
-    const wednesdayStatus = workingDaysForSchedule && workingDaysForSchedule['3'] !== undefined 
-        ? workingDaysForSchedule['3'] 
-        : 'undefined';
-    console.log('WEDNESDAY STATUS CHECK:', {
-        rawValue: wednesdayStatus,
-        typeOfValue: typeof wednesdayStatus,
-        asBool: !!wednesdayStatus,
-        asString: String(wednesdayStatus),
-        isExplicitlyFalse: wednesdayStatus === false
-    });
-    
-    // Debug working days again right before generating schedule
-    debugWorkingDays(settings);
-    
-    // Day names for better logging
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    
-    // Day mapping object for converting between numeric and named format
-    const dayMapping = {
-        0: 'sunday',
-        1: 'monday',
-        2: 'tuesday',
-        3: 'wednesday',
-        4: 'thursday',
-        5: 'friday',
-        6: 'saturday'
-    };
-    
-    // Check if we're on a mobile device
-    const isMobile = isMobileDevice();
-    console.log('Is mobile device:', isMobile);
-    
-    // Get the container element
-    const container = document.querySelector('.p-4');
-    if (!container) {
+async function generateSchedule(settings) { // Settings might still be needed for timezone or fallback display logic
+    console.log('Generating schedule for week starting:', currentWeekStart);
+    const scheduleContainer = document.getElementById('schedule-container');
+    if (!scheduleContainer) {
         console.error('Schedule container not found');
-        hideLoading(); // Hide loading if container not found
         return;
     }
-    
-    // Clear existing content
-    container.innerHTML = '';
-    
-    // Get the current week's start and end dates
-    const weekStart = new Date(currentWeekStart);
-    const weekEnd = new Date(currentWeekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
-    
-    console.log('Generating schedule for week:', weekStart, 'to', weekEnd);
-    
-    // Format dates for display
-    const options = { month: 'short', day: 'numeric' };
-    const weekStartFormatted = weekStart.toLocaleDateString('en-US', options);
-    const weekEndFormatted = weekEnd.toLocaleDateString('en-US', options);
-    
-    // Update the week display
-    const weekDisplay = document.getElementById('week-range');
-    if (weekDisplay) {
-        weekDisplay.textContent = `${weekStartFormatted} - ${weekEndFormatted}`;
-    }
-    
-    // Debug the calculatedTimeSlots
-    console.log('Time slots configuration before generating schedule:', settings.calculatedTimeSlots);
-    
-    // Load user bookings for the current week
-    loadUserBookings(weekStart, weekEnd).then(bookings => {
+
+    showLoading('Loading your schedule...');
+    scheduleContainer.innerHTML = '';
+    currentWeekStart = dateUtils.getStartOfWeek(currentWeekStart || new Date());
+    const weekEndDate = dateUtils.addDays(currentWeekStart, 6); // Calculate week end date
+
+    // Ensure Firebase Functions is initialized
+    const functions = firebase.functions(); 
+    const getAvailableSlotsCallable = functions.httpsCallable('getAvailableSlots');
+
+    try {
+        const user = firebase.auth().currentUser;
+        if (!user) throw new Error("User not logged in");
+
+        // Fetch settings ONCE if needed (e.g., for timezone) - keep this part
+        let currentSettings = settings;
+        if (!currentSettings) {
+            currentSettings = await firestoreService.getUserSettings(user.uid);
+            if (!currentSettings) {
+                 console.warn("Could not load user settings, using defaults for timezone.");
+                 currentSettings = {}; 
+            }
+        }
+        const timezone = currentSettings.timezone || dateUtils.getLocalTimezone();
+        console.log("Using timezone:", timezone);
+
+        // --- FETCH AVAILABILITY FOR THE ENTIRE WEEK ---
+        let weeklyScheduleData = null;
+        try {
+            console.log(`Calling Cloud Function 'getAvailableSlots' for week: ${currentWeekStart.toISOString()} to ${weekEndDate.toISOString()}`);
+             const cloudFunctionResult = await getAvailableSlotsCallable({
+                 housekeeperId: user.uid,
+                 startDateString: currentWeekStart.toISOString(), 
+                 endDateString: weekEndDate.toISOString() 
+             });
+             console.log('Cloud Function raw result:', cloudFunctionResult);
+
+             if (cloudFunctionResult.data && cloudFunctionResult.data.schedule) {
+                 weeklyScheduleData = cloudFunctionResult.data.schedule;
+                 console.log('Received weekly schedule data:', weeklyScheduleData);
+             } else if (cloudFunctionResult.data && cloudFunctionResult.data.error) {
+                 throw new Error(cloudFunctionResult.data.error); // Throw specific error from function
+             } 
+             else {
+                  console.error('Invalid data structure received from Cloud Function:', cloudFunctionResult.data);
+                  throw new Error('Received invalid schedule data from the server.');
+             }
+        } catch (cloudError) {
+             console.error('Error calling getAvailableSlots Cloud Function:', cloudError);
+             let friendlyMessage = cloudError.message || 'Could not fetch schedule data.';
+             // Add specific checks if needed (e.g., functions/not-found)
+             throw new Error(`Failed to load schedule: ${friendlyMessage}`); // Re-throw to be caught by outer try/catch
+        }
+        // --- END WEEKLY FETCH ---
+
+        // Fetch bookings for the week (keep this part)
+        const bookings = await firestoreService.getBookingsForHousekeeperInRange(user.uid, currentWeekStart, weekEndDate);
         console.log('Loaded bookings:', bookings);
-        
-        // Group bookings by date
         const bookingsByDate = {};
         bookings.forEach(booking => {
             const dateKey = booking.date;
-            if (!bookingsByDate[dateKey]) {
-                bookingsByDate[dateKey] = [];
-            }
+            if (!bookingsByDate[dateKey]) bookingsByDate[dateKey] = [];
             bookingsByDate[dateKey].push(booking);
         });
-        
         console.log('Bookings grouped by date:', bookingsByDate);
         
-        // Generate schedule for each day of the week
-                for (let i = 0; i < 7; i++) {
-            const date = new Date(weekStart);
-            date.setDate(date.getDate() + i);
-            
-            // Format the date for display
-            const dateText = date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-            
-            // Check if this is today
-            const today = new Date();
-            const isToday = date.getDate() === today.getDate() && 
-                           date.getMonth() === today.getMonth() && 
-                           date.getFullYear() === today.getFullYear();
-            
-            // Get the day of the week (0-6, where 0 is Sunday)
+        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+        // --- Generate schedule for each day using pre-fetched data ---
+        for (let i = 0; i < 7; i++) {
+            const date = dateUtils.addDays(currentWeekStart, i);
+            const dateText = dateUtils.formatDate(date, 'full-date');
+            const isTodayFlag = isToday(date);
             const dayOfWeek = date.getDay();
-            
-            // Get bookings for this date
-            const dateKey = date.toISOString().split('T')[0];
+            const dateKey = dateUtils.formatDate(date, 'YYYY-MM-DD');
             const dateBookings = bookingsByDate[dateKey] || [];
             
-            // Add date header
-            addDateHeader(container, dateText, isToday);
-            
-            // Create a container for this day's cards
+            addDateHeader(scheduleContainer, dateText, isTodayFlag);
                     const dayContainer = document.createElement('div');
-            dayContainer.className = isToday ? 'bg-primary-light/70 rounded-lg p-4 mb-6' : 'space-y-4 mb-6';
+            dayContainer.className = isTodayFlag ? 'bg-primary-light/70 rounded-lg p-4 mb-6' : 'space-y-4 mb-6';
             dayContainer.setAttribute('data-date', dateKey);
             dayContainer.setAttribute('data-day-of-week', dayOfWeek);
-            
-            // Clear any existing content in the day container
             dayContainer.innerHTML = '';
-            
-            // Add the day container to the main container
-            container.appendChild(dayContainer);
-            
-            // Helper function to convert time string to minutes since midnight
-            container.appendChild(dayContainer);
-            
-            // Helper function to convert time string to minutes since midnight
-            const timeToMinutes = (timeStr) => {
-                if (!timeStr) return 0;
-                
-                // Check if the time string is literally "Invalid Date"
-                if (timeStr === "Invalid Date") {
-                    console.warn('Received literal "Invalid Date" string, returning 0');
-                    return 0;
-                }
-                
-                // First normalize the time format
-                const normalizedTime = normalizeTimeFormat(timeStr);
-                
-                // Extract hours, minutes, and period (AM/PM)
-                const match = normalizedTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
-                if (!match) {
-                    console.warn(`Could not parse time: ${timeStr} (normalized to ${normalizedTime})`);
-                    return 0;
-                }
-                
-                let hours = parseInt(match[1]);
-                const minutes = parseInt(match[2]);
-                const period = match[3].toUpperCase();
-                
-                // Validate the parsed values
-                if (isNaN(hours) || isNaN(minutes)) {
-                    console.warn(`Invalid hours or minutes in: ${timeStr}`);
-                    return 0;
-                }
-                
-                // Convert to 24-hour format
-                if (period === 'PM' && hours < 12) hours += 12;
-                if (period === 'AM' && hours === 12) hours = 0;
-                
-                const totalMinutes = hours * 60 + minutes;
-                console.log(`Converted ${timeStr} to ${totalMinutes} minutes`);
-                return totalMinutes;
-            };
-            
-            // Sort bookings by start time (morning to evening)
-            dateBookings.sort((a, b) => {
-                const aMinutes = timeToMinutes(a.startTime);
-                const bMinutes = timeToMinutes(b.startTime);
-                return aMinutes - bMinutes;
-            });
-            
-            // Track booked time slots
-            const bookedSlots = new Set();
-            
-            // Add booking cards to booked slots set first
-            dateBookings.forEach(booking => {
-                bookedSlots.add(`${booking.startTime}-${booking.endTime}`);
-                booking.type = 'booked';
-            });
-            
-            // Prepare available time slots
-            let availableTimeSlots = [];
-            
-            // Check if this day is a working day
-            // Simplified and more reliable check
-            let isWorkingDay = false;
-            
-            // First try the compatibility layer (numeric format)
-            if (settings.workingDaysCompat && settings.workingDaysCompat[dayOfWeek] === true) {
-                isWorkingDay = true;
-            } 
-            // Then try the original workingDays object (named format)
-            else if (settings.workingDays) {
-                const dayName = dayMapping[dayOfWeek];
-                if (settings.workingDays[dayName] && settings.workingDays[dayName].isWorking === true) {
-                    isWorkingDay = true;
-                }
-                // Also check numeric format in original workingDays
-                else if (settings.workingDays[dayOfWeek] === true) {
-                    isWorkingDay = true;
-                }
-            }
-            
-            // On mobile, be more lenient
-            if (isMobile && !isWorkingDay) {
-                // On mobile, consider a day working if it's not explicitly set to false
-                if (settings.workingDaysCompat && settings.workingDaysCompat[dayOfWeek] !== false) {
-                    isWorkingDay = true;
-                }
-            }
-            
-            console.log(`Day ${dayOfWeek} (${dayNames[dayOfWeek]}, ${date.toDateString()}) working status:`, {
-                rawValue: workingDaysForSchedule?.[dayOfWeek],
-                isWorkingDay,
-                isMobile,
-                workingDays: workingDaysForSchedule,
-                dateString: date.toDateString()
-            });
-            
-            // Add specific detailed working status check for all days
-            const dayDetails = {
-                dayNumber: dayOfWeek,
-                dayName: dayNames[dayOfWeek],
-                date: date.toDateString(),
-                rawValue: workingDaysForSchedule?.[dayOfWeek],
-                valueType: typeof workingDaysForSchedule?.[dayOfWeek],
-                finalIsWorkingDay: isWorkingDay,
-                valueFromCompat: settings.workingDaysCompat?.[dayOfWeek],
-                valueFromWorkingDays: settings.workingDays?.[dayOfWeek]
-            };
-            console.log(`DETAILED DAY STATUS: ${dayNames[dayOfWeek]}`, dayDetails);
-            
-            if (dayOfWeek === 3) {  // Wednesday
-                console.log('📢 WEDNESDAY FINAL DECISION:', isWorkingDay ? 'IS WORKING' : 'NOT WORKING');
-            }
-            
-            if (isWorkingDay) {
-                // Check if we have day-specific time slots
-                let daySpecificSlots = null;
-                
-                if (Array.isArray(settings.calculatedTimeSlots)) {
-                    // Check if we have the new format with day-specific slots
-                    const daySlotData = settings.calculatedTimeSlots.find(item => 
-                        item.day === dayOfWeek || 
-                        item.day === dayOfWeek.toString()
-                    );
-                    
-                    if (daySlotData && Array.isArray(daySlotData.slots)) {
-                        daySpecificSlots = daySlotData.slots;
-                        console.log(`Using day-specific slots for day ${dayOfWeek} (${dayNames[dayOfWeek]}):`, daySpecificSlots);
-                    } else {
-                        console.warn(`No day-specific slots found for day ${dayOfWeek} (${dayNames[dayOfWeek]})`);
-                    }
-                }
-                
-                // Use day-specific slots if available, otherwise fall back to global slots
-                let timeSlots = [];
-                
-                if (daySpecificSlots && daySpecificSlots.length > 0) {
-                    // Use day-specific slots
-                    timeSlots = daySpecificSlots;
-                    
-                    // Verify that the number of slots matches the jobsPerDay setting
-                    const dayName = dayMapping[dayOfWeek];
-                    const expectedJobCount = settings.workingDays && 
-                                            settings.workingDays[dayName] && 
-                                            settings.workingDays[dayName].jobsPerDay ? 
-                                            settings.workingDays[dayName].jobsPerDay : 2;
-                    
-                    console.log(`Using ${timeSlots.length} day-specific slots for ${dayNames[dayOfWeek]}. Expected: ${expectedJobCount}`);
-                    
-                    // Verify the expected count against actual slots
-                    if (timeSlots.length !== expectedJobCount) {
-                        console.warn(`⚠️ Slot count mismatch for ${dayNames[dayOfWeek]}: Found ${timeSlots.length} slots but expected ${expectedJobCount} based on settings.`);
-                    }
-                    console.log(`Using ${timeSlots.length} day-specific slots for ${dayNames[dayOfWeek]}`);
-                } else if (Array.isArray(settings.calculatedTimeSlots) && !settings.calculatedTimeSlots.some(item => item.day !== undefined)) {
-                    // Old format - flat array of slots
-                    timeSlots = settings.calculatedTimeSlots;
-                    console.log(`Using ${timeSlots.length} global slots for ${dayNames[dayOfWeek]}`);
-                } else if (Array.isArray(settings.calculatedTimeSlots) && settings.calculatedTimeSlots.length > 0) {
-                    // Try to use any available slots as a fallback
-                    const anySlots = settings.calculatedTimeSlots.find(item => 
-                        item.slots && Array.isArray(item.slots) && item.slots.length > 0
-                    );
-                    
-                    if (anySlots) {
-                        timeSlots = anySlots.slots;
-                        console.log(`Using ${timeSlots.length} fallback slots for ${dayNames[dayOfWeek]} from day ${anySlots.day}`);
-                    }
-                }
-                
-                console.log(`Time slots for day ${dayOfWeek} (${dayNames[dayOfWeek]}, ${date.toDateString()}):`, {
-                    daySpecificSlots,
-                    timeSlots,
-                    calculatedTimeSlots: settings.calculatedTimeSlots
-                });
-                
-                if (!timeSlots || timeSlots.length === 0) {
-                    console.warn(`No time slots available for day ${dayOfWeek} (${date.toDateString()})`);
-                    addUnavailableMessage(dayContainer, 'no_slots');
-                    continue;
-                }
-                
-                // Add all time slots to the container
-        timeSlots.forEach(slot => {
-                    const slotKey = `${slot.start}-${slot.end}`;
-                    
-                    // Check if this slot overlaps with any booked slot
-                    let overlapsWithBooking = false;
-                    
-                    // First, check if this exact slot is already booked
-                    if (bookedSlots.has(`${slot.start}-${slot.end}`)) {
-                        console.log(`Slot ${slot.start}-${slot.end} is already booked exactly`);
-                        overlapsWithBooking = true;
-            } else {
-                        // Convert this slot's times to minutes for comparison
-                        const slotStartMinutes = timeToMinutes(slot.start);
-                        const slotEndMinutes = timeToMinutes(slot.end);
-                        
-                        // Check against each booking
-                        for (const booking of dateBookings) {
-                            const bookingStartMinutes = timeToMinutes(booking.startTime);
-                            const bookingEndMinutes = timeToMinutes(booking.endTime);
-                            
-                            // Check for overlap
-                            if (
-                                // Slot starts during a booking
-                                (slotStartMinutes >= bookingStartMinutes && slotStartMinutes < bookingEndMinutes) ||
-                                // Slot ends during a booking
-                                (slotEndMinutes > bookingStartMinutes && slotEndMinutes <= bookingEndMinutes) ||
-                                // Slot completely contains a booking
-                                (slotStartMinutes <= bookingStartMinutes && slotEndMinutes >= bookingEndMinutes) ||
-                                // Booking completely contains the slot
-                                (bookingStartMinutes <= slotStartMinutes && bookingEndMinutes >= slotEndMinutes) ||
-                                // Exact match on start and end times (normalized to handle format differences)
-                                (normalizeTimeFormat(slot.start) === normalizeTimeFormat(booking.startTime) && 
-                                 normalizeTimeFormat(slot.end) === normalizeTimeFormat(booking.endTime))
-                            ) {
-                                console.log(`Slot ${slot.start}-${slot.end} overlaps with booking ${booking.startTime}-${booking.endTime}`);
-                                overlapsWithBooking = true;
-                                break;
-                            }
-                        }
-                    }
-                    
-                    // Check if this slot is in the past
-                    const now = new Date();
-                    const slotDate = new Date(date);
-                    const slotStartTime = slot.start;
-                    
-                    // Parse the time (e.g., "9:00 AM")
-                    const timeMatch = slotStartTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
-                    if (timeMatch) {
-                        let hours = parseInt(timeMatch[1]);
-                        const minutes = parseInt(timeMatch[2]);
-                        const period = timeMatch[3].toUpperCase();
-                        
-                        // Convert to 24-hour format
-                        if (period === 'PM' && hours < 12) hours += 12;
-                        if (period === 'AM' && hours === 12) hours = 0;
-                        
-                        // Set the slot's start time
-                        slotDate.setHours(hours, minutes, 0, 0);
-                        
-                        // For debugging
-                        console.log('Slot date/time in generateSchedule:', slotDate.toString());
-                        console.log('Current date/time in generateSchedule:', now.toString());
-                        console.log('Is past in generateSchedule?', slotDate < now);
-                        
-                        // Check if the slot is in the past - use date comparison with a small buffer (5 minutes)
-                        // This helps with slight time differences between devices
-                        const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
-                        
-                        // On mobile, be more lenient with past slots to ensure they show up
-                        const isPastSlot = isMobile ? 
-                            (slotDate.getDate() < now.getDate() && 
-                             slotDate.getMonth() <= now.getMonth() && 
-                             slotDate.getFullYear() <= now.getFullYear()) : 
-                            slotDate < fiveMinutesAgo;
-                        
-                        if (isPastSlot) {
-                            console.log(`Skipping past time slot: ${slotStartTime} on ${slotDate.toDateString()}`);
-                            overlapsWithBooking = true; // Use this flag to skip the slot
-                        }
-                    }
-                    
-                    // Only add the slot if it doesn't overlap with any booking and is not in the past
-                    if (!overlapsWithBooking) {
-                        availableTimeSlots.push({
-                            type: 'available',
-                            startTime: slot.start,
-                            endTime: slot.end,
-                            date: date,
-                            durationMinutes: slot.durationMinutes || settings.cleaningDuration || 180 // Default to 3 hours if not specified
-                        });
-                    }
-                });
-            } else {
-                // Add a message indicating this is not a working day
-                // Check if workingDays has this day explicitly set to false (not working) or if it's undefined/null (non-working day)
-                const isRestDay = settings && settings.workingDays && settings.workingDays[dayOfWeek] === false;
-                const messageType = 'non_working_day'; // Use the same message type for all non-working days
-                addUnavailableMessage(dayContainer, messageType);
-            }
-            
-            // Combine booked and available slots and sort them all together
-            const allTimeSlots = [...dateBookings, ...availableTimeSlots];
+            scheduleContainer.appendChild(dayContainer);
 
-            // Enhanced sorting function to ensure proper chronological order
-            allTimeSlots.sort((a, b) => {
-                // First normalize the time formats to ensure consistent comparison
-                const aStartTime = normalizeTimeFormat(a.startTime);
-                const bStartTime = normalizeTimeFormat(b.startTime);
-                
-                // Convert to minutes for comparison
-                const aMinutes = timeToMinutes(aStartTime);
-                const bMinutes = timeToMinutes(bStartTime);
-                
-                // Log the comparison for debugging
-                console.log(`Comparing slots: ${aStartTime} (${aMinutes} mins) vs ${bStartTime} (${bMinutes} mins)`);
-                
-                // Sort by start time (morning to evening)
-                return aMinutes - bMinutes;
-            });
-            
-            // Add all time slots to the container in chronological order
-            allTimeSlots.forEach(slot => {
-                if (slot.type === 'booked') {
-                    // Ensure booking has all required fields
-                    slot.clientAddress = slot.clientAddress || '';
-                    slot.clientPhone = slot.clientPhone || '';
-                    slot.accessInfo = slot.accessInfo || '';
-                    slot.notes = slot.notes || '';
-                    
-                    addBookingCard(dayContainer, slot, isToday);
-                } else {
-                    addTimeSlot(dayContainer, slot.startTime, slot.endTime, slot.date, slot.durationMinutes);
-                }
-            });
-            
-            // If no slots at all and it's a working day, show unavailable message
-            if (allTimeSlots.length === 0 && isWorkingDay) {
-                console.warn('No time slots available for', dateText);
+            // --- GET SLOTS FROM PRE-FETCHED WEEKLY DATA ---
+            const dayData = weeklyScheduleData ? weeklyScheduleData[dateKey] : null;
+            console.log(`[${dateKey}] Day data from weekly fetch:`, dayData);
+
+            let availableSlots = [];
+            let dayStatus = 'loading'; // Initial status
+            let unavailableReason = '';
+
+            if (!weeklyScheduleData) {
+                // This case should ideally be handled by the error thrown earlier
+                dayStatus = 'error';
+                unavailableReason = 'Weekly data fetch failed';
+                addUnavailableMessage(dayContainer, unavailableReason);
+            } else if (!dayData) {
+                 console.warn(`No data found for ${dateKey} in Cloud Function result.`);
+                 dayStatus = 'error'; // Treat missing day data as an error or unavailable?
+                 unavailableReason = 'Data unavailable'; // Or 'Not configured'
+                 addUnavailableMessage(dayContainer, unavailableReason);
+             } else if (dayData.status === 'unavailable' || dayData.status === 'not_working') { // Handle Cloud Function keys
+                 dayStatus = 'unavailable';
+                 // Use reason from CF (e.g., time_off, rest_day) or message if reason is missing
+                 unavailableReason = dayData.reason || dayData.message || 'Unavailable';
+                 addUnavailableMessage(dayContainer, unavailableReason);
+             } else if (dayData.slots && dayData.slots.length > 0) {
+                 dayStatus = 'available';
+                 // Filter out past slots using the retrieved slots
+                  availableSlots = dayData.slots.filter(slot => {
+                      // --- FIX: Check for undefined startTime --- 
+                      if (!slot || !slot.startTime) {
+                          console.warn(`[${dateKey}] Filtering out slot with missing startTime:`, slot);
+                          return false; // Discard invalid slot
+                      }
+                      // --- END FIX ---
+                      const slotDateTime = dateUtils.parseDateTime(date, slot.startTime, timezone);
+                      // --- FIX: Add check for invalid parsed date --- 
+                      if (!slotDateTime || isNaN(slotDateTime.getTime())) {
+                           console.warn(`[${dateKey}] Filtering out slot with unparseable startTime '${slot.startTime}':`, slot);
+                           return false; // Discard if parsing failed
+                      }
+                      // --- END FIX ---
+                      return !(slotDateTime < new Date()); // Keep if not past
+                  });
+                  if (availableSlots.length !== dayData.slots.length) {
+                      console.log(`Filtered out ${dayData.slots.length - availableSlots.length} invalid or past slots for ${dateKey}`); // Updated log message
+                  }
+                  if (availableSlots.length === 0) { 
+                     // Check original data length before filtering to distinguish between all past/invalid vs. none returned
+                     if (dayData.slots.length > 0) {
+                         dayStatus = 'all_past_or_invalid';
+                         addUnavailableMessage(dayContainer, 'all_slots_past'); // Keep same message for now
+                    } else {
+                         dayStatus = 'no_slots'; 
+                         addUnavailableMessage(dayContainer, 'no_slots');
+                     }
+                  }
+             } else { // Status was likely 'available' but no slots were returned
+                 dayStatus = 'no_slots';
+                    addUnavailableMessage(dayContainer, 'no_slots');
+             }
+             // --- END SLOT PROCESSING ---
+
+            // Sort existing bookings (already fetched)
+            dateBookings.sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+
+            // Combine Booked and (filtered) Available Slots
+            const bookedSlotKeys = new Set(dateBookings.map(b => `${normalizeTimeFormat(b.startTime)}-${normalizeTimeFormat(b.endTime)}`));
+            const displaySlots = availableSlots.filter(slot => {
+                // Use startTime/endTime directly from the slot object from CF
+                const slotKey = `${normalizeTimeFormat(slot.startTime)}-${normalizeTimeFormat(slot.endTime)}`;
+                return !bookedSlotKeys.has(slotKey);
+            }).map(slot => ({ ...slot, type: 'available' }));
+
+            const allItems = [...dateBookings.map(b => ({ ...b, type: 'booked' })), ...displaySlots];
+            allItems.sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+
+            // Render all items
+            if (allItems.length > 0) {
+                allItems.forEach(item => {
+                    if (item.type === 'booked') {
+                        addBookingCard(dayContainer, item, isTodayFlag);
+                    } else { // type === 'available'
+                        // Pass startTime/endTime from the slot item
+                        addTimeSlot(dayContainer, item.startTime, item.endTime, date, item.durationMinutes);
+                    }
+                });
+            } else if (dayStatus === 'available' || dayStatus === 'all_past_or_invalid') {
+                  // If status was available but all slots were past or booked
                 addUnavailableMessage(dayContainer, 'fully_booked');
-            }
-            
-            // MOBILE FIX: If we're on mobile and there are no available slots showing,
-            // add a default available slot for testing
-            if (isMobile && availableTimeSlots.length === 0 && isWorkingDay && !isToday) {
-                console.log('MOBILE FIX: Adding default available slot for testing');
-                const defaultStartTime = "10:00 AM";
-                const defaultEndTime = "12:00 PM";
-                const defaultDuration = 120; // 2 hours
-                
-                addTimeSlot(dayContainer, defaultStartTime, defaultEndTime, date, defaultDuration);
-                
-                // Remove any "Fully Booked" message
-                const unavailableMessage = dayContainer.querySelector('.text-center.py-8.bg-gray-100.rounded-lg.mb-4');
-                if (unavailableMessage) {
-                    unavailableMessage.remove();
-                }
-            }
+            } // else: unavailable/no_slots/error messages already added
+
         }
-        
-        // Hide the loading overlay when done
+    } catch (error) { // Catch errors from initial setup or re-thrown from CF call
+        console.error('Error generating schedule:', error);
+        // Display the specific error message caught
+        scheduleContainer.innerHTML = `<div class=\"text-center text-red-600 p-4\">${error.message || 'Error loading schedule. Please try again.'}</div>`;
         hideLoading();
-    }).catch(error => {
-        console.error('Error loading bookings:', error);
+    } finally {
         hideLoading();
-    });
+        updateNavigationState();
+    }
 }
 
 // Function to add date header
@@ -1227,7 +525,32 @@ document.addEventListener('DOMContentLoaded', () => {
     firebase.auth().onAuthStateChanged(user => {
         if (user) {
             console.log('User authenticated, loading initial schedule...');
-            loadUserSchedule();
+
+            // --- ADD todayBtn listener attachment HERE ---
+            const todayBtn = document.getElementById('today-btn');
+            if (todayBtn) {
+                // Remove previous listener if any to prevent duplicates
+                todayBtn.removeEventListener('click', navigateToCurrentWeek);
+                todayBtn.addEventListener('click', navigateToCurrentWeek);
+                console.log("Attached listener to today-btn.");
+            }
+            else console.error("Today button not found after auth change.");
+            // --- END ADD --- 
+
+             // Attach navigation listeners (safe to do here too)
+             const prevBtn = document.getElementById('prev-week');
+             const nextBtn = document.getElementById('next-week');
+             if (prevBtn) {
+                 prevBtn.removeEventListener('click', navigateToPreviousWeek);
+                 prevBtn.addEventListener('click', navigateToPreviousWeek);
+             }
+            if (nextBtn) {
+                nextBtn.removeEventListener('click', navigateToNextWeek);
+                nextBtn.addEventListener('click', navigateToNextWeek);
+            }
+
+            updateWeekDisplay(); // Update display after auth
+            loadUserSchedule(); // Load schedule data which implicitly calls generateSchedule WITH settings
             updateNavigationState(); // Update nav state after initial load
         } else {
             console.log('User not authenticated');
@@ -1848,7 +1171,7 @@ async function saveBooking() {
             };
 
             console.log(`[Occurrence ${i + 1}] Saving booking data:`, bookingData);
-
+            
             // Add series ID for recurring bookings
             if (seriesId) {
                 bookingData.seriesId = seriesId;
@@ -1997,163 +1320,47 @@ function resetBookingModal() {
     return true;
 }
 
+// Function to add a time slot button
 function addTimeSlot(container, startTime, endTime, date, durationMinutes) {
-    // Ensure date is a proper Date object
-    if (!(date instanceof Date) || isNaN(date.getTime())) {
-        console.error('Invalid date passed to addTimeSlot:', date);
-        // Use today's date as a fallback
-        date = new Date();
+    console.log('Adding time slot:', { container, startTime, endTime, date, durationMinutes });
+    if (!startTime || !endTime) {
+        console.warn('Attempted to add time slot with missing start or end time');
+        return;
     }
+
+    const timeSlotBtn = document.createElement('button');
+    timeSlotBtn.className = 'w-full flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 hover:border-gray-300 transition duration-150 ease-in-out mb-2'; // Added mb-2
+    timeSlotBtn.setAttribute('data-start-time', startTime);
+    timeSlotBtn.setAttribute('data-end-time', endTime);
+    timeSlotBtn.setAttribute('data-date', dateUtils.formatDate(date, 'YYYY-MM-DD')); // Store full date
+    timeSlotBtn.setAttribute('data-duration', durationMinutes);
+
+    // --- REMOVE isMobileDevice CHECK --- 
+    // const isMobile = isMobileDevice(); // This function is not defined
+    const formattedDate = dateUtils.formatDate(date, 'short-weekday-numeric'); // e.g., "Mon, Apr 7"
     
-    console.log('Adding time slot:', {
-        container: container,
-        startTime: startTime,
-        endTime: endTime,
-        date: date.toDateString(),
-        durationMinutes: durationMinutes
-    });
-    
-    const timeSlot = document.createElement('button');
-    const formattedDate = date.toISOString().split('T')[0];
-    
-    // Check if we're on a mobile device
-    const isMobile = isMobileDevice();
-    
-    // Double-check that this time slot is not in the past
-    const now = new Date();
-    
-    // Create a new date object for the slot to avoid modifying the original
-    const slotDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    
-    // Parse the time (e.g., "9:00 AM")
-    const timeMatch = startTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
-    if (timeMatch) {
-        let hours = parseInt(timeMatch[1]);
-        const minutes = parseInt(timeMatch[2]);
-        const period = timeMatch[3].toUpperCase();
-        
-        // Convert to 24-hour format
-        if (period === 'PM' && hours < 12) hours += 12;
-        if (period === 'AM' && hours === 12) hours = 0;
-        
-        // Set the slot's start time
-        slotDate.setHours(hours, minutes, 0, 0);
-        
-        // For debugging
-        console.log('Slot date/time:', slotDate.toString());
-        console.log('Current date/time:', now.toString());
-        console.log('Is past?', slotDate < now);
-        
-        // On mobile, only skip slots from previous days, not from earlier today
-        let isPastSlot = false;
-        
-        if (isMobile) {
-            // On mobile, only consider it past if it's a previous day
-            isPastSlot = slotDate.getDate() < now.getDate() && 
-                         slotDate.getMonth() <= now.getMonth() && 
-                         slotDate.getFullYear() <= now.getFullYear();
-        } else {
-            // On desktop, use the 5-minute buffer
-            const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
-            isPastSlot = slotDate < fiveMinutesAgo;
-        }
-        
-        if (isPastSlot) {
-            console.log(`Not adding past time slot: ${startTime} on ${slotDate.toDateString()}`);
-            return; // Skip this slot entirely
-        }
-    }
-    
-    // Format the duration for display
-    const durationHours = durationMinutes ? Math.floor(durationMinutes / 60) : 2;
-    const durationText = durationHours === 1 ? '1 hour' : `${durationHours} hours`;
-    
-    timeSlot.className = 'block w-full bg-primary-light/40 rounded-lg border-2 border-dashed border-primary/30 p-6 hover:bg-primary-light/60 transition-all mb-4';
-    timeSlot.innerHTML = `
-            <div class="flex items-center justify-between">
-                <div>
-                    <span class="text-xl font-bold text-gray-900">${startTime} - ${endTime}</span>
-                    <p class="text-primary font-medium mt-1">Available</p>
-                    <p class="text-gray-600 text-sm mt-1">${durationText} cleaning</p>
+    timeSlotBtn.innerHTML = `
+        <div class="flex flex-col text-left">
+            <span class="text-sm font-medium text-primary">${startTime} - ${endTime}</span>
+            <span class="text-xs text-gray-500">${durationMinutes ? durationMinutes + ' mins' : 'Duration not set'}</span>
                 </div>
-                <div class="bg-primary text-white rounded-full w-10 h-10 flex items-center justify-center">
-                    <i class="fas fa-plus"></i>
-                </div>
-            </div>
-        `;
-    
-    // Store the booking data as attributes
-    timeSlot.setAttribute('data-date', formattedDate);
-    timeSlot.setAttribute('data-start-time', startTime);
-    timeSlot.setAttribute('data-end-time', endTime);
-    timeSlot.setAttribute('data-duration', durationMinutes);
-    
-    // Add click event listener to open booking modal
-    timeSlot.addEventListener('click', function() {
-        console.log('Time slot clicked:', {
-            date: formattedDate,
+        <span class="text-sm font-semibold text-primary">Book</span>
+    `;
+    // --- END REMOVAL --- 
+
+    // Attach event listener to open the booking modal
+    timeSlotBtn.addEventListener('click', () => {
+        const bookingDetails = {
+            date: dateUtils.formatDate(date, 'YYYY-MM-DD'),
             startTime: startTime,
             endTime: endTime,
-            duration: durationMinutes
-        });
-        
-        try {
-            // Set the current booking data with normalized time format
-            currentBookingData.dateTime = {
-                date: formattedDate,
-                startTime: normalizeTimeFormat(startTime),
-                endTime: normalizeTimeFormat(endTime),
-                duration: durationMinutes
-            };
-            
-            console.log('Current booking data set:', currentBookingData);
-            
-            // Update the booking date and time display
-            updateBookingDateTime();
-            console.log('Booking date and time display updated');
-            
-            // Show the booking modal as a drawer
-            const bookingModal = document.getElementById('bookingModal');
-            const bookingModalBackdrop = document.getElementById('bookingModalBackdrop');
-            console.log('Booking modal element:', bookingModal);
-            
-            if (bookingModal) {
-                // Show backdrop first
-                if (bookingModalBackdrop) {
-                    bookingModalBackdrop.classList.remove('hidden');
-                    // Fade in the backdrop
-                    setTimeout(() => {
-                        bookingModalBackdrop.style.opacity = '1';
-                    }, 10);
-                }
-                
-                // Prevent body scrolling
-                document.body.style.overflow = 'hidden';
-                
-                // Slide up the modal
-                bookingModal.classList.remove('translate-y-full');
-                console.log('Booking modal shown');
-                
-                // Set up drag functionality
-                setupBottomSheetDrag(bookingModal);
-                
-                // Show the client selection step first
-                console.log('Attempting to show client selection step');
-                showBookingStep('clientSelection');
-                
-                // Load clients for the client selection step
-                console.log('Loading clients');
-                loadClients();
-            } else {
-                console.error('Booking modal not found');
-            }
-        } catch (error) {
-            console.error('Error in time slot click handler:', error);
-        }
+            durationMinutes: durationMinutes,
+            // Add any other necessary details
+        };
+        openBookingModal(bookingDetails);
     });
-    
-    container.appendChild(timeSlot);
-    console.log('Time slot added successfully');
+
+    container.appendChild(timeSlotBtn);
 }
 
 // Function to show the new client form
@@ -2896,34 +2103,27 @@ function showRescheduleOptions(booking) {
 // Function to navigate to the previous week
 function navigateToPreviousWeek() {
     if (!currentWeekStart) return;
-    console.log('Navigating to previous week');
-    currentWeekStart.setDate(currentWeekStart.getDate() - 7);
-    // Ensure it stays Monday (useful if DST changes happen, though less likely with setDate)
-    currentWeekStart = getWeekStartDate(currentWeekStart);
-    updateWeekDisplay();
-    loadUserSchedule(); // Reload schedule for the new week
-    updateNavigationState(); 
+    currentWeekStart = dateUtils.subtractDays(currentWeekStart, 7); // Use dateUtils
+        updateWeekDisplay();
+    generateSchedule();
+        updateNavigationState();
 }
 
 // Function to navigate to the next week
 function navigateToNextWeek() {
     if (!currentWeekStart) return;
-    console.log('Navigating to next week');
-    currentWeekStart.setDate(currentWeekStart.getDate() + 7);
-    // Ensure it stays Monday
-    currentWeekStart = getWeekStartDate(currentWeekStart);
-    updateWeekDisplay();
-    loadUserSchedule(); // Reload schedule for the new week
-    updateNavigationState();
+    currentWeekStart = dateUtils.addDays(currentWeekStart, 7); // Use dateUtils
+        updateWeekDisplay();
+    generateSchedule();
+        updateNavigationState();
 }
 
 // Function to navigate to the current week
 function navigateToCurrentWeek() {
-    console.log('Navigating to current week');
-    currentWeekStart = getWeekStartDate(new Date()); // Go to Monday of the current week
-    updateWeekDisplay();
-    loadUserSchedule(); // Reload schedule
-    updateNavigationState();
+    currentWeekStart = dateUtils.getStartOfWeek(new Date()); // Use dateUtils
+        updateWeekDisplay();
+    generateSchedule();
+        updateNavigationState();
 }
 
 // Function to initialize booking modal
@@ -3309,19 +2509,16 @@ document.getElementById('emergencyButton').addEventListener('click', async funct
 
 // Helper function to normalize time format to HH:MM AM/PM
 function normalizeTimeFormat(timeStr) {
-    if (!timeStr) return timeStr;
-    
-    // Handle "Invalid Date" strings
+    // --- FIX: Handle undefined/null/invalid input --- 
+    if (!timeStr || typeof timeStr !== 'string') { 
+        // console.warn('normalizeTimeFormat received invalid input:', timeStr);
+        return "12:00 AM"; // Return a default valid time string
+    }
+    // --- END FIX ---
     if (timeStr === "Invalid Date") {
         console.warn('Normalizing "Invalid Date" string to default time');
-        return "09:00 AM"; // Return a default valid time
+        return "12:00 AM";
     }
-    
-    // Handle various time formats including "8:00 a.m." format with periods
-    // This regex matches: 
-    // - Hours (one or two digits)
-    // - Minutes (two digits)
-    // - AM/PM indicator in various formats (AM, PM, a.m., p.m.)
     const match = timeStr.match(/(\d+):(\d+)\s*(a\.m\.|p\.m\.|AM|PM|am|pm)/i);
     if (!match) {
         console.warn(`Could not match time format in string: ${timeStr}`);
@@ -3330,7 +2527,7 @@ function normalizeTimeFormat(timeStr) {
     
     try {
         const hours = parseInt(match[1]);
-        const minutes = match[2];
+        const minutes = parseInt(match[2]);
         
         // Validate parsed values
         if (isNaN(hours) || hours < 0 || hours > 23) {
@@ -3682,3 +2879,78 @@ function inspectFirestoreData(userData, rawData) {
     });
   }
 }
+
+// --- ADD MISSING FUNCTION --- 
+// Function to open the booking modal and set initial data
+function openBookingModal(bookingDetails) {
+    console.log('Opening booking modal with details:', bookingDetails);
+    
+    if (!bookingDetails || !bookingDetails.date || !bookingDetails.startTime || !bookingDetails.endTime) {
+        console.error('Cannot open booking modal: Missing required details.');
+        showAlertModal('Could not load booking details. Please try again.');
+        return;
+    }
+
+    try {
+        // Store the booking data globally
+        currentBookingData.dateTime = {
+            date: bookingDetails.date, // Should be YYYY-MM-DD
+            startTime: bookingDetails.startTime, // Should be HH:MM AM/PM
+            endTime: bookingDetails.endTime,     // Should be HH:MM AM/PM
+            durationMinutes: bookingDetails.durationMinutes
+        };
+        currentBookingData.client = null; // Reset client selection
+        currentBookingData.frequency = null; // Reset frequency selection
+        console.log('Current booking data set:', currentBookingData);
+
+        // Get modal and backdrop elements
+        const bookingModal = document.getElementById('bookingModal');
+        const bookingModalBackdrop = document.getElementById('bookingModalBackdrop');
+
+        if (!bookingModal || !bookingModalBackdrop) {
+            console.error('Booking modal or backdrop element not found in the DOM');
+            showAlertModal('UI Error: Booking component missing. Please refresh.');
+            return;
+        }
+
+        // Reset the modal content (in case it was left in a different state)
+        if (!resetBookingModal()) { // resetBookingModal also re-attaches handlers
+             console.error("Failed to reset booking modal content.");
+             showAlertModal('UI Error: Could not prepare booking form. Please refresh.');
+             return;
+        }
+
+        // Update the booking date and time display within the modal
+        updateBookingDateTime();
+        console.log('Booking date and time display updated in modal');
+
+        // Show backdrop first
+        bookingModalBackdrop.classList.remove('hidden');
+        setTimeout(() => { bookingModalBackdrop.style.opacity = '1'; }, 10); // Fade in
+        
+        // Prevent body scrolling
+        document.body.style.overflow = 'hidden';
+        
+        // Slide up the modal
+        bookingModal.classList.remove('translate-y-full');
+        console.log('Booking modal shown');
+        
+        // Set up drag functionality
+        setupBottomSheetDrag(bookingModal);
+        
+        // Show the client selection step first
+        console.log('Attempting to show client selection step');
+        showBookingStep('clientSelection');
+        
+        // Load clients for the client selection step
+        console.log('Loading clients for selection');
+        loadClients();
+
+    } catch (error) {
+        console.error('Error in openBookingModal:', error);
+        showAlertModal(`An error occurred while opening the booking form: ${error.message}`);
+        // Clean up UI just in case
+        closeBookingModal(); 
+    }
+}
+// --- END ADD MISSING FUNCTION ---
