@@ -883,6 +883,38 @@ const firestoreService = {
             return null;
         }
     },
+
+    // NEW: Update Booking Status
+    async updateBookingStatus(housekeeperId, bookingId, newStatus) {
+        console.log(`[Firestore] Updating status for booking ${bookingId} for housekeeper ${housekeeperId} to ${newStatus}`);
+        if (!housekeeperId || !bookingId || !newStatus) {
+            console.error('[Firestore] updateBookingStatus requires housekeeperId, bookingId, and newStatus.');
+            throw new Error('Missing required parameters for updating booking status.');
+        }
+
+        const validStatuses = ['pending', 'confirmed', 'cancelled', 'completed', 'rejected']; // Add other valid statuses as needed
+        if (!validStatuses.includes(newStatus)) {
+            console.error(`[Firestore] Invalid status provided: ${newStatus}`);
+            throw new Error('Invalid booking status provided.');
+        }
+
+        try {
+            const bookingRef = db.collection('users').doc(housekeeperId).collection('bookings').doc(bookingId);
+            await bookingRef.update({
+                status: newStatus,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            console.log(`[Firestore] Booking ${bookingId} status updated successfully to ${newStatus}.`);
+            return { success: true };
+        } catch (error) {
+            console.error(`[Firestore] Error updating booking status for ${bookingId}:`, error);
+            // Check for not-found error
+            if (error.code === 'not-found') {
+                 throw new Error('Booking not found.');
+            }
+            throw error; // Re-throw other errors
+        }
+    }
 };
 
 // Make the service globally accessible

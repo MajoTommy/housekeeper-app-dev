@@ -48,14 +48,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         
                         // Redirect based on role
                         if (userRole === 'homeowner') {
-                            window.location.href = baseUrl + 'homeowner/dashboard.html';
+                            window.location.href = baseUrl + 'homeowner/dashboard/dashboard.html';
                         } else {
-                            window.location.href = baseUrl + 'housekeeper/dashboard.html';
+                            window.location.href = baseUrl + 'housekeeper/schedule/schedule.html';
                         }
                     } catch (error) {
                         console.error('Error getting user profile after login:', error);
                         // Fallback to index if profile fetch fails
-                        window.location.href = 'index.html';
+                        window.location.href = baseUrl + 'index.html';
                     }
                 })
                 .catch((error) => {

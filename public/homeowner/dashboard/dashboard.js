@@ -193,20 +193,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const populateHousekeeperInfo = async (housekeeperId) => {
         const nameEl = document.getElementById('housekeeperName');
         const companyEl = document.getElementById('housekeeperCompany');
+        const inviteCodeEl = document.getElementById('housekeeperInviteCode'); // Get reference to the new element
         try {
-            // We need a service function to get housekeeper profile by ID
-            const housekeeperProfile = await firestoreService.getHousekeeperProfile(housekeeperId); 
-            if (housekeeperProfile && nameEl) {
-                nameEl.textContent = `${housekeeperProfile.firstName || ''} ${housekeeperProfile.lastName || ''}`.trim();
+            // Fetch housekeeper profile by ID
+            const housekeeperProfile = await firestoreService.getHousekeeperProfile(housekeeperId);
+            if (housekeeperProfile) {
+                if (nameEl) {
+                    nameEl.textContent = `${housekeeperProfile.firstName || ''} ${housekeeperProfile.lastName || ''}`.trim() || 'Housekeeper Name Unavailable';
+                }
                 if (companyEl) {
                     companyEl.textContent = housekeeperProfile.companyName || '';
                 }
-            } else if (nameEl) {
-                 nameEl.textContent = 'Housekeeper details not found.';
+                if (inviteCodeEl) { // Display the invite code
+                    inviteCodeEl.textContent = housekeeperProfile.inviteCode ? `(${housekeeperProfile.inviteCode})` : '(No Invite Code)';
+                }
+            } else {
+                 if (nameEl) nameEl.textContent = 'Housekeeper details not found.';
+                 if (inviteCodeEl) inviteCodeEl.textContent = ''; // Clear invite code if profile not found
+                 if (companyEl) companyEl.textContent = '';
             }
         } catch (error) {
             console.error('Error fetching housekeeper profile:', error);
             if (nameEl) nameEl.textContent = 'Error loading details.';
+            if (inviteCodeEl) inviteCodeEl.textContent = ''; // Clear on error
+            if (companyEl) companyEl.textContent = '';
         }
     };
     

@@ -10,6 +10,7 @@
 const { HttpsError, onCall } = require("firebase-functions/v2/https");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
+const functions = require("firebase-functions");
 
 // Initialize Firebase Admin SDK
 try {
@@ -154,65 +155,119 @@ exports.getAvailableSlots = onCall(async (request) => {
         // Note: Ordering might be less reliable with string dates vs Timestamps if format varies.
 
         const bookingsByDate = {};
+        // Gather all client/homeowner IDs needed
+        const profileIdsToFetch = {
+            clients: new Set(),
+            homeowners: new Set()
+        };
         bookingsSnapshot.forEach((doc) => {
-          const booking = doc.data();
-          const bookingId = doc.id;
-          
-          // --- Process assuming date is a STRING (with logging) --- 
-          const bookingDateField = booking.date;
-          // Log with quotes to see potential whitespace
-          logger.info(`Processing booking ${bookingId} - Date field type: ${typeof bookingDateField}, value: '${bookingDateField}'`); 
-          
-          let bookingDateStr = null;
-          // Check 1: Is it the expected string?
-          if (typeof bookingDateField === 'string') { 
-               // Trim whitespace just in case
-               const trimmedDate = bookingDateField.trim();
-               const matchResult = trimmedDate.match(/^\d{4}-\d{2}-\d{2}$/);
-               // Log the match result explicitly
-               logger.info(`Regex match result for ${bookingId} on trimmed date '${trimmedDate}':`, matchResult);
-               
-               if (matchResult) { 
-                   bookingDateStr = trimmedDate; // Use trimmed string if match is successful
-               }
-          }
-          
-          // Check 2: Is it a Timestamp (if string check failed)?
-          if (bookingDateStr === null && bookingDateField && typeof bookingDateField.toDate === 'function') {
-              logger.warn(`Booking ${bookingId} has Timestamp date, converting to string.`);
-              const bookingDate = bookingDateField.toDate();
-              const year = bookingDate.getUTCFullYear();
-              const month = (bookingDate.getUTCMonth() + 1).toString().padStart(2, "0");
-              const day = bookingDate.getUTCDate().toString().padStart(2, "0");
-              bookingDateStr = `${year}-${month}-${day}`;
-          }
-          
-          // Check 3: If neither worked...
-          if (bookingDateStr === null) {
-            logger.warn("Skipping booking: Date field did not match expected string format OR Timestamp.", { bookingId, dateValue: bookingDateField });
-            return; // Skip
-          }
-          
-          // Log the final string that will be used as the key
-          logger.info(`Using date string key for booking ${bookingId}: ${bookingDateStr}`);
+            const booking = doc.data();
+            if (booking.clientId) profileIdsToFetch.clients.add(booking.clientId);
+            if (booking.homeownerId) profileIdsToFetch.homeowners.add(booking.homeownerId);
+        });
 
-          // Only consider bookings that aren't explicitly cancelled
-          if (booking.status === 'cancelled') {
-              logger.info("Skipping cancelled booking", { bookingId });
-              return;
-          }
+        // Fetch profiles in parallel
+        const clientProfilePromises = Array.from(profileIdsToFetch.clients).map(clientId => 
+            db.collection(`users/${housekeeperId}/clients`).doc(clientId).get()
+        );
+        const homeownerProfilePromises = Array.from(profileIdsToFetch.homeowners).map(homeownerId => 
+            db.collection('homeowner_profiles').doc(homeownerId).get()
+        );
 
-          const startMinutes = timeStringToMinutes(booking.startTime);
-          const endMinutes = timeStringToMinutes(booking.endTime);
-          if (startMinutes === null || endMinutes === null || startMinutes >= endMinutes) {
-              logger.warn("Skipping booking with invalid/missing time or start>=end", { bookingId, start: booking.startTime, end: booking.endTime });
-              return;
-          }
+        const [clientProfileSnapshots, homeownerProfileSnapshots] = await Promise.all([
+            Promise.all(clientProfilePromises),
+            Promise.all(homeownerProfilePromises)
+        ]);
 
-          if (!bookingsByDate[bookingDateStr]) {
-              bookingsByDate[bookingDateStr] = [];
-          }
-          bookingsByDate[bookingDateStr].push({ startMinutes, endMinutes, id: bookingId, status: booking.status });
+        // Create maps for easy lookup
+        const clientProfiles = new Map();
+        clientProfileSnapshots.forEach(doc => {
+            if (doc.exists) clientProfiles.set(doc.id, doc.data());
+        });
+        const homeownerProfiles = new Map();
+        homeownerProfileSnapshots.forEach(doc => {
+            if (doc.exists) homeownerProfiles.set(doc.id, doc.data());
+        });
+
+        // Process bookings and add client names
+        bookingsSnapshot.forEach((doc) => {
+            const booking = doc.data();
+            const bookingId = doc.id;
+            
+            // --- Process assuming date is a STRING (with logging) --- 
+            const bookingDateField = booking.date;
+            // Log with quotes to see potential whitespace
+            logger.info(`Processing booking ${bookingId} - Date field type: ${typeof bookingDateField}, value: '${bookingDateField}'`); 
+            
+            let bookingDateStr = null;
+            // Check 1: Is it the expected string?
+            if (typeof bookingDateField === 'string') { 
+                 // Trim whitespace just in case
+                 const trimmedDate = bookingDateField.trim();
+                 const matchResult = trimmedDate.match(/^\d{4}-\d{2}-\d{2}$/);
+                 // Log the match result explicitly
+                 logger.info(`Regex match result for ${bookingId} on trimmed date '${trimmedDate}':`, matchResult);
+                 
+                 if (matchResult) { 
+                     bookingDateStr = trimmedDate; // Use trimmed string if match is successful
+                 }
+            }
+            
+            // Check 2: Is it a Timestamp (if string check failed)?
+            if (bookingDateStr === null && bookingDateField && typeof bookingDateField.toDate === 'function') {
+                logger.warn(`Booking ${bookingId} has Timestamp date, converting to string.`);
+                const bookingDate = bookingDateField.toDate();
+                const year = bookingDate.getUTCFullYear();
+                const month = (bookingDate.getUTCMonth() + 1).toString().padStart(2, "0");
+                const day = bookingDate.getUTCDate().toString().padStart(2, "0");
+                bookingDateStr = `${year}-${month}-${day}`;
+            }
+            
+            // Check 3: If neither worked...
+            if (bookingDateStr === null) {
+              logger.warn("Skipping booking: Date field did not match expected string format OR Timestamp.", { bookingId, dateValue: booking.date });
+              return; // Skip
+            }
+            
+            // Log the final string that will be used as the key
+            logger.info(`Using date string key for booking ${bookingId}: ${bookingDateStr}`);
+
+            // Only consider bookings that aren't explicitly cancelled
+            if (booking.status === 'cancelled') {
+                logger.info("Skipping cancelled booking", { bookingId });
+                return;
+            }
+
+            const startMinutes = timeStringToMinutes(booking.startTime);
+            const endMinutes = timeStringToMinutes(booking.endTime);
+            if (startMinutes === null || endMinutes === null || startMinutes >= endMinutes) {
+                logger.warn("Skipping booking with invalid/missing time or start>=end", { bookingId, start: booking.startTime, end: booking.endTime });
+                return;
+            }
+
+            // Get client/homeowner name
+            let clientName = "Unknown Client";
+            if (booking.clientId && clientProfiles.has(booking.clientId)) {
+                const clientData = clientProfiles.get(booking.clientId);
+                clientName = `${clientData.firstName || ''} ${clientData.lastName || ''}`.trim();
+            } else if (booking.homeownerId && homeownerProfiles.has(booking.homeownerId)) {
+                const homeownerData = homeownerProfiles.get(booking.homeownerId);
+                clientName = `${homeownerData.firstName || ''} ${homeownerData.lastName || ''}`.trim();
+            } else if (booking.clientName) {
+                 clientName = booking.clientName; // Fallback to potentially stored name
+            }
+
+            if (!bookingsByDate[bookingDateStr]) {
+                bookingsByDate[bookingDateStr] = [];
+            }
+            bookingsByDate[bookingDateStr].push({ 
+                startMinutes, 
+                endMinutes, 
+                id: bookingId, 
+                status: booking.status, 
+                // Add clientName
+                clientName: clientName 
+            });
         });
         logger.info(`Fetched and processed ${bookingsSnapshot.size} relevant bookings.`, { housekeeperId });
 
@@ -246,20 +301,14 @@ exports.getAvailableSlots = onCall(async (request) => {
             const dayOfWeekIndexUTC = currentDateLoop.getUTCDay(); // Keep for reference
             // const dayKey = dayNames[dayOfWeekIndexUTC].toLowerCase(); // OLD: Based on UTC
 
-            // *** NEW: Get day name in target timezone ***
-            let dayKey;
-            const housekeeperTimezone = settings.timezone || 'UTC'; // Get timezone from settings
-            try {
-                // Get the long weekday name (e.g., "Tuesday") in the specified timezone
-                const localDayName = currentDateLoop.toLocaleDateString('en-US', { weekday: 'long', timeZone: housekeeperTimezone });
-                dayKey = localDayName.toLowerCase(); // Convert to "tuesday"
-                logger.info(` [${currentDateStr}] Determined local day key as '${dayKey}' using timezone '${housekeeperTimezone}' (UTC day was ${dayNames[dayOfWeekIndexUTC]})`);
-            } catch (tzError) {
-                // Fallback to UTC day name if timezone is invalid
-                logger.error(` [${currentDateStr}] Error getting local day name for timezone '${housekeeperTimezone}'. Falling back to UTC day.`, tzError);
-                dayKey = dayNames[dayOfWeekIndexUTC].toLowerCase();
-            }
-            // *** END NEW ***
+            // --- Get day name in target timezone --- 
+            // CORRECTED: Use UTC day index directly to get the correct day name
+            // Timezone conversion for the day name itself proved unreliable/complex.
+            // The key thing is to use the settings for the correct calendar day (UTC).
+            // Timezone conversion is primarily needed for DISPLAYING times, not determining the working day.
+            const dayKey = dayNames[dayOfWeekIndexUTC].toLowerCase(); 
+            logger.info(` [${currentDateStr}] Using day key '${dayKey}' based on UTC date.`);
+            // *** End Corrected Day Key Logic ***
 
             // *** NEW: Check for Time Off First ***
             if (timeOffDates.has(currentDateStr)) {
@@ -342,8 +391,10 @@ exports.getAvailableSlots = onCall(async (request) => {
                     finalSlotsMinutes.push({
                         startMinutes: booking.startMinutes,
                         endMinutes: booking.endMinutes,
-                        status: 'booked',
-                        type: 'booking' // Keep track of the source
+                        status: booking.status || 'booked',
+                        type: 'booking',
+                        bookingId: booking.id,
+                        clientName: booking.clientName
                     });
                 }
             });
@@ -364,7 +415,9 @@ exports.getAvailableSlots = onCall(async (request) => {
                     // Add the non-overlapping potential slot
                     finalSlotsMinutes.push({
                         ...potentialSlot, // Includes start/end minutes and type ('job' or 'break')
-                        status: potentialSlot.type === 'break' ? 'unavailable' : 'available' // Assign status based on type
+                        status: potentialSlot.type === 'break' ? 'unavailable' : 'available', // Assign status based on type
+                        bookingId: null, // No booking ID for potential slots
+                        clientName: null // No clientName for potential slots
                     });
                 } else {
                     logger.info(`Potential slot ${minutesToTimeString(potentialSlot.startMinutes)}-${minutesToTimeString(potentialSlot.endMinutes)} (${potentialSlot.type}) overlaps with booking on ${currentDateStr}, discarding.`);
@@ -404,7 +457,11 @@ exports.getAvailableSlots = onCall(async (request) => {
                         return {
                             startTime: minutesToTimeString(slot.startMinutes), // Convert minutes to string
                             endTime: minutesToTimeString(slot.endMinutes),     // Convert minutes to string
-                            durationMinutes: duration
+                            durationMinutes: duration,
+                            status: slot.status, // Include the status ('available', 'booked', 'pending', 'unavailable', 'break')
+                            type: slot.type, // Include type ('job', 'break', 'booking')
+                            bookingId: slot.bookingId || null, // Include booking ID if applicable
+                            clientName: slot.clientName || null // Include clientName if available
                         };
                     });
             } else {
@@ -414,13 +471,28 @@ exports.getAvailableSlots = onCall(async (request) => {
                 logger.warn(`Day ${currentDateStr} considered not_working due to fallback (settings working=${isWorkingBasedOnSettings}, slots=${finalSlotsMinutes.length})`);
             }
 
+            // NEW: Format ALL final slots for the response
+            const allSlotsFormatted = finalSlotsMinutes.map(slot => {
+                const duration = slot.endMinutes - slot.startMinutes;
+                return {
+                    startTime: minutesToTimeString(slot.startMinutes),
+                    endTime: minutesToTimeString(slot.endMinutes),
+                    durationMinutes: duration,
+                    status: slot.status, // Include the status ('available', 'booked', 'pending', 'unavailable', 'break')
+                    type: slot.type, // Include type ('job', 'break', 'booking')
+                    bookingId: slot.bookingId || null, // Include booking ID if applicable
+                    clientName: slot.clientName || null // Include clientName if available
+                };
+            });
+
             // Add to the main schedule object using the NEW structure
             schedule[currentDateStr] = {
                 date: currentDateStr,
                 dayName: dayNames[dayOfWeekIndexUTC],
-                status: overallStatus,
+                status: overallStatus, // Keep overall status for high-level indication
                 message: statusMessage,
-                slots: overallStatus === 'available' ? availableSlotsFormatted : [], // Use formatted slots if available
+                // Return ALL formatted slots, regardless of overallStatus
+                slots: allSlotsFormatted 
             };
             
             // Move to the next day
@@ -444,4 +516,212 @@ exports.getAvailableSlots = onCall(async (request) => {
             { originalErrorMessage: error.message },
         );
     }
+});
+
+// --- NEW Cloud Function: requestBooking ---
+exports.requestBooking = onCall(async (request) => {
+    logger.info("requestBooking called", { authUid: request.auth ? request.auth.uid : "none", data: request.data });
+
+    // 1. Authentication and Authorization
+    if (!request.auth) {
+        logger.warn("Booking request rejected: User not authenticated.");
+        throw new HttpsError("unauthenticated", "You must be logged in to book an appointment.");
+    }
+    const homeownerId = request.auth.uid;
+
+    // 2. Input Validation
+    const { housekeeperId, dateTimeString, duration } = request.data;
+    if (!housekeeperId || typeof housekeeperId !== 'string' ||
+        !dateTimeString || typeof dateTimeString !== 'string' ||
+        !duration || typeof duration !== 'number' || !Number.isInteger(duration) || duration <= 0) {
+        logger.error("Booking request rejected: Missing or invalid required data fields.", request.data);
+        throw new HttpsError("invalid-argument", "Required data missing or invalid (housekeeperId, dateTimeString, duration).");
+    }
+    
+    // Validate homeownerId from data matches auth (if passed, otherwise use auth)
+    // const homeownerIdFromData = request.data.homeownerId;
+    // if (homeownerIdFromData && homeownerIdFromData !== homeownerId) {
+    //     logger.error("Booking request rejected: Mismatched homeowner ID.", { authUid: homeownerId, dataUid: homeownerIdFromData });
+    //     throw new HttpsError("permission-denied", "Cannot book for another user.");
+    // }
+
+    let requestedDate, requestedStartMinutes;
+    try {
+        const dateObj = new Date(dateTimeString);
+        if (isNaN(dateObj.getTime())) throw new Error("Invalid date conversion.");
+        
+        // Extract date parts (UTC)
+        const year = dateObj.getUTCFullYear();
+        const month = (dateObj.getUTCMonth() + 1).toString().padStart(2, "0");
+        const day = dateObj.getUTCDate().toString().padStart(2, "0");
+        requestedDate = `${year}-${month}-${day}`;
+
+        // Extract time parts (UTC)
+        const hours = dateObj.getUTCHours();
+        const minutes = dateObj.getUTCMinutes();
+        requestedStartMinutes = hours * 60 + minutes;
+        
+        logger.info(`Parsed booking request: Date=${requestedDate}, StartMinutes=${requestedStartMinutes}, Duration=${duration}`);
+
+    } catch (e) {
+        logger.error("Booking request rejected: Invalid dateTimeString format.", { dateTimeString, error: e.message });
+        throw new HttpsError("invalid-argument", "Invalid date/time format. Please provide an ISO 8601 string.");
+    }
+    
+    const requestedEndMinutes = requestedStartMinutes + duration;
+
+    try {
+        // 3. Conflict Check (within a transaction for safety, though checking first might suffice)
+        const bookingsRef = db.collection(`users/${housekeeperId}/bookings`);
+        const existingBookingsSnapshot = await bookingsRef
+            .where("date", "==", requestedDate)
+            .where("status", "!=", "cancelled") // Ignore cancelled bookings
+            .get();
+
+        let conflictExists = false;
+        existingBookingsSnapshot.forEach(doc => {
+            const booking = doc.data();
+            const existingStartMinutes = timeStringToMinutes(booking.startTime);
+            const existingEndMinutes = timeStringToMinutes(booking.endTime);
+
+            if (existingStartMinutes !== null && existingEndMinutes !== null) {
+                // Check for overlap: MAX(start1, start2) < MIN(end1, end2)
+                if (Math.max(requestedStartMinutes, existingStartMinutes) < Math.min(requestedEndMinutes, existingEndMinutes)) {
+                    logger.warn("Booking conflict detected", {
+                        requestedSlot: `${minutesToTimeString(requestedStartMinutes)}-${minutesToTimeString(requestedEndMinutes)}`,
+                        existingBookingId: doc.id,
+                        existingSlot: `${minutesToTimeString(existingStartMinutes)}-${minutesToTimeString(existingEndMinutes)}`,
+                    });
+                    conflictExists = true;
+                }
+            }
+        });
+
+        if (conflictExists) {
+            throw new HttpsError("failed-precondition", "This time slot is no longer available. Please select another time.");
+        }
+        
+        logger.info(`No conflicts found for slot ${requestedDate} ${minutesToTimeString(requestedStartMinutes)}`);
+
+        // 4. Create Booking Document
+        const newBookingRef = bookingsRef.doc(); // Auto-generate ID
+        const newBookingData = {
+            homeownerId: homeownerId,
+            housekeeperId: housekeeperId, // Store housekeeper ID too
+            date: requestedDate, // YYYY-MM-DD string
+            startTime: minutesToTimeString(requestedStartMinutes), // HH:mm AM/PM string
+            endTime: minutesToTimeString(requestedEndMinutes),   // HH:mm AM/PM string
+            durationMinutes: duration,
+            status: "pending", // Initial status
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            // Potentially add homeowner name/address later if needed
+            // homeownerDetails: { name: "...", address: "..." } // Fetched if required
+        };
+
+        await newBookingRef.set(newBookingData);
+        logger.info("New booking document created successfully.", { bookingId: newBookingRef.id, data: newBookingData });
+
+        // 5. Return Success
+        return { success: true, bookingId: newBookingRef.id };
+
+    } catch (error) {
+        if (error instanceof HttpsError) {
+            // Re-throw HttpsErrors directly (like the conflict error)
+            logger.error(`Booking failed (${error.code}): ${error.message}`, { data: request.data });
+            throw error;
+        } else {
+            // Handle unexpected errors
+            logger.error("Unexpected error occurred during booking request:", {
+                housekeeperId,
+                dateTimeString,
+                duration,
+                error: error.message,
+                stack: error.stack,
+            });
+            throw new HttpsError("internal", "An unexpected error occurred while booking. Please try again.");
+        }
+    }
+});
+
+/**
+ * Cloud Function to cancel a booking.
+ * Expects { bookingId: string, reason?: string } in the request data.
+ * Verifies that the caller is the homeowner associated with the booking.
+ */
+exports.cancelBooking = functions.https.onCall(async (data, context) => {
+  // 1. Authentication Check
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+        "unauthenticated",
+        "The function must be called while authenticated.",
+    );
+  }
+  const userId = context.auth.uid; // Homeowner's UID
+  const {bookingId, reason} = data;
+
+  // 2. Input Validation
+  if (!bookingId) {
+    throw new functions.https.HttpsError(
+        "invalid-argument",
+        "The function must be called with a 'bookingId'.",
+    );
+  }
+
+  const bookingRef = admin.firestore().collection("bookings").doc(bookingId);
+
+  try {
+    const bookingDoc = await bookingRef.get();
+
+    // 3. Booking Existence Check
+    if (!bookingDoc.exists) {
+      throw new functions.https.HttpsError(
+          "not-found",
+          `Booking with ID ${bookingId} not found.`,
+      );
+    }
+
+    const bookingData = bookingDoc.data();
+
+    // 4. Authorization Check
+    if (bookingData.homeownerId !== userId) {
+      throw new functions.https.HttpsError(
+          "permission-denied",
+          "You do not have permission to cancel this booking.",
+      );
+    }
+
+    // 5. Status Check
+    if (bookingData.status !== "confirmed" && bookingData.status !== "booked") {
+        throw new functions.https.HttpsError(
+            "failed-precondition",
+            `Booking cannot be cancelled from status: ${bookingData.status}.`,
+        );
+    }
+
+    // 6. Update Firestore
+    const updateData = {
+      status: "cancelled_by_homeowner",
+      cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+      cancelledBy: "homeowner",
+      ...(reason && {cancellationReason: reason}), // Add reason only if provided
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    await bookingRef.update(updateData);
+
+    console.log(`Booking ${bookingId} cancelled by homeowner ${userId}.`);
+    return {success: true, message: "Booking cancelled successfully."};
+  } catch (error) {
+    console.error("Error cancelling booking:", error);
+    if (error instanceof functions.https.HttpsError) {
+      // Re-throw HttpsError exceptions
+      throw error;
+    }
+    // Throw a generic internal error for other cases
+    throw new functions.https.HttpsError(
+        "internal",
+        "An internal error occurred while cancelling the booking.",
+        error.message,
+    );
+  }
 });

@@ -391,4 +391,30 @@ Security rules ensure:
 2. Minimize redundant data while considering read optimization
 3. Use transactions for operations that update multiple documents
 4. Maintain proper timestamps for all created or updated documents
-5. Check user role before displaying role-specific features 
+5. Check user role before displaying role-specific features
+
+## `bookings` Collection
+
+Stores information about individual booking appointments.
+
+-   **Document ID:** Auto-generated (e.g., `a3fG7HkLpQ...`)
+-   **Fields:**
+    -   `housekeeperId`: (String) UID of the housekeeper.
+    -   `homeownerId`: (String) UID of the homeowner who booked.
+    -   `homeownerName`: (String) Name of the homeowner (for display).
+    -   `propertyAddress`: (String) Address of the property being cleaned.
+    -   `startTime`: (Timestamp) Start date and time of the booking.
+    -   `endTime`: (Timestamp) End date and time of the booking.
+    -   `durationMinutes`: (Number) Duration of the booking in minutes.
+    -   `status`: (String) Current status of the booking (e.g., `pending`, `confirmed`, `cancelled_by_homeowner`, `cancelled_by_housekeeper`, `completed`). (UPDATED: Added cancellation statuses).
+    -   `notes`: (String) Optional notes from the homeowner during booking.
+    -   `createdAt`: (Timestamp) When the booking request was created.
+    -   `updatedAt`: (Timestamp) When the booking was last updated.
+    -   `confirmedAt`: (Timestamp, Optional) When the booking was confirmed by the housekeeper.
+    -   `cancelledAt`: (Timestamp, Optional) When the booking was cancelled. (NEW)
+    -   `cancelledBy`: (String, Optional) Who cancelled ('homeowner' or 'housekeeper'). (NEW)
+    -   `cancellationReason`: (String, Optional) Reason provided for cancellation. (NEW)
+
+## `users` Collection (May be split or combined based on Auth)
+
+Stores user profile information. Could potentially be split into `homeowners` and `housekeepers` collections if profiles differ significantly. 

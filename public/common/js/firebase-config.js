@@ -22,9 +22,14 @@ const firebaseConfig = {
     // Only initialize Firestore and Storage if they exist
     const db = firebase.firestore ? firebase.firestore() : null;
     const storage = firebase.storage ? firebase.storage() : null;
+    const functions = firebase.functions ? firebase.functions() : null;
     
     if (db) console.log("Firestore initialized");
     if (storage) console.log("Storage initialized");
+    if (functions) {
+        console.log("Functions initialized");
+        window.firebaseFunctions = functions; // Expose globally
+    }
   } catch (error) {
     console.error("Error initializing Firebase:", error);
     alert("There was an error initializing the app. Please check the console for details.");

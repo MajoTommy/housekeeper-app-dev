@@ -1,6 +1,7 @@
 {
   "hosting": {
     "public": "public",
+    "cleanUrls": true,
     "ignore": [
       "firebase.json",
       "**/.*",
@@ -15,6 +16,16 @@
             "value": "no-cache, no-store, must-revalidate"
           }
         ]
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "/homeowner/dashboard{,/**}",
+        "destination": "/homeowner/dashboard.html"
+      },
+      {
+        "source": "/housekeeper/dashboard{,/**}",
+        "destination": "/housekeeper/dashboard.html"
       }
     ]
   },

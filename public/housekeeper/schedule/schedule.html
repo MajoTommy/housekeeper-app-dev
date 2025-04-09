@@ -113,36 +113,35 @@
         }
     </script>
     
-    <!-- Month Selector -->
-    <div class="flex flex-col px-4 py-2 border-b border-gray-200 bg-white">
-        <div class="flex items-center justify-start mb-2">
-            <button id="today-btn" class="flex items-center gap-1 px-3 py-1 text-sm font-medium text-primary border border-primary/20 rounded-full hover:bg-primary-light/30">
-                <i class="fas fa-chevron-left text-xs"></i>
-                <span>Today</span>
-            </button>
-        </div>
-        <div class="flex items-center justify-between w-full">
-            <button class="text-gray-600 hover:text-gray-900 p-2 disabled:opacity-50 disabled:cursor-not-allowed" id="prev-week">
-            <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-            </svg>
-            </button>
-            <h2 class="text-base font-medium text-gray-900 px-2" id="week-range"></h2>
-            <button class="text-gray-600 hover:text-gray-900 p-2" id="next-week">
-            <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-            </svg>
-            </button>
-        </div>
+    <!-- Week Navigation Header - Styled like Homeowner -->
+    <div class="my-4 p-4 bg-white rounded-lg shadow flex items-center justify-between">
+        <!-- Previous Week Button -->
+        <button class="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center" id="prev-week">
+            <i class="fas fa-chevron-left mr-1 text-xs"></i> Prev
+        </button>
+        
+        <!-- Week Range Display -->
+        <h2 class="text-lg font-medium text-gray-700 text-center flex-grow mx-4" id="week-range">Loading week...</h2>
+        
+        <!-- Today Button -->
+        <button id="today-btn" class="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 flex items-center mr-2">
+            <i class="fas fa-calendar-day mr-1 text-xs"></i> Today
+        </button>
+
+        <!-- Next Week Button -->
+        <button class="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 flex items-center" id="next-week">
+            Next <i class="fas fa-chevron-right ml-1 text-xs"></i>
+        </button>
     </div>
 
     <!-- Main Content -->
-    <div class="p-4 relative" id="schedule-container">
+    <div class="p-4 relative space-y-4" id="schedule-container">
         <!-- Loading Overlay -->
         <div id="loading-overlay" class="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10 hidden">
             <i class="fas fa-circle-notch fa-spin text-primary text-3xl"></i>
         </div>
         <!-- Schedule will be dynamically generated here -->
+        <p class="text-center text-gray-500">Loading schedule...</p>
     </div>
 
     <!-- Mobile Footer Navigation with Payment Badge -->

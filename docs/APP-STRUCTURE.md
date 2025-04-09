@@ -150,4 +150,33 @@ Backend logic running in Firebase Cloud Functions, providing server-side capabil
         -   **Purpose:** Calculates the actual availability status and slots for a specific housekeeper within a given date range. It is the **single source of truth** for schedule availability, used by **both** the homeowner and housekeeper schedule views.
         -   **Why:** Centralizes the complex logic of combining default settings (`/users/{hkId}/settings/app`), existing bookings (`/users/{hkId}/bookings`), and time off (`/users/{hkId}/timeOffDates`) to determine true availability. This avoids client-side complexity and ensures consistency.
         -   **Usage:** Called directly via `firebase.functions().httpsCallable('getAvailableSlots')` from both `public/homeowner/js/schedule.js` and `public/housekeeper/js/schedule.js`.
-        -   **Output Structure:** Returns an object like `{ schedule: { "YYYY-MM-DD": { status: "available|fully_booked|not_working", message: "...", slots: [...] } } }`. When `status` is `"available"`, the `
+        -   **Output Structure:** Returns an object like `{ schedule: { "YYYY-MM-DD": { status: "available|fully_booked|not_working", message: "...", slots: [...] } } }`. When `status` is `"available"`, the `slots` array contains objects like `{ startTime: "HH:mm AM/PM", endTime: "HH:mm AM/PM", durationMinutes: number }`.
+    -   **`requestBooking`**: 
+        -   **Type:** HTTPS Callable Function.
+        -   **Purpose:** Handles a homeowner's request to book a specific time slot.
+        -   **Why:** Provides a secure backend endpoint to validate the request (is the user authenticated? is the slot still available?), create the booking document in Firestore with a `pending` status, and prevent conflicts.
+        -   **Usage:** Called via `firebase.functions().httpsCallable('requestBooking')` from `public/homeowner/js/schedule.js` when the homeowner confirms the booking in the drawer modal.
+        -   **Output Structure:** Returns `{ success: true, bookingId: "..." }` on success or throws an `HttpsError` on failure (e.g., conflict, invalid input).
+
+-   `package.json`: Defines dependencies for the Cloud Functions.
+    -   **Key Dependencies (Ensure these are installed in `/functions` before deployment):**
+        -   `firebase-admin`: Required for interacting with Firebase services (Firestore, Auth) from the backend.
+        -   `firebase-functions`: Core SDK for writing Cloud Functions.
+        -   `firebase-functions/logger`: For structured logging within functions.
+        -   *(Optional but Recommended)* `cors`: Middleware for handling Cross-Origin Resource Sharing, especially if using `onRequest` triggers or encountering CORS issues with `onCall`.
+    -   **Installation:** Run `npm install` within the `/functions` directory.
+
+## Testing and Deployment
+- **Testing:** Use the Firebase Local Emulator Suite to test functions, Firestore interactions, and Auth locally.
+- **Deployment:**
+  - `firebase deploy` - Deploys all Firebase features (Hosting, Firestore rules, Functions).
+  - `firebase deploy --only hosting` - Deploys only the web app (HTML, JS, CSS).
+  - `firebase deploy --only functions` - Deploys only Cloud Functions.
+
+## Potential Improvements
+- Refactor homeowner settings into dashboard modals.
+- Implement notification system (e.g., for booking confirmations).
+- Add payment integration.
+- Enhance error handling and user feedback.
+- Replace Tailwind CDN with a build step (e.g., using PostCSS CLI) for production.
+- Improve date/time handling robustness, potentially using a dedicated library like `date-fns` or `dayjs`.
