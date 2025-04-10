@@ -365,4 +365,45 @@ export function minutesToTimeString(minutesSinceMidnight) {
     if (hours12 === 0) hours12 = 12; // Adjust 0 hours to 12 for AM/PM format
 
     return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
-}; 
+};
+
+/**
+ * Formats a UTC millisecond timestamp into a string in the specified timezone.
+ * Uses Intl.DateTimeFormat for robust timezone handling.
+ * @param {number} millisUTC - UTC milliseconds since the epoch.
+ * @param {string} timeZone - IANA timezone string (e.g., 'America/Los_Angeles').
+ * @param {object} options - Intl.DateTimeFormat options (e.g., { hour: 'numeric', minute: '2-digit' }).
+ * @returns {string} Formatted date/time string, or "Invalid Date" on error.
+ */
+export function formatMillisForDisplay(millisUTC, timeZone, options) {
+    if (typeof millisUTC !== 'number' || isNaN(millisUTC)) {
+        console.error('Invalid millisUTC input to formatMillisForDisplay:', millisUTC);
+        return "Invalid Date";
+    }
+    if (!timeZone) {
+         console.warn('Missing timeZone in formatMillisForDisplay, using local.');
+         timeZone = getLocalTimezone();
+    }
+    if (!options) {
+         console.warn('Missing options in formatMillisForDisplay, using default time format.');
+         options = { hour: 'numeric', minute: '2-digit', hour12: true };
+    }
+
+    try {
+        const dateObject = new Date(millisUTC); // Create Date object from UTC millis
+        if (isNaN(dateObject.getTime())) throw new Error('Could not create Date object from millis');
+
+        const formatterOptions = {
+            ...options,
+            timeZone: timeZone // Apply the target timezone
+        };
+
+        // Use Intl.DateTimeFormat for reliable formatting
+        const formatter = new Intl.DateTimeFormat(undefined, formatterOptions);
+        return formatter.format(dateObject);
+
+    } catch (e) {
+        console.error('Error in formatMillisForDisplay:', { millisUTC, timeZone, options }, e);
+        return "Invalid Date";
+    }
+} 

@@ -81,47 +81,81 @@ const manualClientsData = [
     }
 ];
 
+// Helper function specifically for generating Timestamps in this script
+// Assumes input reflects intended LOCAL time for the sample data, converts to UTC Timestamp
+// WARNING: This is a simplistic conversion for sample data only. Relies on browser parsing.
+function createTimestampForSample(dateStr, timeStr) {
+    // Combine date and time
+    const dateTimeString = `${dateStr} ${timeStr}`;
+    try {
+        const dateObject = new Date(dateTimeString); // Browser *might* parse this correctly based on its locale
+        if (isNaN(dateObject.getTime())) {
+            console.warn(`[SampleDataHelper] Invalid date/time for Timestamp: ${dateTimeString}`);
+            return null; 
+        }
+        // Convert the potentially local Date object to a Firestore Timestamp (which stores UTC)
+        return firebase.firestore.Timestamp.fromDate(dateObject); 
+    } catch (e) {
+        console.error(`[SampleDataHelper] Error creating Timestamp for ${dateTimeString}:`, e);
+        return null;
+    }
+}
+
 const sampleBookingsData = (
     homeownerUid, // Pass the actual homeowner UID
     manualClientOneId, // Pass the actual Firestore-generated ID for manual client 1
-) => [
-    // Booking for the linked core homeowner (Future)
-    {
-        clientId: homeownerUid,
-        clientName: `${coreHomeownerProfileData.firstName} ${coreHomeownerProfileData.lastName}`, // Store name at booking time for convenience
-        date: '2025-08-15', // Example future date
-        startTime: '10:00',
-        endTime: '12:00',
-        status: 'scheduled',
-        frequency: 'one-time',
-        notes: 'First cleaning for Corey.',
-        address: coreHomeownerProfileData.address // Store address at booking time
-    },
-    // Booking for the linked core homeowner (Past)
-    {
-        clientId: homeownerUid,
-        clientName: `${coreHomeownerProfileData.firstName} ${coreHomeownerProfileData.lastName}`,
-        date: '2024-07-10', // Example past date
-        startTime: '14:00',
-        endTime: '16:00',
-        status: 'completed',
-        frequency: 'one-time',
-        notes: 'Completed cleaning.',
-        address: coreHomeownerProfileData.address
-    },
-    // Booking for a manual client (Future)
-    {
-        clientId: manualClientOneId, // Use the ID generated when client was added
-        clientName: `${manualClientsData[0].firstName} ${manualClientsData[0].lastName}`,
-        date: '2025-08-22', // Example future date
-        startTime: '09:00',
-        endTime: '11:00',
-        status: 'scheduled',
-        frequency: 'one-time',
-        notes: 'Regular cleaning for Manual Client 1.',
-        address: manualClientsData[0].address
-    }
-];
+    housekeeperUid // Pass housekeeper ID for context
+) => {
+    // Create timestamps - adjust dates/times as needed for sample scenario
+    const booking1Start = createTimestampForSample('2025-08-15', '10:00');
+    const booking1End = createTimestampForSample('2025-08-15', '12:00');
+    const booking2Start = createTimestampForSample('2024-07-10', '14:00');
+    const booking2End = createTimestampForSample('2024-07-10', '16:00');
+    const booking3Start = createTimestampForSample('2025-08-22', '09:00');
+    const booking3End = createTimestampForSample('2025-08-22', '11:00');
+
+    return [
+        // Booking for the linked core homeowner (Future)
+        {
+            clientId: homeownerUid,
+            housekeeperId: housekeeperUid, // Add housekeeperId
+            clientName: `${coreHomeownerProfileData.firstName} ${coreHomeownerProfileData.lastName}`,
+            startTimestamp: booking1Start,
+            endTimestamp: booking1End,
+            status: 'confirmed', // Use 'confirmed' or 'pending' based on new model
+            frequency: 'one-time',
+            notes: 'First cleaning for Corey.',
+            address: coreHomeownerProfileData.address, // Store address at booking time
+            createdAt: firebase.firestore.FieldValue.serverTimestamp() // Add timestamp
+        },
+        // Booking for the linked core homeowner (Past)
+        {
+            clientId: homeownerUid,
+            housekeeperId: housekeeperUid,
+            clientName: `${coreHomeownerProfileData.firstName} ${coreHomeownerProfileData.lastName}`,
+            startTimestamp: booking2Start,
+            endTimestamp: booking2End,
+            status: 'completed',
+            frequency: 'one-time',
+            notes: 'Completed cleaning.',
+            address: coreHomeownerProfileData.address,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        },
+        // Booking for a manual client (Future)
+        {
+            clientId: manualClientOneId,
+            housekeeperId: housekeeperUid,
+            clientName: `${manualClientsData[0].firstName} ${manualClientsData[0].lastName}`,
+            startTimestamp: booking3Start,
+            endTimestamp: booking3End,
+            status: 'pending', // Example pending booking
+            frequency: 'one-time',
+            notes: 'Regular cleaning for Manual Client 1.',
+            address: manualClientsData[0].address,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        }
+    ].filter(booking => booking.startTimestamp && booking.endTimestamp); // Filter out any with failed timestamp creation
+};
 
 // --- Helper Function to Delete Subcollections ---
 
@@ -297,11 +331,11 @@ async function populateCoreData(homeownerUid, housekeeperUid) {
 
         // 4. Add Sample Bookings
         console.log(`Adding sample bookings for housekeeper ${housekeeperUid}...`);
-        const bookingsToAdd = sampleBookingsData(homeownerUid, manualClientOneActualId || 'MANUAL_CLIENT_ID_UNKNOWN');
+        const bookingsToAdd = sampleBookingsData(homeownerUid, manualClientOneActualId || 'MANUAL_CLIENT_ID_UNKNOWN', housekeeperUid);
         for (const booking of bookingsToAdd) {
             // Only add booking if the clientId is known (especially for manual client)
             if (booking.clientId && booking.clientId !== 'MANUAL_CLIENT_ID_UNKNOWN') {
-                console.log(`  -> Adding booking for client ${booking.clientName} (ID: ${booking.clientId}) on ${booking.date}`);
+                console.log(`  -> Adding booking for client ${booking.clientName} (ID: ${booking.clientId}) on ${booking.startTimestamp}`);
                 try {
                     const bookingId = await fsService.addBooking(housekeeperUid, booking);
                     if (bookingId) {
@@ -339,20 +373,31 @@ async function populateCoreData(homeownerUid, housekeeperUid) {
         await db.collection('users').doc(housekeeperUid).collection('settings').doc('app').set(defaultHousekeeperSettings, { merge: true });
         console.log(' -> Default settings applied.');
         
-        // *** NEW: 6. Add Sample Time Off Date ***
+        // *** UPDATED: 6. Add Sample Time Off Date (New Structure) ***
         console.log(`Adding sample time off date for housekeeper ${housekeeperUid}...`);
-        const sampleTimeOffDate = '2025-07-26'; // Example future date
-        const timeOffRef = db.collection('users').doc(housekeeperUid).collection('timeOffDates').doc(sampleTimeOffDate);
-        try {
-            await timeOffRef.set({
-                isTimeOff: true,
-                reason: 'Sample Vacation Day'
-            });
-            console.log(` -> Added time off for ${sampleTimeOffDate}`);
-        } catch (timeOffError) {
-             console.error(` -> Error adding time off for ${sampleTimeOffDate}:`, timeOffError);
+        const sampleTimeOffDateStr = '2025-07-26'; // Example future date
+        // Create UTC start and end of day timestamps
+        const startOfDayUTC = new Date(`${sampleTimeOffDateStr}T00:00:00.000Z`);
+        const endOfDayUTC = new Date(`${sampleTimeOffDateStr}T23:59:59.999Z`);
+
+        if (!isNaN(startOfDayUTC.getTime()) && !isNaN(endOfDayUTC.getTime())) {
+            const timeOffRef = db.collection('users').doc(housekeeperUid).collection('timeOffDates').doc(); // Auto-generate ID
+            try {
+                await timeOffRef.set({
+                    housekeeperId: housekeeperUid, // Store housekeeperId
+                    startOfDayUTC: firebase.firestore.Timestamp.fromDate(startOfDayUTC),
+                    endOfDayUTC: firebase.firestore.Timestamp.fromDate(endOfDayUTC),
+                    reason: 'Sample Vacation Day',
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                console.log(` -> Added time off for ${sampleTimeOffDateStr} with ID ${timeOffRef.id}`);
+            } catch (timeOffError) {
+                 console.error(` -> Error adding time off for ${sampleTimeOffDateStr}:`, timeOffError);
+            }
+        } else {
+            console.error(` -> Invalid date generated for time off ${sampleTimeOffDateStr}`);
         }
-        // *** END NEW SECTION ***
+        // *** END UPDATED SECTION ***
 
         console.log(`--- Sample Data Population COMPLETE ---`);
         alert('Sample data population finished! Check console for details.');

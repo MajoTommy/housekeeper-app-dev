@@ -10,5 +10,3 @@ This document tracks planned enhancements and known issues.
     -   **Status:** Pending.
 
 2.  **(Minor)** **Tailwind CDN Warning:** The browser console shows a warning about using the Tailwind CDN in production. This will be resolved when switching to the local build process.
-
-*(Add more items as they are identified)* 

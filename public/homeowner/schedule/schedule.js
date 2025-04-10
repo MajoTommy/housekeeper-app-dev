@@ -94,8 +94,20 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // --- NEW: Get the linked housekeeper ID ---
+        if (!linkedHousekeeperId) {
+            console.error("Housekeeper ID not available for cancellation call.");
+            showToast("Error: Cannot identify housekeeper for cancellation.", true);
+            // Keep button enabled, but don't proceed
+            confirmCancellationBtn.textContent = 'Confirm Cancellation'; 
+            return;
+        }
+        const housekeeperId = linkedHousekeeperId;
+        // --- END NEW ---
+
         const reason = cancelReasonInput.value.trim();
-        console.log(`Attempting to call cancelBooking for ${bookingId} with reason: '${reason}'`);
+        // Pass housekeeperId along with bookingId and reason
+        console.log(`Attempting to call cancelBooking for booking ${bookingId} (housekeeper: ${housekeeperId}) with reason: '${reason}'`);
 
         // Disable button, show loading state
         confirmCancellationBtn.disabled = true;
@@ -120,8 +132,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const functionsInstance = window.firebaseFunctions;
             const cancelBookingFunction = functionsInstance.httpsCallable('cancelBooking');
             
-            // Call the function
-            const result = await cancelBookingFunction({ bookingId, reason });
+            // Call the function - PASS housekeeperId
+            const result = await cancelBookingFunction({ 
+                bookingId,
+                housekeeperId, // Pass the housekeeper ID
+                reason 
+            });
 
             if (result.data.success) {
                 console.log('Cloud Function call successful:', result.data.message);
@@ -444,8 +460,26 @@ document.addEventListener('DOMContentLoaded', () => {
                             const textDiv = document.createElement('div');
                             const timeRangeP = document.createElement('p');
                             timeRangeP.className = 'text-sm font-semibold text-blue-800';
-                            const displayStartTime = slotData.startTime || 'N/A'; 
-                            const displayEndTime = slotData.endTime || 'N/A'; 
+                            
+                            // --- UPDATED: Format UTC Millis for Display --- 
+                            const startMillis = slotData.startTimestampMillis;
+                            const endMillis = slotData.endTimestampMillis;
+                            let displayStartTime = 'N/A';
+                            let displayEndTime = 'N/A';
+
+                            // Assuming dateUtils.formatMillisForDisplay exists and works correctly
+                            if (startMillis && typeof dateUtils.formatMillisForDisplay === 'function') {
+                                displayStartTime = dateUtils.formatMillisForDisplay(startMillis, housekeeperTimezone, { hour: 'numeric', minute: '2-digit', hour12: true });
+                            } else {
+                                console.warn("Could not format start time from millis:", startMillis, " dateUtils exists?", typeof dateUtils.formatMillisForDisplay === 'function');
+                            }
+                            if (endMillis && typeof dateUtils.formatMillisForDisplay === 'function') {
+                                displayEndTime = dateUtils.formatMillisForDisplay(endMillis, housekeeperTimezone, { hour: 'numeric', minute: '2-digit', hour12: true });
+                            } else {
+                                console.warn("Could not format end time from millis:", endMillis, " dateUtils exists?", typeof dateUtils.formatMillisForDisplay === 'function');
+                            }
+                            // --- END UPDATED --- 
+                            
                             timeRangeP.textContent = `${displayStartTime} - ${displayEndTime}`;
                             textDiv.appendChild(timeRangeP);
 
@@ -458,49 +492,67 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                             slotDiv.appendChild(textDiv);
                             
-                            // Reconstruct dateTimeString for the button
-                            let slotDateTimeString = null;
-                            try {
-                                const slotStartTimeStr = `${dateString} ${displayStartTime}`;
-                                const slotDateObject = new Date(slotStartTimeStr);
-                                if (!isNaN(slotDateObject.getTime())) {
-                                    slotDateTimeString = slotDateObject.toISOString();
-                                } else {
-                                    console.warn(`Could not parse slot start time: ${slotStartTimeStr}`);
-                                }
-                            } catch (e) {
-                                 console.error(`Error parsing slot start time ${dateString} ${displayStartTime}`, e);
+                            // --- UPDATED: Use Millis for Button Dataset --- 
+                            let slotStartMillisForButton = null;
+                            if (startMillis) {
+                                slotStartMillisForButton = startMillis; // Use the UTC millis directly
+                            } else {
+                                console.error("Missing startTimestampMillis for button dataset", slotData);
                             }
-
+                            // --- END UPDATED ---
+                            
                             // Create the Book button
                             const bookButton = document.createElement('button');
                             bookButton.innerHTML = 'Book <i class="fas fa-chevron-right fa-xs ml-1"></i>'; 
                             bookButton.className = 'inline-flex items-center px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-full shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors'; 
                             
-                            if (slotDateTimeString) {
-                                 bookButton.dataset.datetime = slotDateTimeString;
-                                 bookButton.dataset.duration = durationMinutes || housekeeperSettings?.defaultServiceDuration || 60;
+                            // --- UPDATED: Set dataset from millis and durationMinutes --- 
+                            if (slotStartMillisForButton !== null && durationMinutes) {
+                                 bookButton.dataset.datetime = slotStartMillisForButton.toString(); // Store UTC millis as string
+                                 bookButton.dataset.duration = durationMinutes;
                                  bookButton.dataset.housekeeperId = linkedHousekeeperId;
                                  bookButton.onclick = handleSlotClick;
                             } else {
                                  bookButton.disabled = true;
                                  bookButton.innerHTML = 'Error';
                                  bookButton.title = "Could not determine exact booking time.";
-                                 console.error("Disabling button, failed to reconstruct dateTimeString for slot", slotData);
+                                 console.error("Disabling button, failed to get millis or duration for slot", slotData);
                             }
                             slotDiv.appendChild(bookButton);
 
                         } else {
                             // --- Render Unavailable/Booked/Pending Slot (Non-interactive) ---
-                            slotDiv.classList.add('bg-gray-100'); // Different background for non-available
+                            // Apply flex layout CONSISTENTLY for all non-available slots
+                            slotDiv.classList.add(
+                                'bg-gray-100', 
+                                'flex',           // Use flexbox
+                                'items-center',   // Vertically align items in the center
+                                'justify-between' // Space out content (text block vs button)
+                            ); 
 
                             // Main info container (time, status)
                             const infoDiv = document.createElement('div');
 
                             const timeRangeP = document.createElement('p');
                             timeRangeP.className = 'text-sm font-medium text-gray-500';
-                            const displayStartTime = slotData.startTime || 'N/A';
-                            const displayEndTime = slotData.endTime || 'N/A';
+                            // --- UPDATED: Format UTC Millis for Display --- 
+                            const startMillis = slotData.startTimestampMillis;
+                            const endMillis = slotData.endTimestampMillis;
+                            let displayStartTime = 'N/A';
+                            let displayEndTime = 'N/A';
+
+                            // Assuming dateUtils.formatMillisForDisplay exists and works correctly
+                            if (startMillis && typeof dateUtils.formatMillisForDisplay === 'function') {
+                                displayStartTime = dateUtils.formatMillisForDisplay(startMillis, housekeeperTimezone, { hour: 'numeric', minute: '2-digit', hour12: true });
+                            } else {
+                                console.warn("Could not format start time from millis (booked slot):", startMillis, " dateUtils exists?", typeof dateUtils.formatMillisForDisplay === 'function');
+                            }
+                            if (endMillis && typeof dateUtils.formatMillisForDisplay === 'function') {
+                                displayEndTime = dateUtils.formatMillisForDisplay(endMillis, housekeeperTimezone, { hour: 'numeric', minute: '2-digit', hour12: true });
+                            } else {
+                                console.warn("Could not format end time from millis (booked slot):", endMillis, " dateUtils exists?", typeof dateUtils.formatMillisForDisplay === 'function');
+                            }
+                             // --- END UPDATED --- 
                             timeRangeP.textContent = `${displayStartTime} - ${displayEndTime}`;
                             infoDiv.appendChild(timeRangeP);
 
@@ -515,9 +567,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             
                             slotDiv.appendChild(infoDiv);
 
-                            // Add Cancel Button for confirmed/booked slots
-                            if (slotData.status === 'confirmed' || slotData.status === 'booked') {
-                                slotDiv.classList.add('flex', 'items-center', 'justify-between'); // Make div flex for button alignment
+                            // Add Cancel Button for confirmed/booked/pending slots (NEW)
+                            if (slotData.status === 'confirmed' || slotData.status === 'booked' || slotData.status === 'pending') { // ADDED 'pending'
+                                // slotDiv.classList.add('flex', 'items-center', 'justify-between'); // REMOVED - Apply flex layout above unconditionally
                                 const cancelButton = document.createElement('button');
                                 cancelButton.textContent = 'Cancel';
                                 // Simple styling for cancel button
@@ -554,22 +606,51 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleSlotClick(event) {
         const button = event.currentTarget;
         // Store details in the global state for the modal
-        currentlySelectedSlot = {
-            dateTimeString: button.dataset.datetime,
-            duration: button.dataset.duration,
-            housekeeperId: button.dataset.housekeeperId
-        };
+        // --- UPDATED: Read UTC millis and duration --- 
+        const startTimestampMillisString = button.dataset.datetime;
+        const durationString = button.dataset.duration;
+        const housekeeperId = button.dataset.housekeeperId;
+        
+        // Validate and parse
+        const startTimestampMillis = parseInt(startTimestampMillisString, 10);
+        const duration = parseInt(durationString, 10);
 
-        console.log('Slot selected:', currentlySelectedSlot);
+        if (isNaN(startTimestampMillis) || isNaN(duration) || !housekeeperId) {
+            console.error("Invalid datetime, duration, or housekeeperId data on button:", button.dataset);
+            showToast("Error retrieving slot details.", true);
+            return;
+        }
+        
+        currentlySelectedSlot = {
+            startTimestampMillis: startTimestampMillis,
+            duration: duration,
+            housekeeperId: housekeeperId
+        };
+        // --- END UPDATED ---
+
+        console.log('Slot selected (UTC Millis):', currentlySelectedSlot);
 
         // Populate and show the drawer
         if (bookingDrawer && drawerSlotDetails) {
-            const displayDateTime = dateUtils.formatDateForDisplay(
-                currentlySelectedSlot.dateTimeString,
-                housekeeperTimezone,
-                { weekday: 'short', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true } // More detailed format
-            );
-            const durationFormatted = formatDuration(parseInt(currentlySelectedSlot.duration, 10));
+            // --- UPDATED: Format Millis for Drawer Display --- 
+            let displayDateTime = 'Invalid date';
+            // Check if dateUtils and the specific function exist
+            if (typeof dateUtils !== 'undefined' && typeof dateUtils.formatMillisForDisplay === 'function') {
+                displayDateTime = dateUtils.formatMillisForDisplay(
+                    currentlySelectedSlot.startTimestampMillis,
+                    housekeeperTimezone, // Use the fetched housekeeper timezone
+                    { weekday: 'short', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true } // More detailed format
+                );
+            } else {
+                 console.error("dateUtils.formatMillisForDisplay not available for drawer!");
+                 // Fallback display if formatting function isn't available
+                 try {
+                     displayDateTime = new Date(currentlySelectedSlot.startTimestampMillis).toLocaleString(); 
+                 } catch (e) { /* Ignore fallback error */ }
+            }
+            const durationFormatted = formatDuration(currentlySelectedSlot.duration);
+            // --- END UPDATED ---
+            
             // Use innerHTML to allow simple formatting if needed
             drawerSlotDetails.innerHTML = `
                 <p class="font-semibold text-gray-800">${displayDateTime}</p>
@@ -581,7 +662,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             console.error('Booking drawer elements not found!');
             // Fallback if modal isn't working
-            alert(`Proceed to book ${currentlySelectedSlot.dateTimeString}? (Drawer failed)`);
+            alert(`Proceed to book ${currentlySelectedSlot.startTimestampMillis}? (Drawer failed)`);
         }
     }
 
@@ -599,17 +680,31 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('--- Attempting Booking via Cloud Function ---');
         console.log('Homeowner:', currentUser.uid);
         console.log('Housekeeper:', currentlySelectedSlot.housekeeperId);
-        console.log('Selected Slot:', currentlySelectedSlot.dateTimeString);
-        console.log('Duration:', currentlySelectedSlot.duration, 'minutes');
+        // --- UPDATED: Prepare data for requestBooking --- 
+        const startMillis = currentlySelectedSlot.startTimestampMillis;
+        const duration = currentlySelectedSlot.duration;
+        let isoDateTimeString = null;
+        try {
+            isoDateTimeString = new Date(startMillis).toISOString();
+        } catch(e) {
+             console.error("Failed to create ISO string from millis:", startMillis, e);
+             showDrawerErrorState("Booking failed: Invalid date calculation.");
+             showDrawerLoadingState(false); // Reset loading state on error
+             return;
+        }
+        
+        console.log('Selected Slot (ISO UTC):', isoDateTimeString);
+        console.log('Duration:', duration, 'minutes');
+        // --- END UPDATED ---
 
         // Get reference to the Cloud Function
         const requestBooking = functions.httpsCallable('requestBooking');
 
-        // Call the function
+        // Call the function - SEND ISO STRING (as current requestBooking expects)
         requestBooking({
             housekeeperId: currentlySelectedSlot.housekeeperId,
-            dateTimeString: currentlySelectedSlot.dateTimeString,
-            duration: parseInt(currentlySelectedSlot.duration, 10), // Ensure duration is an integer
+            dateTimeString: isoDateTimeString, // Send ISO UTC string
+            duration: duration, // Duration remains integer minutes
         })
         .then(result => {
             console.log('Booking request successful:', result.data);

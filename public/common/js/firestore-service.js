@@ -679,40 +679,46 @@ const firestoreService = {
             console.error('[Firestore] addBooking requires housekeeperId and bookingData.');
             return null;
         }
-        // Basic validation
-        if (!bookingData.clientId || !bookingData.date || !bookingData.startTime || !bookingData.endTime || !bookingData.status) {
-            console.error('[Firestore] Booking data is missing required fields (clientId, date, startTime, endTime, status).');
+        // --- UPDATED Validation --- 
+        if (!bookingData.clientId || 
+            !(bookingData.startTimestamp instanceof firebase.firestore.Timestamp) || 
+            !(bookingData.endTimestamp instanceof firebase.firestore.Timestamp) || 
+            !bookingData.status) {
+            console.error('[Firestore] Booking data is missing required fields (clientId, startTimestamp, endTimestamp, status) or fields have incorrect types.');
+            // Log the invalid data for debugging
+            console.error('[Firestore] Invalid bookingData received:', bookingData);
             return null;
         }
+        // Optional: Check if start is before end
+        if (bookingData.startTimestamp.toMillis() >= bookingData.endTimestamp.toMillis()) {
+            console.error('[Firestore] Booking startTimestamp must be before endTimestamp.');
+            return null;
+        }
+        // --- END UPDATED Validation ---
 
         try {
             const bookingsRef = db.collection('users').doc(housekeeperId).collection('bookings');
             
-            // Convert date string to Firestore Timestamp
-            let firestoreDate = bookingData.date; // Default to original value
-            if (typeof bookingData.date === 'string' && bookingData.date.length > 0) {
-                try {
-                    // Attempt conversion. Assumes date is in a format JS Date constructor understands (e.g., YYYY-MM-DD)
-                    firestoreDate = firebase.firestore.Timestamp.fromDate(new Date(bookingData.date));
-                    console.log(`[Firestore] Converted date string "${bookingData.date}" to Timestamp.`);
-                } catch (dateError) {
-                    console.error(`[Firestore] Failed to convert date string "${bookingData.date}" to Timestamp:`, dateError);
-                    // Decide how to handle error: proceed with original string, or throw error?
-                    // For now, let's proceed but log the error prominently.
-                    firestoreDate = bookingData.date; // Fallback to original string on error
-                }
-            } else if (bookingData.date instanceof Date) {
-                 firestoreDate = firebase.firestore.Timestamp.fromDate(bookingData.date);
-                 console.log(`[Firestore] Converted Date object to Timestamp.`);
-            }
-
+            // --- Create Document with New Structure --- 
+            // Only include fields that should be in the booking document
             const bookingDoc = {
-                ...bookingData,
-                date: firestoreDate, // Use the converted Timestamp (or original on error)
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                clientId: bookingData.clientId,
+                housekeeperId: housekeeperId, // Ensure housekeeperId is stored
+                startTimestamp: bookingData.startTimestamp, // Already a Timestamp
+                endTimestamp: bookingData.endTimestamp,     // Already a Timestamp
+                status: bookingData.status,
+                // Optional fields from bookingData
+                clientName: bookingData.clientName || null,
+                frequency: bookingData.frequency || 'one-time',
+                notes: bookingData.notes || '',
+                address: bookingData.address || null,
+                // System fields
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp() // Add updatedAt too
             };
+            // --- END Create Document ---
 
-            console.log('[Firestore] Saving booking document:', bookingDoc);
+            console.log('[Firestore] Saving booking document (Timestamp format):', bookingDoc);
             const docRef = await bookingsRef.add(bookingDoc);
             console.log(`[Firestore] Booking added successfully with ID: ${docRef.id}`);
             return docRef.id; // Return the new booking ID
@@ -722,8 +728,8 @@ const firestoreService = {
         }
     },
 
-    // NEW: Get ALL bookings for a specific housekeeper within a date range
-    async getBookingsForHousekeeperInRange(housekeeperId, startDate, endDate) {
+      // NEW: Get ALL bookings for a specific housekeeper within a date range
+      async getBookingsForHousekeeperInRange(housekeeperId, startDate, endDate) {
         console.log(`[Firestore] Getting bookings for housekeeper ${housekeeperId} from ${startDate.toISOString()} to ${endDate.toISOString()}`);
         if (!housekeeperId || !startDate || !endDate) {
             console.error('[Firestore] getBookingsForHousekeeperInRange requires housekeeperId, startDate, and endDate.');
@@ -732,33 +738,32 @@ const firestoreService = {
 
         try {
             const bookingsRef = db.collection('users').doc(housekeeperId).collection('bookings');
-            
+
             // Convert JS Dates to Firestore Timestamps for querying
             const startTimestamp = firebase.firestore.Timestamp.fromDate(startDate);
-            // For the end date, query up to the start of the *next* day to include bookings ON the end date.
-            const dayAfterEndDate = new Date(endDate); 
-            dayAfterEndDate.setDate(endDate.getDate() + 1); // Go to the next day
-            dayAfterEndDate.setHours(0, 0, 0, 0); // Set to the beginning of that next day
-            const endTimestamp = firebase.firestore.Timestamp.fromDate(dayAfterEndDate);
+            // Use the provided end date directly (assuming it's already end of day or we query <=)
+            const endTimestamp = firebase.firestore.Timestamp.fromDate(endDate);
 
-            // Query based on the 'date' field (must be a Timestamp in Firestore)
+            // --- UPDATED Query based on startTimestamp ---
             const q = bookingsRef
-                .where('date', '>=', startTimestamp)
-                .where('date', '<', endTimestamp) // Use '<' to get dates *before* the start of the next day
-                .orderBy('date') // Order by date for consistency
-                .orderBy('startTime'); // Optional secondary sort
+                .where('startTimestamp', '>=', startTimestamp)
+                .where('startTimestamp', '<=', endTimestamp) // Include bookings STARTING on the end date
+                // Consider .where('status', '!=', 'cancelled') if needed
+                .orderBy('startTimestamp'); // Order by start time
+            // --- END UPDATED Query ---
 
             const querySnapshot = await q.get();
             const bookings = [];
             querySnapshot.forEach((doc) => {
                 const data = doc.data();
-                // Convert Firestore Timestamps back to JS Dates if needed by the frontend
-                if (data.date && data.date.toDate) {
-                    data.jsDate = data.date.toDate(); 
-                }
+                // --- REMOVED jsDate conversion ---
+                // Convert createdAt/updatedAt if needed by caller
                 if (data.createdAt && data.createdAt.toDate) {
                     data.jsCreatedAt = data.createdAt.toDate();
                 }
+                 if (data.updatedAt && data.updatedAt.toDate) {
+                     data.jsUpdatedAt = data.updatedAt.toDate();
+                 }
                 bookings.push({ id: doc.id, ...data });
             });
 
@@ -770,65 +775,76 @@ const firestoreService = {
              if (error.code === 'permission-denied') {
                  console.error('Permission denied fetching bookings. Check Firestore rules.');
              } else if (error.code === 'failed-precondition') {
-                 console.warn('Firestore requires a composite index for this query (likely on date and startTime). Please create it using the link provided in the error message in the browser console.');
+                 console.warn('Firestore requires a composite index for this query (likely on startTimestamp). Please create it using the link provided in the error message in the browser console.'); // Updated index field
             }
             return []; // Return empty array on error
         }
     },
     
-    // Get upcoming bookings for a specific homeowner linked to a specific housekeeper
-    async getUpcomingHomeownerBookings(homeownerId, housekeeperId, limit = null) {
-        console.log(`[Firestore] Getting upcoming bookings for homeowner ${homeownerId} linked to housekeeper ${housekeeperId}`);
-        if (!homeownerId || !housekeeperId) {
-            console.error('[Firestore] getUpcomingHomeownerBookings requires homeownerId and housekeeperId.');
-            return [];
-        }
-        try {
-            const today = new Date().toISOString().split('T')[0]; // Get YYYY-MM-DD
-            let query = db.collection('users').doc(housekeeperId).collection('bookings')
-                .where('clientId', '==', homeownerId)
-                .where('date', '>=', today) // Only future or today's bookings
-                .orderBy('date')
-                .orderBy('startTime');
-                
-            if (limit && typeof limit === 'number' && limit > 0) {
-                query = query.limit(limit); // Apply limit if provided
+        // Get upcoming bookings for a specific homeowner linked to a specific housekeeper
+        async getUpcomingHomeownerBookings(homeownerId, housekeeperId, limit = null) {
+            console.log(`[Firestore] Getting upcoming bookings for homeowner ${homeownerId} linked to housekeeper ${housekeeperId}`);
+            if (!homeownerId || !housekeeperId) {
+                console.error('[Firestore] getUpcomingHomeownerBookings requires homeownerId and housekeeperId.');
+                return [];
             }
-
-            const snapshot = await query.get();
-
-            const bookings = [];
-            snapshot.forEach(doc => {
-                bookings.push({ id: doc.id, ...doc.data() });
-            });
-            console.log(`[Firestore] Found ${bookings.length} upcoming bookings.`);
-            return bookings;
-        } catch (error) {
-            console.error('[Firestore] Error getting upcoming homeowner bookings:', error);
-            // Check if it's an index error and provide guidance
-            if (error.code === 'failed-precondition') {
-                 console.warn('Firestore requires a composite index for this query. Please create it using the link provided in the error message in the browser console.');
-            }
-            return [];
-        }
-    },
+            try {
+                // --- UPDATED Query ---
+                const nowTimestamp = firebase.firestore.Timestamp.now();
+                let query = db.collection('users').doc(housekeeperId).collection('bookings')
+                    .where('clientId', '==', homeownerId)
+                    .where('startTimestamp', '>=', nowTimestamp) // Bookings starting now or later
+                    .orderBy('startTimestamp'); // Order by start time
+                // --- END UPDATED Query ---
     
-    // NEW: Function to get past homeowner bookings
-    async getPastHomeownerBookings(homeownerId, housekeeperId, limit = 5) {
+                if (limit && typeof limit === 'number' && limit > 0) {
+                    query = query.limit(limit); // Apply limit if provided
+                }
+    
+                const snapshot = await query.get();
+    
+                const bookings = [];
+                snapshot.forEach(doc => {
+                    // Convert Timestamps if needed by caller (example for createdAt)
+                     const data = doc.data();
+                     if (data.createdAt && data.createdAt.toDate) {
+                         data.jsCreatedAt = data.createdAt.toDate();
+                     }
+                     if (data.updatedAt && data.updatedAt.toDate) {
+                         data.jsUpdatedAt = data.updatedAt.toDate();
+                     }
+                     // Return start/end timestamps as they are
+                    bookings.push({ id: doc.id, ...data });
+                });
+                console.log(`[Firestore] Found ${bookings.length} upcoming bookings.`);
+                return bookings;
+            } catch (error) {
+                console.error('[Firestore] Error getting upcoming homeowner bookings:', error);
+                // Check if it's an index error and provide guidance
+                if (error.code === 'failed-precondition') {
+                     console.warn('Firestore requires a composite index for this query (clientId, startTimestamp). Please create it using the link provided in the error message in the browser console.');
+                }
+                return [];
+            }
+        },
+    
+       // NEW: Function to get past homeowner bookings
+       async getPastHomeownerBookings(homeownerId, housekeeperId, limit = 5) {
         console.log(`[Firestore] Getting past bookings for homeowner ${homeownerId} linked to housekeeper ${housekeeperId}`);
         if (!homeownerId || !housekeeperId) {
             console.error('[Firestore] getPastHomeownerBookings requires homeownerId and housekeeperId.');
             return [];
         }
         try {
-            const today = new Date().toISOString().split('T')[0]; // Get YYYY-MM-DD
+            // --- UPDATED Query ---
+            const nowTimestamp = firebase.firestore.Timestamp.now();
             let query = db.collection('users').doc(housekeeperId).collection('bookings')
                 .where('clientId', '==', homeownerId)
-                .where('date', '<', today) // Only past bookings
-                // Optionally filter by status: .where('status', '==', 'completed') 
-                .orderBy('date', 'desc') // Order by most recent first
-                .orderBy('startTime', 'desc'); // Secondary sort if needed
-                
+                .where('startTimestamp', '<', nowTimestamp) // Bookings started before now
+                // Optionally filter by status: .where('status', '==', 'completed')
+                .orderBy('startTimestamp', 'desc'); // Order by most recent first
+             // --- END UPDATED Query ---
+
             if (limit && typeof limit === 'number' && limit > 0) {
                 query = query.limit(limit);
             }
@@ -837,7 +853,16 @@ const firestoreService = {
 
             const bookings = [];
             snapshot.forEach(doc => {
-                bookings.push({ id: doc.id, ...doc.data() });
+                 // Convert Timestamps if needed by caller (example for createdAt)
+                 const data = doc.data();
+                 if (data.createdAt && data.createdAt.toDate) {
+                     data.jsCreatedAt = data.createdAt.toDate();
+                 }
+                 if (data.updatedAt && data.updatedAt.toDate) {
+                     data.jsUpdatedAt = data.updatedAt.toDate();
+                 }
+                 // Return start/end timestamps as they are
+                bookings.push({ id: doc.id, ...data });
             });
             console.log(`[Firestore] Found ${bookings.length} past bookings.`);
             return bookings;
@@ -845,7 +870,7 @@ const firestoreService = {
             console.error('[Firestore] Error getting past homeowner bookings:', error);
              // Check if it's an index error and provide guidance (different index likely needed)
             if (error.code === 'failed-precondition') {
-                 console.warn('Firestore requires a composite index for the past bookings query. Please check the browser console for the creation link if this error persists.');
+                 console.warn('Firestore requires a composite index for this query (clientId, startTimestamp desc). Please check the browser console for the creation link if this error persists.');
             }
             return [];
         }
