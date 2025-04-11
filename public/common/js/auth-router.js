@@ -53,9 +53,9 @@ document.addEventListener('DOMContentLoaded', async function() {
                     
                     // Redirect based on role
                     if (userRole === 'housekeeper') {
-                        window.location.href = baseUrl + 'housekeeper/dashboard.html';
+                        window.location.href = baseUrl + 'housekeeper/schedule/schedule.html';
                     } else {
-                        window.location.href = baseUrl + 'homeowner/dashboard.html';
+                        window.location.href = baseUrl + 'homeowner/dashboard/dashboard.html';
                     }
                     return;
                 }
@@ -66,18 +66,18 @@ document.addEventListener('DOMContentLoaded', async function() {
                 
                 if (userRole === 'housekeeper' && inHomeownerSection) {
                     console.log('Housekeeper in homeowner section, redirecting');
-                    window.location.href = baseUrl + 'housekeeper/dashboard.html';
+                    window.location.href = baseUrl + 'housekeeper/schedule/schedule.html';
                     return;
                 } else if (userRole === 'homeowner' && inHousekeeperSection) {
                     console.log('Homeowner in housekeeper section, redirecting');
-                    window.location.href = baseUrl + 'homeowner/dashboard.html';
+                    window.location.href = baseUrl + 'homeowner/dashboard/dashboard.html';
                     return;
                 }
             } catch (error) {
                 console.error('Error in auth router profile check:', error);
             }
         } else {
-            // User is not logged in, check if they're trying to access protected pages
+            // User is not logged in
             const currentPath = window.location.pathname;
             console.log('No user logged in, current path:', currentPath);
             
@@ -88,15 +88,42 @@ document.addEventListener('DOMContentLoaded', async function() {
             } else {
                 baseUrl = '/';  // Default to root
             }
+
+            // --- NEW: Redirect from index/root to login if not logged in ---
+            if (currentPath.endsWith('/index.html') || currentPath === '/' || currentPath.endsWith('/')) {
+                // Allow exceptions for specific files accessible when logged out
+                const allowedRootFiles = ['/index.html', '/signup.html', '/forgot-password.html', '/404.html']; // ADDED /index.html, REMOVED /login.html
+                let onAllowedPage = false;
+                for (const allowedFile of allowedRootFiles) {
+                    // Handle root path explicitly or ensure endsWith check works
+                    if (currentPath === '/' && allowedFile === '/index.html') {
+                         onAllowedPage = true; // Allow root if index is the target
+                         break;
+                    } 
+                    if (currentPath.endsWith(allowedFile)) {
+                        onAllowedPage = true;
+                        break;
+                    }
+                }
+                // Only redirect from root/index if not already on an allowed page
+                if (!onAllowedPage) {
+                     console.log('Not logged in and on index/root page, redirecting to login (index.html).');
+                     window.location.href = baseUrl + 'index.html'; 
+                     return; // Stop further checks
+                }
+            }
+            // --- END NEW ---
             
-            // If trying to access protected pages, redirect to login
+            // If trying to access protected pages, redirect to login (Existing logic)
             if (currentPath.includes('/housekeeper/') || 
                 currentPath.includes('/homeowner/')) {
                 
-                console.log('Redirecting to login page');
-                window.location.href = baseUrl + 'login.html';
+                console.log('Not logged in and on protected page, redirecting to login (index.html).');
+                window.location.href = baseUrl + 'index.html'; // Ensure this points to index.html too
                 return;
             }
+            // Otherwise, do nothing (allow access to public pages like signup, forgot-password)
+            console.log('Not logged in, but on an allowed public page.');
         }
     });
 }); 

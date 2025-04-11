@@ -109,10 +109,18 @@ const sampleBookingsData = (
     // Create timestamps - adjust dates/times as needed for sample scenario
     const booking1Start = createTimestampForSample('2025-08-15', '10:00');
     const booking1End = createTimestampForSample('2025-08-15', '12:00');
+    const booking1StartMillis = booking1Start ? booking1Start.toMillis() : null;
+    const booking1EndMillis = booking1End ? booking1End.toMillis() : null;
+
     const booking2Start = createTimestampForSample('2024-07-10', '14:00');
     const booking2End = createTimestampForSample('2024-07-10', '16:00');
+    const booking2StartMillis = booking2Start ? booking2Start.toMillis() : null;
+    const booking2EndMillis = booking2End ? booking2End.toMillis() : null;
+
     const booking3Start = createTimestampForSample('2025-08-22', '09:00');
     const booking3End = createTimestampForSample('2025-08-22', '11:00');
+    const booking3StartMillis = booking3Start ? booking3Start.toMillis() : null;
+    const booking3EndMillis = booking3End ? booking3End.toMillis() : null;
 
     return [
         // Booking for the linked core homeowner (Future)
@@ -122,6 +130,8 @@ const sampleBookingsData = (
             clientName: `${coreHomeownerProfileData.firstName} ${coreHomeownerProfileData.lastName}`,
             startTimestamp: booking1Start,
             endTimestamp: booking1End,
+            startTimestampMillis: booking1StartMillis,
+            endTimestampMillis: booking1EndMillis,
             status: 'confirmed', // Use 'confirmed' or 'pending' based on new model
             frequency: 'one-time',
             notes: 'First cleaning for Corey.',
@@ -135,6 +145,8 @@ const sampleBookingsData = (
             clientName: `${coreHomeownerProfileData.firstName} ${coreHomeownerProfileData.lastName}`,
             startTimestamp: booking2Start,
             endTimestamp: booking2End,
+            startTimestampMillis: booking2StartMillis,
+            endTimestampMillis: booking2EndMillis,
             status: 'completed',
             frequency: 'one-time',
             notes: 'Completed cleaning.',
@@ -148,6 +160,8 @@ const sampleBookingsData = (
             clientName: `${manualClientsData[0].firstName} ${manualClientsData[0].lastName}`,
             startTimestamp: booking3Start,
             endTimestamp: booking3End,
+            startTimestampMillis: booking3StartMillis,
+            endTimestampMillis: booking3EndMillis,
             status: 'pending', // Example pending booking
             frequency: 'one-time',
             notes: 'Regular cleaning for Manual Client 1.',

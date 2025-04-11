@@ -352,7 +352,7 @@ exports.getAvailableSlots = onCall(async (request) => {
                     if (isNaN(startDateInZone.getTime())) {
                         // Throw error if toDate resulted in an invalid date
                         throw new Error(`date-fns-tz toDate failed for: ${localDateTimeStr} in ${housekeeperTimezone}`);
-                    }
+                        image.png}
 
                     // 4. Get the UTC milliseconds
                     startMillisUTC = startDateInZone.getTime();
@@ -559,12 +559,14 @@ exports.requestBooking = onCall(async (request) => {
     }
     
     let startTimestamp, endTimestamp;
+    let startTimeMillis = null; // Declare outside try block
+    let endTimeMillis = null;   // Declare outside try block
     try {
         const startDate = new Date(dateTimeString); // Parse ISO UTC string
         if (isNaN(startDate.getTime())) throw new Error("Invalid date conversion from dateTimeString.");
         
-        const startTimeMillis = startDate.getTime();
-        const endTimeMillis = startTimeMillis + (duration * 60 * 1000);
+        startTimeMillis = startDate.getTime(); // Assign value inside
+        endTimeMillis = startTimeMillis + (duration * 60 * 1000); // Assign value inside
 
         startTimestamp = admin.firestore.Timestamp.fromMillis(startTimeMillis);
         endTimestamp = admin.firestore.Timestamp.fromMillis(endTimeMillis);
@@ -576,6 +578,13 @@ exports.requestBooking = onCall(async (request) => {
         throw new HttpsError("invalid-argument", "Invalid date/time format or duration. Please provide an ISO 8601 UTC string.");
     }
     
+    // Add a check here to ensure millis were calculated successfully
+    if (startTimeMillis === null || endTimeMillis === null) {
+        logger.error("Millisecond timestamps were not calculated due to parsing error.");
+        // This state shouldn't be reached if the catch block above throws correctly, but adding belt-and-suspenders
+        throw new HttpsError("internal", "Failed to process booking time.");
+    }
+
     try {
         // 3. Conflict Check (Using Timestamps)
         const bookingsRef = db.collection(`users/${housekeeperId}/bookings`);
@@ -614,6 +623,8 @@ exports.requestBooking = onCall(async (request) => {
             housekeeperId: housekeeperId, 
             startTimestamp: startTimestamp, 
             endTimestamp: endTimestamp,
+            startTimestampMillis: startTimeMillis, // ADDED: Store milliseconds
+            endTimestampMillis: endTimeMillis,     // ADDED: Store milliseconds
             status: "pending", // Initial status
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp()

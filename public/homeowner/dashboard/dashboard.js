@@ -1,3 +1,5 @@
+import { formatMillisForDisplay } from '../../common/js/date-utils.js';
+
 // Homeowner Dashboard Logic
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Homeowner dashboard script loaded.');
@@ -14,6 +16,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const submitInviteCodeBtn = document.getElementById('submit-invite-code-btn');
     console.log('[DEBUG] submitInviteCodeBtn element:', submitInviteCodeBtn);
     const inviteErrorMessage = document.getElementById('invite-error-message');
+
+    // --- Global variable for housekeeper timezone ---
+    let housekeeperTimezone = 'UTC'; // Default to UTC
+    // --- End global --- 
 
     // Button references
     const goToSettingsBtn = document.getElementById('go-to-settings-btn');
@@ -173,10 +179,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // NEW Function to load data specific to the linked state
     const loadLinkedData = async (userId, housekeeperId, homeownerProfile) => {
-        // 1. Populate Housekeeper Info
-        populateHousekeeperInfo(housekeeperId);
+        // 1. Populate Housekeeper Info (and get timezone)
+        await populateHousekeeperInfo(housekeeperId); // Make sure this completes
         
-        // 2. Populate Next Cleaning
+        // 2. Populate Next Cleaning (now has access to housekeeperTimezone)
         populateNextCleaning(userId, housekeeperId);
         
         // 3. Populate Recent History
@@ -198,6 +204,11 @@ document.addEventListener('DOMContentLoaded', () => {
             // Fetch housekeeper profile by ID
             const housekeeperProfile = await firestoreService.getHousekeeperProfile(housekeeperId);
             if (housekeeperProfile) {
+                // --- STORE TIMEZONE --- 
+                housekeeperTimezone = housekeeperProfile.timezone || 'UTC'; 
+                console.log("Housekeeper timezone set to:", housekeeperTimezone);
+                // --- END STORE TIMEZONE ---
+
                 if (nameEl) {
                     nameEl.textContent = `${housekeeperProfile.firstName || ''} ${housekeeperProfile.lastName || ''}`.trim() || 'Housekeeper Name Unavailable';
                 }
@@ -242,57 +253,59 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log(`Fetching next cleaning for user ${userId} with housekeeper ${housekeeperId}`);
         const dateTimeEl = document.getElementById('nextCleaningDateTime');
         const serviceEl = document.getElementById('nextCleaningService');
-        // Keep address population separate as it comes from homeowner profile
-        
-        if (!dateTimeEl || !serviceEl) {
-            console.error('Next cleaning elements not found');
+        const addressEl = document.getElementById('nextCleaningAddress'); 
+
+        if (!dateTimeEl || !serviceEl || !addressEl) {
+            console.error('Missing elements for next cleaning display.');
             return;
         }
-        
+
         dateTimeEl.textContent = 'Loading...';
         serviceEl.textContent = 'Loading service details...';
 
         try {
-            // Fetch only ONE upcoming booking
-            const bookings = await firestoreService.getUpcomingHomeownerBookings(userId, housekeeperId, 1); // Add limit parameter
+            // Fetch up to 5 upcoming bookings to find the first valid one
+            const upcomingBookings = await firestoreService.getUpcomingHomeownerBookings(userId, housekeeperId, 5); 
+            console.log(`Fetched ${upcomingBookings.length} potential upcoming bookings.`);
 
-            if (bookings && bookings.length > 0) {
-                const nextBooking = bookings[0];
-                
-                // Construct the date/time string - Assuming startTime might be like "08:00 AM"
-                // Try combining with a space, which Date constructor might parse better.
-                const bookingDateTimeString = `${nextBooking.date} ${nextBooking.startTime || '00:00'}`; 
-                const bookingDate = new Date(bookingDateTimeString);
-
-                // Check if the date object is valid
-                if (isNaN(bookingDate.getTime())) { 
-                    console.error('Failed to parse booking date/time:', bookingDateTimeString);
-                    // Fallback or alternative parsing if needed?
-                    // Maybe try ISO format *if* startTime is strictly HH:mm (24-hour)?
-                    // const isoString = `${nextBooking.date}T${nextBooking.startTime}:00`;
-                    // const isoDate = new Date(isoString);
-                    // if (!isNaN(isoDate.getTime())) { ... } else { dateTimeEl.textContent = 'Invalid Date Format'; }
-                    dateTimeEl.textContent = 'Invalid Date Format'; // Keep simple error for now
-                } else {
-                    // Use toLocaleString for date and time formatting
-                    dateTimeEl.textContent = bookingDate.toLocaleString(undefined, { 
-                        month: 'long', 
-                        day: 'numeric', 
-                        hour: 'numeric', 
-                        minute: '2-digit', 
-                        hour12: true // Use AM/PM 
-                    });
+            // Find the first booking with the required millisecond timestamp
+            const nextBooking = upcomingBookings.find(booking => 
+                booking && typeof booking.startTimestampMillis === 'number'
+            );
+            
+            if (nextBooking) {
+                console.log('Found valid next booking to display:', nextBooking);
+                // Ensure startTimestampMillis exists and is a number (redundant check, but safe)
+                if (nextBooking.startTimestampMillis) { // Check truthiness which covers number > 0
+                    // Use imported function directly
+                    const formattedDateTime = formatMillisForDisplay(
+                        nextBooking.startTimestampMillis, 
+                        housekeeperTimezone, 
+                        { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }
+                    );
+                    dateTimeEl.textContent = formattedDateTime;
+                    dateTimeEl.classList.remove('text-gray-500');
+                    dateTimeEl.classList.add('text-blue-600');
+                } else { // Should not happen based on the find() above, but good fallback
+                     console.warn('Valid next booking found, but startTimestampMillis is invalid?', nextBooking.startTimestampMillis);
+                     dateTimeEl.textContent = 'Time not available';
+                     dateTimeEl.classList.add('text-gray-500');
+                     dateTimeEl.classList.remove('text-blue-600');
                 }
-                
-                serviceEl.textContent = nextBooking.serviceType || 'House Cleaning'; // Assuming serviceType field, add default
+
+                serviceEl.textContent = nextBooking.serviceType || 'Standard Cleaning'; 
             } else {
+                console.log('No valid upcoming bookings found with required data among the fetched ones.');
                 dateTimeEl.textContent = 'No upcoming cleanings';
+                dateTimeEl.classList.add('text-gray-500');
+                dateTimeEl.classList.remove('text-blue-600');
                 serviceEl.textContent = '';
+                // addressEl.textContent = ''; // Address should still show homeowner's address
             }
         } catch (error) {
             console.error('Error loading next cleaning:', error);
-            dateTimeEl.textContent = 'Error loading';
-            serviceEl.textContent = 'Error loading details.';
+            if (dateTimeEl) dateTimeEl.textContent = 'Error loading';
+            if (serviceEl) serviceEl.textContent = 'Could not load details';
         }
     };
     
@@ -326,12 +339,24 @@ document.addEventListener('DOMContentLoaded', () => {
     // NEW Helper to create history list item
     function createHistoryListItem(booking) {
         const div = document.createElement('div');
-        // Add cursor-pointer and hover effect if clickable
         div.className = 'bg-white p-3 rounded-lg shadow flex justify-between items-center cursor-pointer hover:bg-gray-50'; 
         div.dataset.bookingId = booking.id; // Store ID for click handler
         
-        const bookingDate = new Date(booking.date + 'T00:00:00'); // Use date only for display
-        const dateString = bookingDate.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+        let dateString = 'Invalid Date';
+        if (booking.startTimestampMillis && typeof booking.startTimestampMillis === 'number') {
+             try {
+                // Use formatMillisForDisplay with appropriate options for history
+                dateString = formatMillisForDisplay(
+                    booking.startTimestampMillis,
+                    housekeeperTimezone, // Use the globally stored housekeeper timezone
+                    { month: 'long', day: 'numeric', year: 'numeric' } // e.g., July 10, 2024
+                );
+             } catch (e) {
+                console.error('Error formatting history date:', e);
+             }
+        } else {
+             console.warn('Missing or invalid startTimestampMillis for history item:', booking);
+        }
 
         div.innerHTML = `
             <div>

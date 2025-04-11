@@ -74,8 +74,8 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             
             firebase.auth().signOut().then(() => {
-                // Sign-out successful, redirect to login
-                window.location.href = 'login.html';
+                // Sign-out successful, redirect to the new index (login) page
+                window.location.href = '/'; // Redirect to root, which is now the login page
             }).catch((error) => {
                 // An error happened
                 console.error('Logout error:', error);

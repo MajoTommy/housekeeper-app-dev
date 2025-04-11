@@ -706,6 +706,8 @@ const firestoreService = {
                 housekeeperId: housekeeperId, // Ensure housekeeperId is stored
                 startTimestamp: bookingData.startTimestamp, // Already a Timestamp
                 endTimestamp: bookingData.endTimestamp,     // Already a Timestamp
+                startTimestampMillis: bookingData.startTimestamp.toMillis(), // Add milliseconds version
+                endTimestampMillis: bookingData.endTimestamp.toMillis(),     // Add milliseconds version
                 status: bookingData.status,
                 // Optional fields from bookingData
                 clientName: bookingData.clientName || null,
