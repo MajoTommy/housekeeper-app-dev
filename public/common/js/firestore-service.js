@@ -831,21 +831,30 @@ const firestoreService = {
         },
     
        // NEW: Function to get past homeowner bookings
-       async getPastHomeownerBookings(homeownerId, housekeeperId, limit = 5) {
+       async getPastHomeownerBookings(homeownerId, housekeeperId, limit = 5, startDate = null) {
         console.log(`[Firestore] Getting past bookings for homeowner ${homeownerId} linked to housekeeper ${housekeeperId}`);
         if (!homeownerId || !housekeeperId) {
             console.error('[Firestore] getPastHomeownerBookings requires homeownerId and housekeeperId.');
             return [];
         }
         try {
-            // --- UPDATED Query ---
             const nowTimestamp = firebase.firestore.Timestamp.now();
             let query = db.collection('users').doc(housekeeperId).collection('bookings')
                 .where('clientId', '==', homeownerId)
-                .where('startTimestamp', '<', nowTimestamp) // Bookings started before now
-                // Optionally filter by status: .where('status', '==', 'completed')
-                .orderBy('startTimestamp', 'desc'); // Order by most recent first
-             // --- END UPDATED Query ---
+                .where('status', '==', 'completed') // Filter for completed status
+                .where('startTimestamp', '<', nowTimestamp); // Bookings started before now
+
+            // Add start date filter if provided
+            if (startDate instanceof Date) {
+                 const startTimestamp = firebase.firestore.Timestamp.fromDate(startDate);
+                 console.log(`[Firestore] Adding date filter: startTimestamp >= ${startDate.toISOString()}`);
+                 query = query.where('startTimestamp', '>=', startTimestamp);
+                 // IMPORTANT: Ordering must match the inequality filter field first if using inequality
+                 query = query.orderBy('startTimestamp', 'desc'); 
+            } else {
+                 // If no start date, just order by most recent first
+                 query = query.orderBy('startTimestamp', 'desc'); 
+            }
 
             if (limit && typeof limit === 'number' && limit > 0) {
                 query = query.limit(limit);
@@ -855,7 +864,6 @@ const firestoreService = {
 
             const bookings = [];
             snapshot.forEach(doc => {
-                 // Convert Timestamps if needed by caller (example for createdAt)
                  const data = doc.data();
                  if (data.createdAt && data.createdAt.toDate) {
                      data.jsCreatedAt = data.createdAt.toDate();
@@ -863,16 +871,15 @@ const firestoreService = {
                  if (data.updatedAt && data.updatedAt.toDate) {
                      data.jsUpdatedAt = data.updatedAt.toDate();
                  }
-                 // Return start/end timestamps as they are
                 bookings.push({ id: doc.id, ...data });
             });
-            console.log(`[Firestore] Found ${bookings.length} past bookings.`);
+            console.log(`[Firestore] Found ${bookings.length} past bookings matching criteria.`);
             return bookings;
         } catch (error) {
             console.error('[Firestore] Error getting past homeowner bookings:', error);
-             // Check if it's an index error and provide guidance (different index likely needed)
+            // Check if it's an index error and provide guidance 
             if (error.code === 'failed-precondition') {
-                 console.warn('Firestore requires a composite index for this query (clientId, startTimestamp desc). Please check the browser console for the creation link if this error persists.');
+                 console.warn('Firestore requires a composite index for this query (likely involving clientId, status, and startTimestamp). Please check the browser console for the Firestore index creation link if this error persists.');
             }
             return [];
         }

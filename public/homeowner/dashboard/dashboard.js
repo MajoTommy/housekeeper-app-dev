@@ -331,11 +331,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 twelveMonthsAgoDate // Pass the start date for the filter
             );
             
+            // *** ADD DEBUG LOGGING ***
+            console.log("Raw pastBookings received from service:", JSON.stringify(pastBookings, null, 2));
+            // *** END DEBUG LOGGING ***
+
             if (pastBookings && pastBookings.length > 0) {
                 historyListEl.innerHTML = ''; // Clear loading state
                 // Filter again client-side just in case status filter wasn't perfect or data changed
                 const completedBookings = pastBookings.filter(b => b.status === 'completed');
                 
+                // *** ADD DEBUG LOGGING ***
+                console.log(`Client-side filter result (completedBookings count): ${completedBookings.length}`);
+                 if (completedBookings.length === 0 && pastBookings.length > 0) {
+                     console.warn("Client-side status filter removed bookings that should have been completed. Check status field case/value.");
+                 }
+                // *** END DEBUG LOGGING ***
+
                 if (completedBookings.length > 0) {
                      completedBookings.forEach(booking => {
                          const item = createHistoryListItem(booking);
@@ -388,8 +399,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Add click listener for receipt/details
         div.addEventListener('click', () => {
-            console.log('View history/receipt for booking:', booking.id);
-            alert('Show receipt modal/view - TBD');
+            openReceiptModal(booking); // Pass the full booking object
         });
         
         return div;
@@ -635,6 +645,66 @@ document.addEventListener('DOMContentLoaded', () => {
         locationAddressInput.value = `${streetNumber} ${route}`.trim();
     }
 
+    // NEW: Receipt Modal Elements
+    const receiptModal = document.getElementById('receiptModal');
+    const receiptModalBackdrop = document.getElementById('receiptModalBackdrop');
+    const closeReceiptModalButton = document.getElementById('closeReceiptModal');
+    const dismissReceiptModalButton = document.getElementById('dismissReceiptModal');
+    const receiptDateEl = document.getElementById('receiptDate');
+    const receiptTimeEl = document.getElementById('receiptTime');
+    const receiptServiceTypeEl = document.getElementById('receiptServiceType');
+    const receiptDurationEl = document.getElementById('receiptDuration');
+    const receiptNotesEl = document.getElementById('receiptNotes');
+
+    // NEW: Receipt Modal Functions
+    const openReceiptModal = (booking) => {
+        console.log('Opening receipt modal for booking:', booking);
+        if (!receiptModal || !receiptModalBackdrop || !booking || !booking.startTimestampMillis) {
+            console.error('Cannot open receipt modal, elements or data missing.');
+            return;
+        }
+
+        // Populate Modal
+        receiptDateEl.textContent = formatMillisForDisplay(booking.startTimestampMillis, housekeeperTimezone, { month: 'long', day: 'numeric', year: 'numeric' });
+        receiptTimeEl.textContent = formatMillisForDisplay(booking.startTimestampMillis, housekeeperTimezone, { hour: 'numeric', minute: '2-digit', hour12: true });
+        receiptServiceTypeEl.textContent = booking.serviceType || 'Standard Cleaning';
+        receiptNotesEl.textContent = booking.notes || 'N/A';
+
+        // Calculate and format duration
+        if (booking.endTimestampMillis && typeof booking.endTimestampMillis === 'number') {
+            const durationMillis = booking.endTimestampMillis - booking.startTimestampMillis;
+            const durationMinutes = Math.round(durationMillis / (60 * 1000));
+            const hours = Math.floor(durationMinutes / 60);
+            const minutes = durationMinutes % 60;
+            receiptDurationEl.textContent = `${hours > 0 ? hours + ' hr ' : ''}${minutes > 0 ? minutes + ' min' : ''}`.trim() || 'N/A';
+        } else {
+            receiptDurationEl.textContent = 'N/A';
+        }
+
+        // Show Modal
+        receiptModalBackdrop.classList.remove('hidden');
+        receiptModalBackdrop.classList.add('opacity-100');
+        receiptModal.classList.remove('hidden'); // Ensure it's not hidden before transform
+        receiptModal.classList.remove('translate-y-full');
+    };
+
+    const closeReceiptModal = () => {
+        console.log('Closing receipt modal...');
+        if (!receiptModal || !receiptModalBackdrop) return;
+
+        receiptModalBackdrop.classList.remove('opacity-100');
+        receiptModal.classList.add('translate-y-full');
+        
+        setTimeout(() => {
+            receiptModalBackdrop.classList.add('hidden');
+            // receiptModal.classList.add('hidden'); // Don't hide, just translate
+        }, 300); 
+    };
+    
+    // Add Event Listeners for Receipt Modal Close Buttons
+    closeReceiptModalButton?.addEventListener('click', closeReceiptModal);
+    dismissReceiptModalButton?.addEventListener('click', closeReceiptModal);
+    receiptModalBackdrop?.addEventListener('click', closeReceiptModal);
 
     // --- Event Listeners Setup ---
     const addEventListeners = (userId) => {

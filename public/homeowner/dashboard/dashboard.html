@@ -259,6 +259,40 @@
     <!-- Location Modal Backdrop -->
     <div id="locationEditModalBackdrop" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden transition-opacity duration-300"></div>
 
+    <!-- NEW: Receipt Modal (Bottom Slide) -->
+    <div id="receiptModal" class="fixed inset-x-0 bottom-0 z-50 transform transition-transform duration-300 ease-in-out translate-y-full">
+        <div class="bg-white w-full rounded-t-xl overflow-hidden shadow-xl transform transition-all max-h-[90vh] flex flex-col">
+            <!-- Handle -->
+            <div class="flex justify-center pt-2 pb-1 cursor-grab">
+                <div class="w-10 h-1 bg-gray-300 rounded-full"></div>
+            </div>
+            <!-- Header -->
+            <div class="flex justify-between items-center p-4 border-b border-gray-200">
+                <h2 class="text-xl font-bold text-gray-900">Cleaning Receipt</h2>
+                <button id="closeReceiptModal" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i>
+                     <span class="sr-only">Close</span>
+                </button>
+            </div>
+            <!-- Content -->
+            <div id="receiptContent" class="p-6 space-y-3 overflow-y-auto flex-grow -webkit-overflow-scrolling-touch">
+                <p><strong class="text-gray-600">Date:</strong> <span id="receiptDate"></span></p>
+                <p><strong class="text-gray-600">Time:</strong> <span id="receiptTime"></span></p>
+                <p><strong class="text-gray-600">Service Type:</strong> <span id="receiptServiceType"></span></p>
+                <p><strong class="text-gray-600">Duration:</strong> <span id="receiptDuration"></span></p>
+                <p><strong class="text-gray-600">Notes:</strong> <span id="receiptNotes"></span></p>
+                <!-- Add more fields like Price later if needed -->
+            </div>
+             <!-- Footer/Close Button -->
+             <div class="p-4 border-t border-gray-200 flex justify-end">
+                 <button type="button" id="dismissReceiptModal" class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Close</button>
+             </div>
+        </div>
+    </div>
+    <!-- Receipt Modal Backdrop -->
+    <div id="receiptModalBackdrop" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden transition-opacity duration-300"></div>
+    <!-- END: Receipt Modal -->
+
     <!-- Script Loading Order is Important -->
     <!-- 1. Maps Config (Loads the API Key - MUST be before Maps API script) -->
     <script src="/common/js/maps-config.js"></script>
