@@ -318,15 +318,32 @@ document.addEventListener('DOMContentLoaded', () => {
         historyListEl.innerHTML = '<p class="text-gray-500">Loading history...</p>'; // Loading state
         
         try {
-            // *** NEED NEW Service function: getPastHomeownerBookings(userId, housekeeperId, limit) ***
-            const pastBookings = await firestoreService.getPastHomeownerBookings(userId, housekeeperId, 5); // Get last 5 completed
+            // Calculate date 12 months ago
+            const twelveMonthsAgoDate = new Date();
+            twelveMonthsAgoDate.setFullYear(twelveMonthsAgoDate.getFullYear() - 1);
+            console.log("Fetching history since:", twelveMonthsAgoDate.toISOString());
+
+            // Fetch completed bookings from the last 12 months
+            const pastBookings = await firestoreService.getPastHomeownerBookings(
+                userId, 
+                housekeeperId, 
+                50, // Increase limit slightly to ensure we get enough completed ones if needed
+                twelveMonthsAgoDate // Pass the start date for the filter
+            );
             
             if (pastBookings && pastBookings.length > 0) {
                 historyListEl.innerHTML = ''; // Clear loading state
-                pastBookings.forEach(booking => {
-                    const item = createHistoryListItem(booking);
-                    historyListEl.appendChild(item);
-                });
+                // Filter again client-side just in case status filter wasn't perfect or data changed
+                const completedBookings = pastBookings.filter(b => b.status === 'completed');
+                
+                if (completedBookings.length > 0) {
+                     completedBookings.forEach(booking => {
+                         const item = createHistoryListItem(booking);
+                         historyListEl.appendChild(item);
+                     });
+                } else {
+                     historyListEl.innerHTML = '<p class="text-gray-500">No completed cleanings found in the last 12 months.</p>';
+                }
             } else {
                  historyListEl.innerHTML = '<p class="text-gray-500">No past cleaning history found.</p>';
             }
