@@ -200,6 +200,56 @@ const firestoreService = {
         }
     },
 
+    // NEW: Update Housekeeper Profile AND User doc atomically
+    async updateHousekeeperProfileAndUser(housekeeperId, profileData) {
+        console.log(`[Firestore] Updating housekeeper profile & user doc for ID: ${housekeeperId}`);
+        if (!housekeeperId || !profileData) {
+            console.error('[Firestore] updateHousekeeperProfileAndUser requires housekeeperId and profileData.');
+            throw new Error('Invalid input for profile update.');
+        }
+        
+        const batch = db.batch();
+        const userRef = db.collection('users').doc(housekeeperId);
+        const profileRef = db.collection('housekeeper_profiles').doc(housekeeperId);
+
+        const timestamp = firebase.firestore.FieldValue.serverTimestamp();
+
+        // Data for /users/{userId}
+        const userDataToUpdate = {
+            firstName: profileData.firstName,
+            lastName: profileData.lastName,
+            phone: profileData.phone,
+            companyName: profileData.companyName || null, // Ensure companyName is also in user doc if needed
+            updatedAt: timestamp
+        };
+        // Remove undefined fields
+        Object.keys(userDataToUpdate).forEach(key => userDataToUpdate[key] === undefined && delete userDataToUpdate[key]);
+        batch.update(userRef, userDataToUpdate);
+
+        // Data for /housekeeper_profiles/{userId}
+        const profileDocDataToUpdate = {
+            firstName: profileData.firstName,
+            lastName: profileData.lastName,
+            phone: profileData.phone, // Assuming phone is also stored here
+            companyName: profileData.companyName || null,
+            // Add any other fields specific to housekeeper_profiles that might be edited
+            updatedAt: timestamp
+        };
+         // Remove undefined fields
+        Object.keys(profileDocDataToUpdate).forEach(key => profileDocDataToUpdate[key] === undefined && delete profileDocDataToUpdate[key]);
+        // Use set with merge:true in case the profile doc doesn't exist yet (robustness)
+        batch.set(profileRef, profileDocDataToUpdate, { merge: true });
+
+        try {
+            await batch.commit();
+            console.log(`[Firestore] Housekeeper profile & user doc updated successfully for ID: ${housekeeperId}`);
+            return true; // Indicate success
+        } catch (error) {
+            console.error('[Firestore] Error updating housekeeper profile & user doc:', error);
+            throw error; // Re-throw the error to be caught by the caller
+        }
+    },
+
     // ---- HOMEOWNER-HOUSEKEEPER LINKING ----
     async linkHomeownerToHousekeeper(homeownerId, inviteCode) {
         console.log(`[Link] Attempting to link homeowner ${homeownerId} using code ${inviteCode}`);

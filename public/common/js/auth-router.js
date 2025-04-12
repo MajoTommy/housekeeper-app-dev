@@ -49,13 +49,13 @@ document.addEventListener('DOMContentLoaded', async function() {
                     currentPath.endsWith('/') ||
                     currentPath.includes('/signup.html')) {
                     
-                    console.log('On landing/login page, redirecting based on role');
+                    console.log('On landing/login/signup page, redirecting based on role');
                     
-                    // Redirect based on role
+                    // Redirect based on role using CLEAN URLs
                     if (userRole === 'housekeeper') {
-                        window.location.href = baseUrl + 'housekeeper/schedule/schedule.html';
+                        window.location.href = baseUrl + 'housekeeper/schedule'; // Use clean URL
                     } else {
-                        window.location.href = baseUrl + 'homeowner/dashboard/dashboard.html';
+                        window.location.href = baseUrl + 'homeowner/dashboard'; // Use clean URL
                     }
                     return;
                 }
@@ -66,11 +66,11 @@ document.addEventListener('DOMContentLoaded', async function() {
                 
                 if (userRole === 'housekeeper' && inHomeownerSection) {
                     console.log('Housekeeper in homeowner section, redirecting');
-                    window.location.href = baseUrl + 'housekeeper/schedule/schedule.html';
+                    window.location.href = baseUrl + 'housekeeper/schedule'; // Use clean URL
                     return;
                 } else if (userRole === 'homeowner' && inHousekeeperSection) {
                     console.log('Homeowner in housekeeper section, redirecting');
-                    window.location.href = baseUrl + 'homeowner/dashboard/dashboard.html';
+                    window.location.href = baseUrl + 'homeowner/dashboard'; // Use clean URL
                     return;
                 }
             } catch (error) {
