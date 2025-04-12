@@ -4,147 +4,6 @@
 
 _**User**_
 
-I reverted back as you needed to learn the code base first. 
-
----
-
-(index):64 cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation
-(anonymous) @ (index):64
-(anonymous) @ (index):64
-maps-config.js:9 Maps API Key loaded. Remember to replace placeholder if needed and ensure this file is in .gitignore!
-dashboard:280 Loading Google Maps API using key from config...
-firebase-config.js:14 Initializing Firebase...
-firebase-config.js:16 Firebase initialized successfully
-firebase-config.js:20 Auth service initialized
-firebase-config.js:27 Firestore initialized
-dashboard.js:3 Homeowner dashboard script loaded.
-dashboard.js:12 [DEBUG] invite-code-form element: null
-dashboard.js:15 [DEBUG] submitInviteCodeBtn element: <button type=​"submit" id=​"submit-invite-code-btn" class=​"inline-flex items-center px-6 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:​bg-blue-700 focus:​outline-none focus:​ring-2 focus:​ring-offset-2 focus:​ring-blue-500 whitespace-nowrap">​ Link Account ​</button>​flex
-dashboard.js:730 Waiting for auth state...
-js?key=AIzaSyDlXNozm93VKcVRrPAC9Cr9QgIEvql6XUA&libraries=places&callback=initAutocomplete&async=1&defer=1:1279 Google Maps JavaScript API has been loaded directly without loading=async. This can result in suboptimal performance. For best-practice loading patterns please see https://goo.gle/js-api-loading
-Hfa @ js?key=AIzaSyDlXNozm93VKcVRrPAC9Cr9QgIEvql6XUA&libraries=places&callback=initAutocomplete&async=1&defer=1:1279
-google.maps.Load @ js?key=AIzaSyDlXNozm93VKcVRrPAC9Cr9QgIEvql6XUA&libraries=places&callback=initAutocomplete&async=1&defer=1:14
-(anonymous) @ js?key=AIzaSyDlXNozm93VKcVRrPAC9Cr9QgIEvql6XUA&libraries=places&callback=initAutocomplete&async=1&defer=1:1513
-(anonymous) @ js?key=AIzaSyDlXNozm93VKcVRrPAC9Cr9QgIEvql6XUA&libraries=places&callback=initAutocomplete&async=1&defer=1:1513
-dashboard:285 Google Maps API loaded and ready (callback executed).
-dashboard.js:686 User is signed in: oVq1QoYHcRRTkh0KjMeGfhkgx5H3
-dashboard.js:138 Loading dashboard data for user: oVq1QoYHcRRTkh0KjMeGfhkgx5H3
-firestore-service.js:73 [Firestore] Getting homeowner profile for ID: oVq1QoYHcRRTkh0KjMeGfhkgx5H3
-firestore-service.js:82 [Firestore] Raw homeowner profile data fetched: {linkedHousekeeperId: 'wnvHPASoOlUUeofBcbi2wq3ZSRz2', specialInstructions: 'Please use the back door. Small dog is friendly.', zip: '90211', address: '101 Home Sweet Ln', lastName: 'Homeowner', …}
-firestore-service.js:83 [Firestore] Checking linkedHousekeeperId within raw data: wnvHPASoOlUUeofBcbi2wq3ZSRz2
-firestore-service.js:85 [Firestore] Homeowner profile found (returning): {linkedHousekeeperId: 'wnvHPASoOlUUeofBcbi2wq3ZSRz2', specialInstructions: 'Please use the back door. Small dog is friendly.', zip: '90211', address: '101 Home Sweet Ln', lastName: 'Homeowner', …}
-dashboard.js:143 Homeowner profile fetched: {linkedHousekeeperId: 'wnvHPASoOlUUeofBcbi2wq3ZSRz2', specialInstructions: 'Please use the back door. Small dog is friendly.', zip: '90211', address: '101 Home Sweet Ln', lastName: 'Homeowner', …}
-dashboard.js:149 User is linked to housekeeper: wnvHPASoOlUUeofBcbi2wq3ZSRz2
-firestore-service.js:154 [Firestore] Getting housekeeper profile for ID: wnvHPASoOlUUeofBcbi2wq3ZSRz2
-dashboard.js:657 Adding event listeners for linked view...
-firestore-service.js:162 [Firestore] Housekeeper profile found: {city: 'Workville', workingDays: {…}, updatedAt: ti, address: '202 Clean St', state: 'CA', …}
-dashboard.js:207 Housekeeper timezone set to: UTC
-dashboard.js:251 Fetching next cleaning for user oVq1QoYHcRRTkh0KjMeGfhkgx5H3 with housekeeper wnvHPASoOlUUeofBcbi2wq3ZSRz2
-firestore-service.js:786 [Firestore] Getting upcoming bookings for homeowner oVq1QoYHcRRTkh0KjMeGfhkgx5H3 linked to housekeeper wnvHPASoOlUUeofBcbi2wq3ZSRz2
-dashboard.js:307 Fetching recent history for user oVq1QoYHcRRTkh0KjMeGfhkgx5H3 with housekeeper wnvHPASoOlUUeofBcbi2wq3ZSRz2
-firestore-service.js:833 [Firestore] Getting past bookings for homeowner oVq1QoYHcRRTkh0KjMeGfhkgx5H3 linked to housekeeper wnvHPASoOlUUeofBcbi2wq3ZSRz2
-dashboard.js:657 Adding event listeners for linked view...
-firestore-service.js:819 [Firestore] Found 1 upcoming bookings.
-dashboard.js:299 Error loading next cleaning: ReferenceError: dateUtils is not defined
-    at populateNextCleaning (dashboard.js:273:97)
-populateNextCleaning @ dashboard.js:299
-await in populateNextCleaning
-loadLinkedData @ dashboard.js:184
-await in loadLinkedData
-loadDashboardData @ dashboard.js:156
-await in loadDashboardData
-(anonymous) @ dashboard.js:692
-next @ auth.ts:358
-(anonymous) @ auth_impl.ts:600
-Promise.then
-registerStateListener @ auth_impl.ts:600
-onAuthStateChanged @ auth_impl.ts:442
-onAuthStateChanged @ auth.ts:180
-(anonymous) @ dashboard.js:683
-firestore-service.js:867 [Firestore] Found 1 past bookings.
-
-
----
-
-_**Assistant**_
-
-
-
----
-
-Okay, I see the error in the console:
-
-```
-dashboard.js:299 Error loading next cleaning: ReferenceError: dateUtils is not defined
-    at populateNextCleaning (dashboard.js:273:97)
-```
-
-This error indicates that the `populateNextCleaning` function in `public/homeowner/dashboard/dashboard.js` is trying to use a variable or object named `dateUtils`, but it hasn't been defined or imported in that file's scope.
-
-Based on the project structure, `dateUtils` likely refers to the utility functions defined in `public/js/utils/dateUtils.js`.
-
-To fix this, I need to ensure that `dateUtils.js` is loaded *before* `dashboard.js` in the corresponding HTML file, which is likely `public/homeowner/dashboard/index.html`.
-
-I will first read the `index.html` file to check the script loading order.
-
----
-
-Could not find file 'public/homeowner/dashboard/index.html' in the workspace.
-
----
-
-
-
----
-
-Okay, it seems I guessed the wrong file path. The error indicates `public/homeowner/dashboard/index.html` doesn't exist.
-
-Looking at the structure, it's more likely that `dashboard.js` is loaded within the main `public/homeowner/index.html` file.
-
-I'll read `public/homeowner/index.html` to check the script loading order there.
-
----
-
-Could not find file 'public/homeowner/index.html' in the workspace.
-
----
-
-
-
----
-
-<details>
-            <summary>Listed directory public/ • **12** results</summary>
-        
-| Name |
-|-------|
-| 📁 `homeowner` |
-| 📁 `housekeeper` |
-| 📄 `dev-tools.html` |
-| 📄 `signup.html` |
-| 📁 `common` |
-| 📁 `js` |
-| 📄 `login.html` |
-| 📄 `index.html` |
-| 📁 `css` |
-| 📄 `favicon.ico` |
-| 📄 `404.html` |
-| 📄 `forgot-password.html` |
-
-</details>
-
----
-
-
-
----
-
-Could not find file 'public/homeowner/index.html' in the workspace.
-
----
-
-_**User**_
-
 Please read app-structure.md as there is not dashboard/index.html files. 
 
 ---
@@ -15164,6 +15023,703 @@ Read file: docs/Database-Structure.md
 ---
 
 Read file: docs/App-Structure.md
+
+---
+
+```diff
+  ## Root Collections
+  
+- -   `/users`: Stores user profile information for both housekeepers and homeowners.
+- -   `/invites`: (If applicable) Stores invitation codes or pending invites.
++ -   `/users`: Stores base user profile information (auth details, role).
++ -   `/housekeeper_profiles`: Stores extended profile information specific to housekeepers.
++ -   `/homeowner_profiles`: Stores extended profile information specific to homeowners.
++ -   `/properties`: Stores details about homeowner properties (address, size, etc.).
++ -   `/invites`: (Currently unused, potential for future invite system)
+  
+  ## `/users/{userId}` Document
+  
+- Contains basic profile information common to all users.
++ Contains basic profile information common to all users, primarily sourced from Firebase Auth and initial signup.
+  
+  ```json
+  {
+-   "uid": "userId",
+-   "email": "user@example.com",
+-   "role": "housekeeper" | "homeowner",
+-   "firstName": "Casey",
+-   "lastName": "Keeper",
+-   "createdAt": Timestamp,
+-   // Other common fields...
++   "email": "user@example.com", // From Auth
++   "role": "housekeeper" | "homeowner", // Set during signup
++   "firstName": "Casey", // Set during signup/profile edit
++   "lastName": "Keeper", // Set during signup/profile edit
++   "phone": "555-333-4444", // Set during signup/profile edit
++   "companyName": "Core Cleaning Co.", // Set during profile edit (housekeeper only)
++   "createdAt": Timestamp, // Set on creation
++   "updatedAt": Timestamp, // Set on updates
++   "lastLogin": Timestamp // (Optional) Set by Auth triggers/functions
+  }
+  ```
++ *Note: Fields like `hourly_rate`, `service_area`, `working_hours` are deprecated here; use profile/settings subcollections.* 
+  
+  ### Subcollections under `/users/{userId}`
+            "email": "client@example.com",
+            "phone": "555-1234",
+-           "address": "123 Main St, Anytown, CA 90210",
+-           "accessInfo": "Key under mat, code 1234",
+-           "specialInstructions": "Beware of dog",
+-           // Other client details...
++           "address": "123 Main St", // Full address string
++           "city": "Anytown",
++           "state": "CA",
++           "zip": "90210",
++           "notes": "Notes specific to the client",
++           "createdAt": Timestamp,
++           "updatedAt": Timestamp
+          }
+          ```
+          ```json
+          {
+-           "date": "YYYY-MM-DD", // String format for the date of the booking
+-           "startTime": "HH:MM AM/PM", // String format (e.g., "9:00 AM", "1:30 PM")
+-           "endTime": "HH:MM AM/PM", // String format
+-           "clientId": "clientId | homeownerUserId", // Reference to /clients/{clientId} OR /users/{userId} if homeowner booked directly
+-           "clientName": "Client Full Name", // Denormalized for easier display
+-           "clientAddress": "Client Address", // Denormalized
+-           "clientPhone": "Client Phone", // Denormalized
+-           "accessInfo": "Access notes for this specific booking", // Denormalized or booking-specific
+-           "status": "upcoming" | "done" | "cancelled",
+-           "frequency": "one-time" | "weekly" | "bi-weekly" | "monthly", // Optional recurrence info
++           "housekeeperId": "{userId}", // Housekeeper UID
++           "clientId": "clientId | homeownerUserId", // UID of the client (from /clients or /users)
++           "clientName": "Client Full Name", // Denormalized
++           "address": "Client Address", // Denormalized from client/property at booking time
++           
++           "startTimestamp": Timestamp, // Primary storage (UTC)
++           "endTimestamp": Timestamp, // Primary storage (UTC)
++           "startTimestampMillis": Number, // UTC milliseconds since epoch
++           "endTimestampMillis": Number, // UTC milliseconds since epoch
++           
++           "status": "pending" | "confirmed" | "cancelled_by_homeowner" | "cancelled_by_housekeeper" | "completed",
++           "frequency": "one-time" | "weekly" | "bi-weekly" | "monthly", // Optional
++           "notes": "Booking specific notes", // Optional
++           "serviceType": "Standard Cleaning", // Optional
++ 
+            "createdAt": Timestamp,
+-           "updatedAt": Timestamp
+-           // Potentially price, job duration estimate, etc.
++           "updatedAt": Timestamp,
++           "confirmedAt": Timestamp, // Optional
++           "cancelledAt": Timestamp, // Optional
++           "cancelledBy": "homeowner" | "housekeeper", // Optional
++           "cancellationReason": "Reason..." // Optional
+          }
+          ```
+-         *Note: The `date` field is currently stored/queried as a `YYYY-MM-DD` String.*
+  -   `/settings`: Stores application-specific settings for the housekeeper.
+-     -   `/settings/app`: (Single document for simplicity)
++     -   `/settings/app`: (Single document)
+          ```json
+          {
+-           "workingDays": {
++           "workingDays": { // Default weekly availability pattern
+              "monday": {
+                "isWorking": true,
+-               "startTime": "HH:MM AM/PM", // e.g., "8:00 AM"
+-               "jobsPerDay": 2, // Number of distinct job blocks
+-               "jobDurations": [ 210, 210 ], // Array of job durations in minutes, length matches jobsPerDay
+-               "breakDurations": [ 60 ] // Array of break durations in minutes, length is jobsPerDay - 1
++               "startTime": "08:00", // 24-hour format string HH:mm (e.g., "08:00", "14:30")
++               "jobsPerDay": 2,
++               "jobDurations": [ 210, 210 ], // Durations in minutes
++               "breakDurations": [ 60 ] // Durations in minutes
+              },
+-             "tuesday": { "isWorking": false, /* ... other fields null or default */ },
+-             "wednesday": { /* ... */ },
+-             "thursday": { /* ... */ },
+-             "friday": { /* ... */ },
+-             "saturday": { /* ... */ },
+-             "sunday": { /* ... */ }
++             // ... other days (tuesday to sunday)
+            },
+-           "timezone": "America/Winnipeg", // IANA Timezone string (e.g., "America/Los_Angeles")
+-           "autoSendReceipts": false, // Example setting
++           "timezone": "America/Los_Angeles", // IANA Timezone string
++           "autoSendReceipts": false,
++           "workingDaysCompat": { // For legacy schedule.js compatibility
++                 "0": false, "1": true, "2": true, "3": true, "4": false, "5": true, "6": false
++           },
+            "updatedAt": Timestamp
+          }
+          ```
+-         *Note: This structure represents the housekeeper's **default** weekly availability pattern.*
+- 
+- -   **(Planned) `/availabilityOverrides`**: Stores exceptions to the default weekly pattern.
+-     -   `/availabilityOverrides/{overrideId}`:
++ -   `/timeOffDates`: Stores individual dates marked as time off via the calendar.
++     -   `/timeOffDates/{YYYY-MM-DD}`: (Document ID is the date)
+          ```json
+          {
+-           "type": "block_day" | "block_time" | "add_working_day" | "modify_hours",
+-           "startDate": "YYYY-MM-DD", // Start date of override
+-           "endDate": "YYYY-MM-DD", // End date (can be same as start for single day)
+-           "startTime": "HH:MM AM/PM", // Optional: For block_time or modify_hours
+-           "endTime": "HH:MM AM/PM", // Optional: For block_time or modify_hours
+-           "isWorking": boolean, // Optional: For add_working_day
+-           "reason": "Vacation", // Optional description
+-           "createdAt": Timestamp
+-         }
+-         ```
+-         *Note: Structure is tentative. Needs to handle various override types.*
++           "isTimeOff": true, 
++           "addedAt": Timestamp 
++         }
++         ```
++         *Note: This structure is used by the current Time Off calendar UI. Other structures (with auto-IDs) might exist from previous versions or other features but are not used by this specific UI.*
+  
+  #### If `role` is "homeowner":
+          ```json
+          {
+-           "linkedHousekeeperId": "housekeeperUserId", // UID of the linked housekeeper
+-           // Other homeowner settings...
+-         }
+-         ```
+- -   `/bookings`: (Optional, could live under housekeeper only) Stores bookings *made by this homeowner*. Might duplicate data in housekeeper's bookings.
+-     -   `/bookings/{bookingId}`: (Similar structure to housekeeper's booking, linking back to housekeeper)
++           "defaultPropertyId": "propertyId", // Optional: Default property for quick booking
++           "notificationPreferences": { // Optional
++             "bookingConfirmations": true,
++             "reminderAlerts": true
++           },
++           "paymentSettings": { // Optional, Future
++             "autoCharge": true
++           },
++           "updatedAt": Timestamp
++         }
++         ```
++         *Note: `linkedHousekeeperId` is now stored in the `/homeowner_profiles/{userId}` document.*
++ 
++ ## `/housekeeper_profiles/{userId}` Document
++ 
++ Stores extended profile information specific to housekeepers.
++ 
++ ```json
++ {
++   "firstName": "Casey", // May duplicate /users/{userId}
++   "lastName": "Keeper", // May duplicate /users/{userId}
++   "phone": "555-333-4444", // May duplicate /users/{userId}
++   "companyName": "Core Cleaning Co.", // May duplicate /users/{userId}
++   "address": "202 Clean St", // Optional
++   "city": "Workville", // Optional
++   "state": "CA", // Optional
++   "zip": "90212", // Optional
++   "serviceZipCodes": ["90210", "90211", "90212"], // Optional
++   "inviteCode": "YGG3GW", // 6-character code for linking homeowners
++   "bio": "Professional cleaning service...", // Optional
++   "profilePictureUrl": "https://...", // Optional
++   "createdAt": Timestamp,
++   "updatedAt": Timestamp
++   // Note: workingDays structure is now stored in /users/{userId}/settings/app
++ }
++ ```
++ 
++ ## `/homeowner_profiles/{userId}` Document
++ 
++ Stores extended profile information specific to homeowners.
++ 
++ ```json
++ {
++   "firstName": "Corey", // May duplicate /users/{userId}
++   "lastName": "Homeowner", // May duplicate /users/{userId}
++   "phone": "555-111-2222", // May duplicate /users/{userId}
++   "address": "101 Home Sweet Ln", // Primary address for profile
++   "city": "Homestead",
++   "state": "CA",
++   "zip": "90211",
++   "specialInstructions": "Default instructions for cleaners", // Optional
++   "linkedHousekeeperId": "housekeeperUserId", // UID of the linked housekeeper (if any)
++   "preferredContactMethod": "email", // Optional
++   "createdAt": Timestamp,
++   "updatedAt": Timestamp
++ }
++ ```
++ 
++ ## `/properties/{propertyId}` Document
++ 
++ Stores details about individual properties owned by homeowners.
++ 
++ ```json
++ {
++   "ownerId": "homeownerUserId", // UID of the homeowner who owns this property
++   "name": "Main Residence", // Nickname for the property
++   "address": {
++       "street": "123 Main St",
++       "city": "Anytown",
++       "state": "CA",
++       "zip": "90210"
++   },
++   "size": 2200, // Optional: Square footage
++   "bedrooms": 3, // Optional
++   "bathrooms": 2, // Optional
++   "specialInstructions": "Property-specific instructions.",
++   "accessInformation": "Key under the flowerpot.",
++   "photos": [], // Optional: Array of image URLs
++   "preferredHousekeeperId": null, // Optional: If homeowner has preference different from main link
++   "createdAt": Timestamp,
++   "updatedAt": Timestamp
++ }
++ ```
+  
+  ## Considerations
+  
+- -   **Denormalization:** Client details (`clientName`, `clientAddress`, etc.) are denormalized into booking records for efficient display on the housekeeper's schedule without requiring extra reads. Updates to client profiles would ideally trigger updates to future booking records (using Cloud Functions).
+- -   **Date/Time Handling:** Storing dates as `YYYY-MM-DD` strings simplifies some queries but requires careful handling in Cloud Functions compared to Timestamps, especially regarding timezones and range queries. Storing times as `HH:MM AM/PM` strings requires parsing logic. Using minutes-since-midnight internally in functions can be more robust. Timezone information from housekeeper settings is crucial for interpreting these values correctly for display.
+- -   **Scalability:** For very high booking volumes, sharding or different data modeling might be needed, but the current structure is suitable for typical use cases.
+- -   **Overrides:** The planned override system adds complexity but provides necessary flexibility. Careful implementation is needed in the `getAvailableSlots` function to layer overrides onto default settings before subtracting bookings.
++ -   **Denormalization:** Client details and addresses are denormalized into booking records. Consider Cloud Functions to update future bookings if profile/client info changes.
++ -   **Consistency:** Basic user info (name, phone) is potentially duplicated between `/users/{userId}` and the role-specific profile (`/housekeeper_profiles` or `/homeowner_profiles`). Updates should ideally write to both locations atomically (e.g., using batched writes as implemented in `updateHousekeeperProfileAndUser`).
++ -   **Date/Time Handling:** Uses Firestore Timestamps (UTC) for primary storage of event times (bookings). Millisecond versions are stored alongside for frontend convenience. Timezone settings (`/users/{housekeeperId}/settings/app.timezone`) are crucial for correctly formatting these UTC times for display in the UI.
++ -   **Time Off:** The current calendar UI uses `YYYY-MM-DD` document IDs. Other formats might exist from old data/features but aren't used by this UI.
+  
+  ## Overview
+```
+
+---
+
+```diff
+  ## File Structure
+  
+- ### Authentication Pages (Common)
+- - `public/login.html` - User login
+- - `public/signup.html` - New user registration with role selection
+- - `public/forgot-password.html` - Password recovery
+- - `public/404.html` - Error page
+- - `public/index.html` - Landing page that redirects based on role
+- 
+- ### Housekeeper Pages
+- - `public/housekeeper/schedule/schedule.html` - Main schedule view (formerly dashboard.html)
+- - `public/housekeeper/clients/clients.html` - Client management
+- - `public/housekeeper/settings/settings.html` - Schedule configuration and time off management
+- 
+- ### Homeowner Pages
+- - `public/homeowner/dashboard.html` - Unified main dashboard.
+- - `public/homeowner/settings/settings.html` - Separate settings page (may be refactored into dashboard modals later).
++ ### Root / Common Files
++ - `public/index.html` - Landing/Login page. Redirects logged-in users.
++ - `public/signup.html` - New user registration with role selection.
++ - `public/forgot-password.html` - Password recovery.
++ - `public/404.html` - Custom 404 page.
++ - `public/dev-tools.html` - Developer utility page (not for production).
++ - `public/common/js/` - Directory for JavaScript modules shared between roles.
++     - `firebase-config.js`: Initializes Firebase SDKs.
++     - `firestore-service.js`: Centralized functions for Firestore interactions (CRUD operations for users, profiles, clients, bookings, settings, time-off).
++     - `auth.js`: Handles user login, logout, signup, password reset logic.
++     - `auth-router.js`: Manages role-based redirects after authentication state changes.
++     - `date-utils.js`: Utility functions for date/time formatting and manipulation.
++     - `sample-data.js`: **DEPRECATED / REMOVE?** Contains old logic/button for populating data (replaced by `/js/populate-sample-data.js` and `/dev-tools.html`).
++ - `public/js/`
++     - `populate-sample-data.js`: Script containing logic and sample data structures used by `dev-tools.html` to populate Firestore for testing.
++ 
++ ### Housekeeper Section (`public/housekeeper/`)
++ - `public/housekeeper/schedule/`
++     - `schedule.html`: Main schedule view.
++     - `schedule.js`: UI logic for displaying schedule, handling booking modal.
++ - `public/housekeeper/clients/`
++     - `clients.html`: Client list and management view.
++     - `clients.js`: UI logic for displaying clients, search, add/edit modals.
++ - `public/housekeeper/settings/`
++     - `index.html`: Main settings navigation page (card layout).
++     - `profile.html`: Displays housekeeper profile, invite code; includes edit modal.
++     - `profile.js`: Logic for displaying profile, handling edit modal.
++     - `work-schedule.html`: UI for configuring default weekly work schedule.
++     - `work-schedule.js`: Logic for managing work schedule UI and saving settings.
++     - `time-off.html`: UI for viewing/managing single-day time off via calendar.
++     - `time-off.js`: Logic for time-off calendar interaction and saving.
++     - `account.html`: UI for setting timezone, auto-send receipts etc.
++     - `account.js`: Logic for account settings page.
++ 
++ ### Homeowner Section (`public/homeowner/`)
++ - `public/homeowner/dashboard/`
++     - `dashboard.html`: Unified main dashboard view.
++     - `dashboard.js`: UI logic for the dashboard, displaying data, handling profile/location edit modals.
++ - `public/homeowner/schedule/` (Future/Placeholder)
++     - `schedule.html`: Potential future view for homeowner schedule/booking requests.
++     - `schedule.js`
++ - `public/homeowner/account/` (Future/Placeholder)
++     - `account.html`: Potential future view for homeowner account settings.
++     - `account.js`
+  
+  ## JavaScript Structure
+  
+- ### Common Scripts (shared between roles)
+- - `public/common/js/firebase-config.js` - Firebase configuration
+- - `public/common/js/firestore-service.js` - Centralized database service for Firestore CRUD operations. Provides functions for managing user profiles, clients, settings, and bookings (e.g., `getHomeownerProfile`, `updateHomeownerProfile`, `updateHomeownerLocation`, `getHousekeeperProfile`, `getUserSettings`, `updateUserSettings`, `linkHomeownerToHousekeeper`, `unlinkHomeownerFromHousekeeper`, `addClient`, `getClients`, `addBooking`, `getBookingsForHousekeeperInRange`, `getUpcomingHomeownerBookings`, `getPastHomeownerBookings`, etc.). It does *not* handle complex availability calculations (see `getAvailableSlots` Cloud Function).
+- - `public/common/js/auth.js` - Authentication functionality (login, logout, password reset).
+- - `public/common/js/auth-router.js` - Role-based routing logic after login.
+- - `public/common/js/defaults.js` - Default app settings (may not be fully utilized).
+- - `public/common/js/sample-data.js` - **DEPRECATED / Signup Support:** Contains logic to create the *initial minimal profile* for a user immediately after signup. (Previously used for broader sample data).
+- - `public/common/js/maps-config.js` - **DO NOT COMMIT KEY:** Holds the Google Maps API Key. Must be added to `.gitignore`. (Currently loaded via inline script in HTML due to loading issues).
+- 
+- 
+- ### Housekeeper Scripts
+- - `public/housekeeper/schedule/schedule.js` - Handles the housekeeper's schedule view UI. Fetches availability data by calling the `getAvailableSlots` Cloud Function directly. Manages the booking modal workflow (client selection, frequency, confirmation) and calls `firestore-service.js` to save bookings.
+- - `public/housekeeper/clients/clients.js` - Client management functionality.
+- - `public/housekeeper/settings/settings.js` - Settings functionality (work schedule, time off, invite code), using `firestore-service.js` as single source of truth.
++ ### Common Scripts (`public/common/js/`)
++ - `firebase-config.js`
++ - `firestore-service.js`: Centralized Firestore CRUD operations (users, profiles, clients, bookings, settings, time-off, properties).
++ - `auth.js`
++ - `auth-router.js`: Handles redirects based on role and login state, using clean URLs.
++ - `date-utils.js`: Date/time formatting (UTC-aware).
++ - `sample-data.js`: **DEPRECATED/REMOVE?**
++ 
++ ### Housekeeper Scripts (`public/housekeeper/.../*.js`)
++ - Each page generally has a corresponding JS file for its specific UI logic.
++ - They interact with `firestore-service.js` for data and `auth.js` for auth state.
++ - `schedule.js` may call Cloud Functions directly if needed for complex logic like availability checks (though ideally proxied via `firestore-service` if possible).
+  
+- ### Homeowner Scripts
+- - `public/homeowner/js/dashboard.js` - Handles the entire unified dashboard UI. Fetches homeowner profile, linked housekeeper info, upcoming/past bookings. Displays data. Handles modals for "Edit Profile" and "Edit Location" (including Google Places Autocomplete integration). Manages linking/unlinking actions.
+- - `public/homeowner/js/settings.js` - Logic for the separate settings page (if still used).
++ ### Homeowner Scripts (`public/homeowner/.../*.js`)
++ - `dashboard.js` is the primary script, handling multiple pieces of functionality.
++ - Interacts heavily with `firestore-service.js`.
+  
+  ### Authentication Scripts
+- - `public/js/signup.js` - Signup logic with role selection, calls logic in `sample-data.js` upon success.
++ - `public/js/signup.js`: Handles signup form submission, calls `auth.js`.
+  
+- ### Developer Tools Scripts (Not for production)
+- - `public/js/populate-sample-data.js` - Contains logic and comprehensive sample data structures (users, profiles, clients, bookings) for populating Firestore for development testing. Intended to be run via `dev-tools.html`.
++ ### Developer Tools Scripts
++ - `public/js/populate-sample-data.js`: Logic run by `dev-tools.html`.
+  
+  ## CSS and Images
+- - `public/css/` - Contains common stylesheet files
+- - `public/images/` - Contains app images and icons
++ - Tailwind CSS is used via CDN.
++ - FontAwesome is used via CDN.
++ - Minimal custom CSS if any.
++ - `public/images/` - App images/icons.
+  
+  ## Developer Tools
+- - `public/dev-tools.html` - A standalone HTML page accessible only during development (e.g., at `/dev-tools.html`). Provides a UI (input fields for UIDs, button) to trigger the data population script (`populate-sample-data.js`) for setting up consistent test data scenarios.
++ - `public/dev-tools.html`: Standalone page to trigger data population using `populate-sample-data.js`.
+  
+  ## Core Features
+  
+  ### Housekeeper Features
+  
+- #### Schedule
+- - View weekly schedule
+- - Book new cleanings
+- - Manage existing appointments
+- - Navigate between weeks
+- - View daily time slots
+- 
+- #### Clients
+- - View and search client list
+- - Add new clients
+- - Edit client details
+- - View client booking history
+- 
+- #### Settings
+- - Configure working days
+- - Set up schedule preferences (start times, job durations)
+- - Adjust break times
+- - Configure number of jobs per day
++ #### Schedule (`/housekeeper/schedule`)
++ - View weekly schedule (fetches data, potentially via Cloud Function).
++ - Book new cleanings (modal workflow).
++ - Manage existing appointments (view details, cancel - *future*).
++ 
++ #### Clients (`/housekeeper/clients`)
++ - View/search client list.
++ - Add/Edit clients (modal workflow).
++ 
++ #### Settings (`/housekeeper/settings`)
++ - Main navigation via cards.
++ - **My Profile (`.../profile`):** View name, email, invite code. Edit details (name, phone, company) via modal.
++ - **Work Schedule (`.../work-schedule`):** Configure default weekly work hours, start time, jobs/day, breaks. Saves via footer button.
++ - **Time Off (`.../time-off`):** Toggle individual days off on a calendar. Saves via footer button.
++ - **Account & App (`.../account`):** Set timezone, other app preferences. Saves via footer button.
+  
+  ### Homeowner Features
+  
+- #### Dashboard
+- - **Linked View:**
+-   - View linked housekeeper's name and company.
+-   - View next upcoming cleaning details (date, time, service).
+-   - View list of recent past cleanings.
+-   - Edit profile information (name, phone, instructions) via modal.
+-   - Edit location details (address, city, state, zip) via modal with Google Places Autocomplete validation.
+-   - Unlink from the current housekeeper.
+- - **Not Linked View:**
+-   - Enter an invite code to link with a housekeeper.
+- 
+- #### Settings (Separate Page - Potential Refactor)
+- - Manage notification preferences (future).
+- - Manage payment settings (future).
+- - Account management (future).
++ #### Dashboard (`/homeowner/dashboard`)
++ - View linked housekeeper info.
++ - View next/past cleanings.
++ - Edit profile (modal).
++ - Edit location (modal).
++ - Link/Unlink housekeeper.
+  
+  ## Database Integration
+- All pages use the Firestore database through the `firestore-service.js`, which provides:
+- - User-specific data fetching
+- - Role-based access control
+- - Real-time updates for schedule and bookings
+- - Centralized functions for adding/updating users, profiles, clients, bookings, and settings.
++ - Primarily through `firestore-service.js`.
++ - Cloud Functions may be called directly for complex backend logic (e.g., `getAvailableSlots`, `requestBooking`).
+  
+  ## Authentication & Routing
+- The application implements role-based authentication:
+- - New users select their role (housekeeper or homeowner) during signup
+- - `auth-router.js` redirects users to the appropriate interface based on their role
+- - Each interface only shows functionality relevant to that user role
++ - Role selected at signup.
++ - `auth-router.js` handles redirects to correct sections (`/housekeeper/schedule` or `/homeowner/dashboard`) using clean URLs.
+  
+  ## Cloud Functions (`/functions`)
+- 
+- Backend logic running in Firebase Cloud Functions, providing server-side capabilities and secure access to data.
+- 
+- -   `index.js`: Main entry point for Cloud Functions.
+-     -   **`getAvailableSlots`**: 
+-         -   **Type:** HTTPS Callable Function.
+-         -   **Purpose:** Calculates the actual availability status and slots for a specific housekeeper within a given date range. It is the **single source of truth** for schedule availability, used by **both** the homeowner and housekeeper schedule views.
+-         -   **Why:** Centralizes the complex logic of combining default settings (`/users/{hkId}/settings/app`), existing bookings (`/users/{hkId}/bookings`), and time off (`/users/{hkId}/timeOffDates`) to determine true availability. This avoids client-side complexity and ensures consistency.
+-         -   **Usage:** Called directly via `firebase.functions().httpsCallable('getAvailableSlots')` from both `public/homeowner/js/schedule.js` and `public/housekeeper/js/schedule.js`.
+-         -   **Output Structure:** Returns an object like `{ schedule: { "YYYY-MM-DD": { status: "available|fully_booked|not_working", message: "...", slots: [...] } } }`. When `status` is `"available"`, the `slots` array contains objects like `{ startTime: "HH:mm AM/PM", endTime: "HH:mm AM/PM", durationMinutes: number }`.
+-     -   **`requestBooking`**: 
+-         -   **Type:** HTTPS Callable Function.
+-         -   **Purpose:** Handles a homeowner's request to book a specific time slot.
+-         -   **Why:** Provides a secure backend endpoint to validate the request (is the user authenticated? is the slot still available?), create the booking document in Firestore with a `pending` status, and prevent conflicts.
+-         -   **Usage:** Called via `firebase.functions().httpsCallable('requestBooking')` from `public/homeowner/js/schedule.js` when the homeowner confirms the booking in the drawer modal.
+-         -   **Output Structure:** Returns `{ success: true, bookingId: "..." }` on success or throws an `HttpsError` on failure (e.g., conflict, invalid input).
+- 
+- -   `package.json`: Defines dependencies for the Cloud Functions.
+-     -   **Key Dependencies (Ensure these are installed in `/functions` before deployment):**
+-         -   `firebase-admin`: Required for interacting with Firebase services (Firestore, Auth) from the backend.
+-         -   `firebase-functions`: Core SDK for writing Cloud Functions.
+-         -   `firebase-functions/logger`: For structured logging within functions.
+-         -   *(Optional but Recommended)* `cors`: Middleware for handling Cross-Origin Resource Sharing, especially if using `onRequest` triggers or encountering CORS issues with `onCall`.
+-     -   **Installation:** Run `npm install` within the `/functions` directory.
++ - `getAvailableSlots`: Calculates availability (HTTPS Callable).
++ - `requestBooking`: Handles booking requests (HTTPS Callable).
++ - `cancelBooking`: Handles booking cancellations (HTTPS Callable - needs authentication).
++ - Potentially others for triggers (e.g., updating denormalized data).
+  
+  ## Testing and Deployment
+- - **Testing:** Use the Firebase Local Emulator Suite to test functions, Firestore interactions, and Auth locally.
+- - **Deployment:**
+-   - `firebase deploy` - Deploys all Firebase features (Hosting, Firestore rules, Functions).
+-   - `firebase deploy --only hosting` - Deploys only the web app (HTML, JS, CSS).
+-   - `firebase deploy --only functions` - Deploys only Cloud Functions.
++ - Use Firebase Local Emulator Suite.
++ - Deploy Hosting: `firebase deploy --only hosting`
++ - Deploy Functions: `firebase deploy --only functions`
++ 
++ ## Date/Time Handling Standard (UTC-Based)
++ - **Storage:** Use Firestore `Timestamp` for points in time. Store UTC milliseconds alongside (e.g., `startTimestampMillis`).
++ - **Calculation:** Perform using UTC (Timestamps or milliseconds).
++ - **Display:** Format milliseconds using `date-utils.js` and the appropriate timezone (usually housekeeper's setting).
++ - **Input:** Send unambiguous UTC representations (ISO string) to backend functions.
+  
+  ## Potential Improvements
+  - Replace Tailwind CDN with a build step (e.g., using PostCSS CLI) for production.
+  - Improve date/time handling robustness, potentially using a dedicated library like `date-fns` or `dayjs`.
+- 
+- ## Date/Time Handling Standard (UTC-Based)
+- 
+- To ensure consistency and avoid timezone-related bugs, the application follows a UTC-based standard for handling dates and times:
+- 
+- 1.  **Storage (Firestore):**
+-     *   Points in time (e.g., start/end of bookings, time-off boundaries) **MUST** be stored using Firestore's native `Timestamp` type (e.g., `startTimestamp`, `endTimestamp`). This is the primary format for reliable storage and querying.
+-     *   For convenience and frontend compatibility (especially with `date-utils.js`), booking documents **ALSO store** the corresponding numeric **UTC milliseconds** since the epoch (e.g., `startTimestampMillis`, `endTimestampMillis`). This avoids repeated `.toMillis()` calls on the client.
+-     *   Avoid storing dates and times as separate strings (`YYYY-MM-DD`, `HH:mm`).
+-     *   Configuration values like default start times in settings may still be stored as strings (e.g., "09:00") if they represent time-of-day independent of a specific date, but they **MUST** be converted to UTC for calculations.
+- 
+- 2.  **Calculation (Cloud Functions & Frontend Services):**
+-     *   All date/time arithmetic, comparisons, availability logic, and conflict checks **MUST** be performed using UTC representations (Firestore Timestamps or UTC milliseconds).
+-     *   Backend functions (`requestBooking`, `getAvailableSlots`) and frontend services (`firestore-service.js`) are responsible for ensuring *both* `Timestamp` and millisecond fields are correctly populated when creating or updating booking-related data.
+-     *   Avoid performing calculations based on local time strings or browser-dependent `Date` objects.
+-     *   Use `date-fns-tz` library (specifically `require('date-fns-tz')`) within Cloud Functions for reliable conversion between local time representations (from settings) and UTC representations.
+- 
+- 3.  **Data Transfer (Backend <-> Frontend):**
+-     *   Booking data fetched from Firestore (e.g., via `firestore-service.js`) will contain both `Timestamp` objects and `startTimestampMillis`/`endTimestampMillis` numbers.
+-     *   The `getAvailableSlots` Cloud Function returns available slots with `startTimestampMillis` and `endTimestampMillis`.
+-     *   Frontend components should primarily rely on the **millisecond** values (`startTimestampMillis`, `endTimestampMillis`) for calculations and display formatting.
+-     *   Avoid transferring simple date or time strings without timezone context.
+- 
+- 4.  **Display (Frontend - `dashboard.js`, `schedule.js`, etc.):**
+-     *   Use the **millisecond** values (`startTimestampMillis`, `endTimestampMillis`) received from the backend/service layer.
+-     *   Pass these millisecond values to helper functions like `formatMillisForDisplay` (in `date-utils.js`) along with the target timezone (usually the housekeeper's) to format them for display in the UI.
+-     *   Do **NOT** rely on the browser's default `Date.prototype.toString()` or similar methods which use the user's local timezone.
+- 
+- 5.  **User Input / Data Sending (Frontend -> Backend):**
+-     *   When sending a date/time value to the backend (e.g., for `requestBooking`), the frontend **MUST** construct and send an unambiguous UTC representation (usually an ISO 8601 string like `new Date(selectedTimeMillis).toISOString()`). The backend function (`requestBooking`) will parse this and create both the `Timestamp` and millisecond fields for storage.
+```
+
+---
+
+**2. Documentation Updates Complete**
+
+I have updated both `docs/Database-Structure.md` and `docs/App-Structure.md` to reflect the recent changes, including:
+*   Separation of base user data (`/users`) from role-specific profiles (`/housekeeper_profiles`, `/homeowner_profiles`).
+*   The correct structure and location for housekeeper settings (`/users/{userId}/settings/app`), including `timezone`.
+*   The `YYYY-MM-DD` document ID format for `/users/{userId}/timeOffDates`.
+*   Deprecation/removal of the legacy `working_hours` field from the `/users` document.
+*   Consolidation of sample data logic to `/js/populate-sample-data.js` used by `/dev-tools.html`.
+*   Consistent use of clean URLs for navigation and redirects.
+*   Consistent use of the footer save bar pattern for settings pages requiring explicit saves.
+*   Addition of the profile edit modal feature.
+*   Updates to the booking data structure (using Timestamps and milliseconds).
+*   Clarification of the Date/Time Handling Standard.
+
+These documents should now provide a more accurate picture of the current project state.
+
+---
+
+_**User**_
+
+In housekeeper/settings do we need to keep the files settings-old.html and settings-old.js?
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Based on the refactoring work we've done, splitting the settings functionality into separate pages (`profile.html`, `work-schedule.html`, `time-off.html`, `account.html`) and their corresponding JavaScript files, the original combined files (`settings-old.html` and `settings-old.js`) should no longer be needed.
+
+The functionality previously contained within them has either been:
+*   Moved to the new, specific HTML/JS files for each settings section.
+*   Migrated into the shared `firestore-service.js` (like the time-off data handling).
+
+The updated `docs/App-Structure.md` also reflects the new structure without mentioning the `-old` files.
+
+To be absolutely sure, I'll quickly search if any other file still references them (which is unlikely).
+
+
+---
+
+<details>
+            <summary>Grep search for "settings-old\.js" • **3** files</summary>
+        
+| File | Line | Match |
+|------|------|-------|
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/time-off.js` | L32 | `// --- Functions (Copied and adapted from settings-old.js) ---` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/work-schedule.js` | L40 | `// --- Functions (Copied and adapted from settings-old.js) ---` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L7488 | `*   `public/housekeeper/settings/settings.js` to `public/housekeeper/settings/settings-old.js`` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L7517 | `⟪ 123 characters skipped ⟫settings.js public/housekeeper/settings/settings-old.js` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L7524 | `lic/housekeeper/settings/settings-old.js` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L7938 | `1.  Old `settings.html` and `settings.js` are renamed to `settings-old.html` and `settings-old.js`.` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L7944 | `Now we need to carefully move the relevant HTML sections and JavaScript logic from `settings-old.html` and `settings-old.js` into their respective new files.` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L7952 | `I'll read the relevant sections from `settings-old.html` and `settings-old.js` first.` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L7962 | `Read file: public/housekeeper/settings/settings-old.js` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L8021 | `Now I'll extract the relevant JS logic for the profile card and invite code from `settings-old.js` and place it into `public/housekeeper/settings/profile.js`. This includes:` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L8387 | `This is the most involved part. I need to extract all the functions and logic related to the work schedule setup from `settings-old.js` and place them into `public/housekeeper/settings/schedule.js`. This includes:` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L8395 | `⟪ 147 characters skipped ⟫dently or may depend on data loaded in `settings-old.js` (like the main `settings` object) which we'll need to handle.` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L8407 | `However, I've manually reviewed `settings-old.js` and identified the core functions and logic related *only* to the Work Schedule section. I will now place this extracted logic into `public/housekeeper/settings/schedule.js`.` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L8943 | `Now, I'll extract the JavaScript functions related to the time-off calendar from `settings-old.js` and place them into `public/housekeeper/settings/time-off.js`. This includes:` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L8978 | `+   // --- Functions (Copied and adapted from settings-old.js) ---` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L9426 | `*   `settings-old.html` & `settings-old.js`: Kept as backups/reference.` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L9431 | `⟪ 150 characters skipped ⟫LoadedSettings`) or state variables in `settings-old.js` that were implicitly shared. We may need to duplicate some helpers or adjust how state is loaded/shared if issues arise. The `fixLoadedSettings` logic was partially integrated into th` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L9686 | `ettings-old.html; mv public/housekeeper/settings/settings.js public/housekeeper/settings/settings-old.js` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L10240 | `| 📄 `settings-old.js` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12012 | `It seems the functions for handling time off were likely defined in the older, combined `settings-old.js` file and were **never properly migrated** into the `firestore-service.js` when the settings pages were split.` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12015 | `1.  **Find** the original functions for adding, removing, and fetching time-off dates (likely in `settings-old.js`).` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12018 | `Let's start by finding those functions in `settings-old.js`. I'll search for relevant terms like "timeOff", "addTimeOff", "removeTimeOff", "fetchTimeOff".` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12028 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L356 | `let timeOffDataCache = new Set(); // Cache fetched time off dates (YYYY-MM-DD)` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12029 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L357 | `let pendingTimeOffAdditions = new Set(); // Track dates clicked ON during this session` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12030 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L358 | `let pendingTimeOffDeletions = new Set(); // Track dates clicked OFF during this session` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12031 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L367 | `async function fetchTimeOffData(year, month) { // month is 0-indexed` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12032 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L382 | `timeOffDataCache.clear();` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12033 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L385 | `const timeOffRef = db.collection('users').doc(user.uid).collection('timeOffDates');` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12034 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L386 | `const snapshot = await timeOffRef` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12035 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L392 | `if (doc.data()?.isTimeOff === true) {` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12036 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L393 | `timeOffDataCache.add(doc.id); // Add YYYY-MM-DD string` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12037 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L396 | `console.log('Fetched time off dates:', timeOffDataCache);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12038 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L422 | `await fetchTimeOffData(year, month);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12039 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L454 | `const isCurrentlySavedAsOff = timeOffDataCache.has(dateString);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12040 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L455 | `const isPendingAddition = pendingTimeOffAdditions.has(dateString);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12041 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L456 | `const isPendingDeletion = pendingTimeOffDeletions.has(dateString);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12042 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L512 | `const isCurrentlySavedAsOff = timeOffDataCache.has(dateString);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12043 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L513 | `const isPendingAddition = pendingTimeOffAdditions.has(dateString);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12044 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L514 | `const isPendingDeletion = pendingTimeOffDeletions.has(dateString);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12045 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L524 | `pendingTimeOffDeletions.add(dateString);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12046 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L528 | `pendingTimeOffAdditions.delete(dateString);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12047 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L533 | `console.log(`Toggled ${dateString} visually ON (Pending Deletion: ${pendingTimeOffDeletions.has(dateString)})`);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12048 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L539 | `pendingTimeOffAdditions.add(dateString);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12049 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L543 | `pendingTimeOffDeletions.delete(dateString);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12050 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L548 | `console.log(`Toggled ${dateString} visually OFF (Pending Addition: ${pendingTimeOffAdditions.has(dateString)})`);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12051 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L555 | `function initializeTimeOffCalendar() {` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12052 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L644 | `const timeOffAddPromises = [];` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12053 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L645 | `pendingTimeOffAdditions.forEach(dateString => {` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12054 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L647 | `const timeOffDocRef = db.collection('users').doc(user.uid).collection('timeOffDates').doc(dateString);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12055 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L648 | `timeOffAddPromises.push(timeOffDocRef.set({ isTimeOff: true, reason: "Marked via calendar" })); // Add reason maybe?` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12056 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L651 | `const timeOffDeletePromises = [];` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12057 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L652 | `pendingTimeOffDeletions.forEach(dateString => {` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12058 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L654 | `const timeOffDocRef = db.collection('users').doc(user.uid).collection('timeOffDates').doc(dateString);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12059 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L655 | `timeOffDeletePromises.push(timeOffDocRef.delete());` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12060 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L663 | `...timeOffAddPromises,` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12061 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L664 | `...timeOffDeletePromises` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12062 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L670 | `pendingTimeOffAdditions.clear();` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12063 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L671 | `pendingTimeOffDeletions.clear();` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12064 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L674 | `// Need to refetch or manually update timeOffDataCache here for consistency` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12065 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L1262 | `let timeOffDataCache = new Set(); // Cache fetched time off dates (YYYY-MM-DD)` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12066 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L1263 | `let pendingTimeOffAdditions = new Set(); // Track dates clicked ON during this session` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12067 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L1264 | `let pendingTimeOffDeletions = new Set(); // Track dates clicked OFF during this session` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12068 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L1273 | `async function fetchTimeOffData(year, month) { // month is 0-indexed` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12069 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L1288 | `timeOffDataCache.clear();` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12070 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L1291 | `const timeOffRef = db.collection('users').doc(user.uid).collection('timeOffDates');` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12071 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L1292 | `const snapshot = await timeOffRef` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12072 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L1298 | `if (doc.data()?.isTimeOff === true) {` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12073 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L1299 | `timeOffDataCache.add(doc.id); // Add YYYY-MM-DD string` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12074 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L1302 | `console.log('Fetched time off dates:', timeOffDataCache);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12075 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L1321 | `await fetchTimeOffData(year, month);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12076 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L1355 | `const isCurrentlySavedAsOff = timeOffDataCache.has(dateString);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12077 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L1356 | `const isPendingAddition = pendingTimeOffAdditions.has(dateString);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12078 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L1357 | `const isPendingDeletion = pendingTimeOffDeletions.has(dateString);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12079 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L1413 | `const isCurrentlySavedAsOff = timeOffDataCache.has(dateString);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12080 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L1414 | `const isPendingAddition = pendingTimeOffAdditions.has(dateString);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12081 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L1415 | `const isPendingDeletion = pendingTimeOffDeletions.has(dateString);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12082 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L1425 | `pendingTimeOffDeletions.add(dateString);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12083 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L1429 | `pendingTimeOffAdditions.delete(dateString);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12084 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L1434 | `console.log(`Toggled ${dateString} visually ON (Pending Deletion: ${pendingTimeOffDeletions.has(dateString)})`);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12085 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L1440 | `pendingTimeOffAdditions.add(dateString);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12086 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L1444 | `pendingTimeOffDeletions.delete(dateString);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12087 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L1449 | `console.log(`Toggled ${dateString} visually OFF (Pending Addition: ${pendingTimeOffAdditions.has(dateString)})`);` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12088 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L1456 | `function initializeTimeOffCalendar() {` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12089 | `| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/public/housekeeper/settings/settings-old.js` | L1480 | `initializeTimeOffCalendar();` |` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12095 | `Okay, the search results show the relevant Firestore interactions for time off within `settings-old.js`, but they are embedded within UI functions (`fetchTimeOffData`, `handleDateClick`) rather than being nicely packaged service functions.` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12102 | `I will now read the relevant parts of `settings-old.js` to accurately extract this logic.` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12109 | `Was there a function in the old settings-old.js that we didnn't move?` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12121 | `Based on the search results from `settings-old.js` and the fact that `firestore-service.js` doesn't currently have the needed functions, it's clear that the specific **Firestore logic** for:` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12127 | `...was present within the UI-handling functions (`fetchTimeOffData`, `handleDateClick`) in `settings-old.js` but was **not extracted and moved** into dedicated functions within the `firestoreService` object in `firestore-service.js` during the refactor.` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12233 | `⟪ 181 characters skipped ⟫he logic from our previous analysis of `settings-old.js`.` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12261 | `I am going to reject for a second.  As this was working.  Please read settings-old.js and make sure that the functions in here with the current firestore-service.js don't work. Don't edit firestore-service.js unless you have to.` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12317 | `**3. Comparing with `settings-old.js` Logic:**` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12318 | `As we saw from the `grep` search of `settings-old.js`, the *logic* to interact with the `timeOffDates` subcollection *did* exist there. For example, fetching involved code like:` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12320 | `// Inside fetchTimeOffData in settings-old.js` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12327 | `// Inside handleDateClick/saveTimeOff in settings-old.js` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12331 | `⟪ 103 characters skipped ⟫standalone logic within the UI code of `settings-old.js`.` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12337 | `While the functionality *was* present in `settings-old.js`, it wasn't structured as part of the shared `firestoreService`. To fix the error in `time-off.js` (which correctly tries to use the service pattern), the necessary functions *must* be` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12582 | `1.  **The Structure I Implemented:** Based on the logic extracted from `settings-old.js` (specifically how the calendar date-clicking worked), the functions I added to `firestore-service.js` (`addTimeOffDate`, `removeTimeOffDate`, `getTimeOffDates`) work with documents wh` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12592 | `⟪ 122 characters skipped ⟫*calendar date clicking* behavior from `settings-old.js`, which used the `YYYY-MM-DD` document ID format.` |
+| `file:///c%3A/Users/tim/Cursor/housekeeping-app-dev/.specstory/history/2025-04-10_00-03-reviewing-files-for-updates.md` | L12597 | `*   **Older Code:** Perhaps an earlier version of the app or `settings-old.js` saved time off using auto-IDs and a different structure.` |
+
+</details>
 
 ---
 
