@@ -23,6 +23,18 @@ const modalTitle = document.getElementById('modal-title');
 const modalError = document.getElementById('modal-error');
 const modalSavingIndicator = document.getElementById('modal-saving-indicator');
 
+// --- NEW: Delete Confirmation Modal Elements ---
+const deleteConfirmModal = document.getElementById('delete-confirm-modal');
+const deleteConfirmBackdrop = document.getElementById('delete-confirm-backdrop');
+const deleteConfirmMessage = document.getElementById('delete-confirm-message');
+const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
+const cancelDeleteBtnX = document.getElementById('cancel-delete-btn-x'); // Close X button
+const serviceIdToDeleteInput = document.getElementById('service-id-to-delete');
+const deleteConfirmError = document.getElementById('delete-confirm-error');
+const deleteConfirmIndicator = document.getElementById('delete-confirm-indicator');
+// --- END: Delete Confirmation Modal Elements ---
+
 // Form Fields
 const editServiceIdInput = document.getElementById('edit-service-id');
 const serviceNameInput = document.getElementById('service-name');
@@ -31,6 +43,9 @@ const serviceTypeAddonRadio = document.getElementById('service-type-addon');
 const servicePriceInput = document.getElementById('service-price');
 const serviceDescriptionInput = document.getElementById('service-description');
 const serviceActiveCheckbox = document.getElementById('service-active');
+
+// --- NEW: Modal Delete Button --- 
+const deleteServiceBtn = document.getElementById('delete-service-btn');
 
 // --- State ---
 let currentUser = null;
@@ -44,7 +59,10 @@ const openModal = (serviceType = 'base', serviceToEdit = null) => {
     modalSavingIndicator.textContent = '';
     saveServiceBtn.disabled = false;
 
+    // Show/Hide Delete button based on whether we are editing
     if (serviceToEdit) {
+        deleteServiceBtn.classList.remove('hidden'); // Show delete button
+        // Populate form fields
         modalTitle.textContent = 'Edit Service';
         editServiceIdInput.value = serviceToEdit.id;
         serviceNameInput.value = serviceToEdit.serviceName || '';
@@ -57,6 +75,8 @@ const openModal = (serviceType = 'base', serviceToEdit = null) => {
             serviceTypeBaseRadio.checked = true;
         }
     } else {
+        deleteServiceBtn.classList.add('hidden'); // Hide delete button
+        // Set title for adding new
         modalTitle.textContent = serviceType === 'base' ? 'Add Base Service' : 'Add Add-on Service';
         if (serviceType === 'addon') {
             serviceTypeAddonRadio.checked = true;
@@ -79,6 +99,32 @@ const closeModal = () => {
     modalSavingIndicator.textContent = '';
     saveServiceBtn.disabled = false;
 };
+
+// --- NEW: Delete Confirmation Modal Management ---
+const openDeleteConfirmModal = (serviceId, serviceName) => {
+    if (!serviceId) {
+        console.error("Cannot open delete confirmation: Service ID is missing.");
+        return;
+    }
+    serviceIdToDeleteInput.value = serviceId; // Store the ID
+    deleteConfirmMessage.textContent = `Are you sure you want to delete the service "${serviceName}"? This action cannot be undone.`;
+    deleteConfirmError.classList.add('hidden');
+    deleteConfirmIndicator.textContent = '';
+    confirmDeleteBtn.disabled = false;
+
+    deleteConfirmBackdrop.classList.remove('hidden');
+    deleteConfirmModal.classList.remove('hidden');
+};
+
+const closeDeleteConfirmModal = () => {
+    deleteConfirmBackdrop.classList.add('hidden');
+    deleteConfirmModal.classList.add('hidden');
+    serviceIdToDeleteInput.value = ''; // Clear stored ID
+    deleteConfirmError.classList.add('hidden');
+    deleteConfirmIndicator.textContent = '';
+    confirmDeleteBtn.disabled = false;
+};
+// --- END: Delete Confirmation Modal Management ---
 
 // --- Firestore Operations & UI Updates ---
 
@@ -127,14 +173,6 @@ const displayService = (service) => {
         openModal(service.type, service); // Pass the full service object for editing
     });
     actionsWrapper.appendChild(editButton);
-
-    // Optional: Add delete button functionality later
-    // const deleteButton = document.createElement('button');
-    // deleteButton.className = 'text-red-500 hover:text-red-700 text-sm';
-    // deleteButton.innerHTML = '<i class="fas fa-trash-alt"></i>';
-    // deleteButton.title = 'Delete Service';
-    // deleteButton.addEventListener('click', async () => handleDeleteService(service.id));
-    // actionsWrapper.appendChild(deleteButton);
 
     serviceItem.appendChild(actionsWrapper);
 
@@ -251,27 +289,47 @@ const handleSaveService = async (event) => {
     }
 };
 
-// Optional: Delete function (needs confirmation dialog in practice)
-// const handleDeleteService = async (serviceId) => {
-//     if (!currentUser || !serviceId) return;
-//
-//     // Add confirmation dialog here (e.g., using window.confirm or a custom modal)
-//     const confirmed = window.confirm('Are you sure you want to delete this service? This cannot be undone.');
-//     if (!confirmed) return;
-//
-//     console.log('Attempting to delete service:', serviceId);
-//     // Add a loading indicator
-//     try {
-//         const serviceRef = firebase.firestore().collection(`users/${currentUser.uid}/services`).doc(serviceId);
-//         await serviceRef.delete(); // Use core SDK delete
-//         console.log('Service deleted successfully:', serviceId);
-//         await loadServices(); // Reload the list
-//     } catch (error) {
-//         console.error('Error deleting service:', error);
-//         alert(`Failed to delete service: ${error.message || 'Please try again.'}`);
-//         // Remove loading indicator
-//     }
-// };
+// --- Refactored Delete Logic ---
+const executeDelete = async () => {
+    const serviceId = serviceIdToDeleteInput.value;
+    if (!currentUser || !serviceId) {
+        console.error('Execute Delete Error: Missing user or service ID.');
+        deleteConfirmError.textContent = 'Could not delete service. User or service ID missing.';
+        deleteConfirmError.classList.remove('hidden');
+        return;
+    }
+
+    console.log(`Executing delete for service: ${serviceId}`);
+    deleteConfirmIndicator.textContent = 'Deleting...';
+    confirmDeleteBtn.disabled = true;
+    deleteConfirmError.classList.add('hidden');
+
+    try {
+        const serviceRef = firebase.firestore().collection(`users/${currentUser.uid}/services`).doc(serviceId);
+        await serviceRef.delete();
+        console.log('Service deleted successfully from executeDelete:', serviceId);
+
+        closeDeleteConfirmModal(); // Close confirmation modal
+        closeModal(); // Also close the edit modal if it was open
+        await loadServices(); // Reload the list
+
+    } catch (error) {
+        console.error('Error executing delete:', error);
+        deleteConfirmError.textContent = `Failed to delete: ${error.message || 'Please try again.'}`;
+        deleteConfirmError.classList.remove('hidden');
+        deleteConfirmIndicator.textContent = '';
+        confirmDeleteBtn.disabled = false;
+    }
+};
+
+// This function now just handles the confirmation prompt
+const handleDeleteService = async (serviceId, serviceName) => {
+    // REMOVED: window.confirm logic
+    // REMOVED: Firestore deletion logic (moved to executeDelete)
+    // Instead, open the custom confirmation modal
+    openDeleteConfirmModal(serviceId, serviceName);
+};
+// --- End Delete Logic ---
 
 // --- Initialization ---
 const initializePage = async () => {
@@ -293,6 +351,29 @@ const initializePage = async () => {
                 cancelModalBtn.addEventListener('click', closeModal);
                 modalBackdrop.addEventListener('click', closeModal);
                 serviceForm.addEventListener('submit', handleSaveService);
+
+                // MODIFIED: Event Listener for Edit Modal Delete Button -> Opens Confirm Modal
+                deleteServiceBtn.addEventListener('click', () => {
+                    const serviceId = editServiceIdInput.value;
+                    const serviceName = serviceNameInput.value;
+                    if (serviceId) {
+                        // Call function that OPENS the confirm modal
+                        openDeleteConfirmModal(serviceId, serviceName);
+                    } else {
+                        console.error('Delete button clicked but no service ID found.');
+                        // Display error in the *edit* modal
+                        modalError.textContent = 'Could not initiate delete. Service ID not found.';
+                        modalError.classList.remove('hidden');
+                    }
+                });
+
+                // --- ADD: Event Listeners for Delete Confirmation Modal ---
+                confirmDeleteBtn.addEventListener('click', executeDelete);
+                cancelDeleteBtn.addEventListener('click', closeDeleteConfirmModal);
+                cancelDeleteBtnX.addEventListener('click', closeDeleteConfirmModal); // X button
+                deleteConfirmBackdrop.addEventListener('click', closeDeleteConfirmModal);
+                // --- END ADD ---
+                
                 console.log('Services loaded and event listeners attached.');
 
             } catch (error) {

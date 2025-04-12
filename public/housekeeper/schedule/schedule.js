@@ -7,9 +7,48 @@ let housekeeperTimezone = 'UTC'; // << ADDED: Store timezone globally
 // Global booking data
 let currentBookingData = {
     dateTime: null,
+    duration: null, // Store duration too
     client: null,
-    frequency: null
+    baseService: null, // NEW: Store selected base service {id, name, price}
+    addonServices: [] // NEW: Store selected add-on services [{id, name, price}]
 };
+
+// --- DOM Elements (Add new ones for services) ---
+const baseServiceOptionsContainer = document.getElementById('base-service-options');
+const addonServiceOptionsContainer = document.getElementById('addon-service-options');
+const baseServiceErrorMsg = document.getElementById('base-service-error');
+const addonServiceErrorMsg = document.getElementById('addon-service-error');
+const baseServiceSelectionStep = document.getElementById('baseServiceSelection'); // The whole step div
+const addonServiceSelectionStep = document.getElementById('addonServiceSelection'); // The whole step div
+// Existing modal elements
+const bookingModal = document.getElementById('bookingModal');
+const closeBookingModalBtn = document.getElementById('closeBookingModal');
+const bookingModalBackdrop = document.getElementById('bookingModalBackdrop');
+const bookingContent = document.getElementById('bookingContent');
+const bookingDateTimeElement = document.getElementById('bookingDateTime');
+const bookingStepsContainer = document.getElementById('bookingSteps');
+const clientSelectionStep = document.getElementById('clientSelection');
+const existingClientsContainer = document.getElementById('existingClients');
+const clientLoadingErrorMsg = document.getElementById('client-loading-error');
+const frequencySelectionStep = null; // REMOVED: No longer used
+const reviewBookingButtonContainer = document.getElementById('reviewBookingButtonContainer'); // NEW
+const reviewBookingBtn = document.getElementById('reviewBookingBtn'); // NEW
+const confirmationStep = document.getElementById('confirmationStep');
+const confirmationDetailsElement = document.getElementById('confirmationDetails');
+const confirmBookingBtn = document.getElementById('confirmBookingBtn');
+// --- END DOM Elements ---
+
+// --- NEW: Cancel Confirm Modal Elements ---
+const cancelConfirmModal = document.getElementById('cancel-confirm-modal');
+const cancelConfirmBackdrop = document.getElementById('cancel-confirm-backdrop');
+const cancelConfirmMessage = document.getElementById('cancel-confirm-message');
+const confirmCancelBookingBtn = document.getElementById('confirm-cancel-booking-btn');
+const keepBookingBtn = document.getElementById('keep-booking-btn');
+const closeCancelModalBtnX = document.getElementById('close-cancel-modal-btn-x');
+const bookingIdToCancelInput = document.getElementById('booking-id-to-cancel');
+const cancelConfirmError = document.getElementById('cancel-confirm-error');
+const cancelConfirmIndicator = document.getElementById('cancel-confirm-indicator');
+// --- END Cancel Confirm Modal Elements ---
 
 // Flag to track if booking handlers are set up - DECLARED ONCE HERE
 let bookingHandlersInitialized = false;
@@ -554,58 +593,611 @@ async function handlePendingAction(event) {
     }
 }
 
-// NEW: Placeholder handler specifically for cancel requests (can consolidate later)
+// UPDATED: Handler for clicking the Cancel button on a booked slot
 function handleCancelRequestClick(event) {
     const button = event.target.closest('button[data-action="request_cancel"]');
     if (!button) return;
     
     event.stopPropagation();
     const bookingId = button.dataset.bookingId;
-    console.log(`Request cancellation for booking ID: ${bookingId}`);
-    // TODO: Open cancellation modal
-    alert(`Cancellation request for ${bookingId} - Modal to be implemented.`);
+    // Try to get client name from the displayed slot for a better message
+    const slotDiv = button.closest('.flex.items-center.justify-between'); // Find parent slot div
+    const clientNameElement = slotDiv?.querySelector('.text-sm.text-gray-600'); // Find client name p tag
+    const clientNameText = clientNameElement?.textContent.replace('Client: ', '').trim() || 'this client';
+    
+    console.log(`Request cancellation modal for booking ID: ${bookingId}`);
+    openCancelConfirmModal(bookingId, clientNameText); // Open the custom modal
 }
 
-// --- Booking Modal Logic (Needs review/integration) ---
-let selectedDateTime = null;
-let selectedDuration = null;
+// --- NEW: Function to Execute Booking Cancellation (Deletion) ---
+async function executeBookingCancellation() {
+    const bookingId = bookingIdToCancelInput.value;
+    const user = firebase.auth().currentUser;
 
-// Function to open the booking modal (ensure it gets the correct datetime format)
-function openBookingModal(dateTimeString, durationMinutes) {
-    console.log('Opening booking modal for:', dateTimeString, durationMinutes);
-    const modal = document.getElementById('bookingModal');
-    const content = document.getElementById('bookingContent');
-    const dateTimeDisplay = document.getElementById('bookingDateTime');
+    if (!user || !bookingId) {
+        console.error('Execute Cancel Error: Missing user or booking ID.');
+        cancelConfirmError.textContent = 'Could not cancel booking. User or Booking ID missing.';
+        cancelConfirmError.classList.remove('hidden');
+        return;
+    }
+
+    console.log(`Executing cancellation (deletion) for booking: ${bookingId}`);
+    cancelConfirmIndicator.textContent = 'Cancelling...';
+    confirmCancelBookingBtn.disabled = true;
+    keepBookingBtn.disabled = true; // Disable both during processing
+    closeCancelModalBtnX.disabled = true;
+    cancelConfirmError.classList.add('hidden');
+
+    try {
+        const bookingRef = firebase.firestore().collection(`users/${user.uid}/bookings`).doc(bookingId);
+        await bookingRef.delete(); // Delete the document
+        console.log('Booking deleted successfully:', bookingId);
+
+        closeCancelConfirmModal();
+        await fetchAndRenderSchedule(currentWeekStart, user.uid); // Refresh schedule
+
+    } catch (error) {
+        console.error('Error deleting booking:', error);
+        cancelConfirmError.textContent = `Failed to cancel: ${error.message || 'Please try again.'}`;
+        cancelConfirmError.classList.remove('hidden');
+    } finally {
+        // Re-enable buttons regardless of outcome
+        cancelConfirmIndicator.textContent = '';
+        confirmCancelBookingBtn.disabled = false;
+        keepBookingBtn.disabled = false;
+        closeCancelModalBtnX.disabled = false;
+    }
+}
+// --- END Execute Booking Cancellation ---
+
+// --- NEW: Function to Load and Display Services --- 
+async function loadAndDisplayServicesForBooking() {
+    const user = firebase.auth().currentUser;
+    if (!user) {
+        console.error('Cannot load services: user not authenticated.');
+        baseServiceErrorMsg.textContent = 'Authentication error.';
+        addonServiceErrorMsg.textContent = 'Authentication error.';
+        baseServiceErrorMsg.classList.remove('hidden');
+        addonServiceErrorMsg.classList.remove('hidden');
+        return;
+    }
+
+    // Clear previous options and errors
+    baseServiceOptionsContainer.innerHTML = '<p class="text-gray-600 mb-2">Loading base services...</p>';
+    addonServiceOptionsContainer.innerHTML = '<p class="text-gray-600 mb-2">Loading add-on services...</p>';
+    baseServiceErrorMsg.classList.add('hidden');
+    addonServiceErrorMsg.classList.add('hidden');
+
+    try {
+        const servicesPath = `users/${user.uid}/services`;
+        const servicesCollection = firebase.firestore().collection(servicesPath);
+        // Fetch only active services, order by name
+        const snapshot = await servicesCollection
+                                .where('isActive', '==', true)
+                                .orderBy('serviceName', 'asc')
+                                .get();
+
+        baseServiceOptionsContainer.innerHTML = ''; // Clear loading message
+        addonServiceOptionsContainer.innerHTML = '';
+
+        const services = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        const baseServices = services.filter(s => s.type === 'base');
+        const addonServices = services.filter(s => s.type === 'addon');
+
+        // Populate Base Services (Radio Buttons)
+        if (baseServices.length === 0) {
+            baseServiceOptionsContainer.innerHTML = '<p class="text-gray-500 text-sm italic">No active base services found. Please define them in Settings.</p>';
+        } else {
+            baseServices.forEach((service, index) => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center p-2 rounded hover:bg-gray-100 cursor-pointer';
+
+                const input = document.createElement('input');
+                input.type = 'radio';
+                input.id = `base-${service.id}`;
+                input.name = 'baseService'; // Group radio buttons
+                input.value = service.id;
+                input.dataset.serviceName = service.serviceName; // Store name for later use
+                input.dataset.servicePrice = service.basePrice; // Store price
+                input.className = 'focus:ring-primary h-4 w-4 text-primary border-gray-300 mr-3';
+                if (index === 0) input.checked = true; // Default check the first one
+                
+                const label = document.createElement('label');
+                label.htmlFor = `base-${service.id}`;
+                label.className = 'text-sm text-gray-900 cursor-pointer flex-grow';
+                label.textContent = `${service.serviceName} ($${service.basePrice.toFixed(2)})`;
+                
+                div.appendChild(input);
+                div.appendChild(label);
+                div.addEventListener('click', () => input.checked = true); // Allow clicking the div
+                baseServiceOptionsContainer.appendChild(div);
+            });
+        }
+
+        // Populate Add-on Services (Checkboxes)
+        if (addonServices.length === 0) {
+            addonServiceOptionsContainer.innerHTML = '<p class="text-gray-500 text-sm italic">No active add-on services found.</p>';
+        } else {
+            addonServices.forEach(service => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center p-2 rounded hover:bg-gray-100 cursor-pointer';
+
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.id = `addon-${service.id}`;
+                input.name = 'addonServices';
+                input.value = service.id;
+                input.dataset.serviceName = service.serviceName;
+                input.dataset.servicePrice = service.basePrice;
+                input.className = 'focus:ring-primary h-4 w-4 text-primary border-gray-300 rounded mr-3';
+
+                const label = document.createElement('label');
+                label.htmlFor = `addon-${service.id}`;
+                label.className = 'text-sm text-gray-900 cursor-pointer flex-grow';
+                label.textContent = `${service.serviceName} ($${service.basePrice.toFixed(2)})`;
+
+                div.appendChild(input);
+                div.appendChild(label);
+                // Allow clicking the div to toggle checkbox
+                div.addEventListener('click', (e) => {
+                    // Prevent double toggling if label is clicked directly
+                    if (e.target !== input) {
+                        input.checked = !input.checked;
+                    } 
+                });
+                addonServiceOptionsContainer.appendChild(div);
+            });
+        }
+
+        console.log('Services loaded and displayed for booking modal.');
+
+    } catch (error) {
+        console.error('Error loading services for booking:', error);
+        baseServiceOptionsContainer.innerHTML = ''; // Clear loading message
+        addonServiceOptionsContainer.innerHTML = '';
+        baseServiceErrorMsg.textContent = 'Failed to load base services.';
+        addonServiceErrorMsg.textContent = 'Failed to load add-on services.';
+        baseServiceErrorMsg.classList.remove('hidden');
+        addonServiceErrorMsg.classList.remove('hidden');
+    }
+}
+// --- END Service Loading Function --- 
+
+// Function to open the booking modal
+async function openBookingModal(dateTimeString, durationMinutes) {
+    console.log('[Modal] Opening booking modal for:', dateTimeString);
+    currentBookingData = { dateTime: dateTimeString, duration: durationMinutes, client: null, baseService: null, addonServices: [] }; // Reset/set initial data
+
+    // Display date/time info
+    try {
+        const dateObject = new Date(dateTimeString);
+        // --- FIX: Use valid formatDate and formatTime arguments --- 
+        const displayDate = dateUtils.formatDate(dateObject, 'full-date', housekeeperTimezone); // e.g., "Monday, April 14, 2025"
+        const displayTime = dateUtils.formatTime(dateObject, housekeeperTimezone, 'h:mm A'); // e.g., "8:00 AM"
+        // --- END FIX ---
+        const displayDuration = formatDuration(durationMinutes);
+        bookingDateTimeElement.innerHTML = `<p class="font-medium">${displayDate} at ${displayTime}</p><p class="text-sm text-gray-600">Duration: ${displayDuration}</p>`;
+    } catch(e) {
+        console.error("[Modal] Error formatting date/time for display:", e);
+        bookingDateTimeElement.innerHTML = `<p class="font-medium text-red-600">Error displaying time</p>`;
+    }
+
+    // Reset steps visibility
+    showBookingStep('clientSelection'); // Start with client selection
+
+    // Load clients
+    await loadClientsForSelection();
     
-    if (!modal || !content || !dateTimeDisplay) {
-        console.error('Booking modal elements not found!');
+    // Load Services
+    await loadAndDisplayServicesForBooking();
+
+    // Show the modal AFTER content is likely loaded/loading
+    bookingModalBackdrop.classList.remove('hidden');
+    bookingModal.classList.remove('translate-y-full');
+    bookingContent.scrollTop = 0; // Scroll to top
+
+    // Setup listeners *once* if not already done - MOVED TO DOMContentLoaded
+    // if (!bookingHandlersInitialized) {
+    //     setupBookingModalListeners();
+    //     bookingHandlersInitialized = true;
+    // }
+}
+
+// Function to set up modal event listeners (only once)
+function setupBookingModalListeners() {
+    closeBookingModalBtn.addEventListener('click', closeBookingModal);
+    bookingModalBackdrop.addEventListener('click', closeBookingModal);
+
+    // Client Selection Listener (Example using event delegation)
+    existingClientsContainer.addEventListener('click', (event) => {
+        const clientButton = event.target.closest('.client-option');
+        if (clientButton) {
+            const clientId = clientButton.dataset.clientId;
+            const clientName = clientButton.dataset.clientName;
+            currentBookingData.client = { id: clientId, name: clientName };
+            console.log('[Modal] Client selected:', currentBookingData.client);
+            
+            // Remove selection style from others, add to clicked
+            document.querySelectorAll('.client-option.bg-primary-light').forEach(btn => btn.classList.remove('bg-primary-light'));
+            clientButton.classList.add('bg-primary-light');
+            
+            // --- MODIFIED: Move to Service Selection Steps --- 
+            showBookingStep('baseServiceSelection'); 
+        }
+    });
+
+    // REMOVED: Frequency Selection Listener
+    // frequencySelectionStep.querySelectorAll('.frequency-option').forEach(button => { ... });
+
+    // --- NEW: Review Booking Button Listener ---
+    reviewBookingBtn.addEventListener('click', () => {
+        console.log('[Modal] Review Booking button clicked');
+        
+        // Gather selected services
+        const selectedBaseRadio = baseServiceOptionsContainer.querySelector('input[name="baseService"]:checked');
+        const selectedAddonCheckboxes = addonServiceOptionsContainer.querySelectorAll('input[name="addonServices"]:checked');
+
+        if (!selectedBaseRadio) {
+            // Show error inline near base services
+             baseServiceErrorMsg.textContent = 'Please select a base service.';
+             baseServiceErrorMsg.classList.remove('hidden');
+             baseServiceOptionsContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return; // Stop processing
+        } else {
+             baseServiceErrorMsg.classList.add('hidden'); // Clear error if present
+        }
+
+        currentBookingData.baseService = {
+            id: selectedBaseRadio.value,
+            name: selectedBaseRadio.dataset.serviceName,
+            price: parseFloat(selectedBaseRadio.dataset.servicePrice)
+        };
+
+        currentBookingData.addonServices = [];
+        selectedAddonCheckboxes.forEach(checkbox => {
+            currentBookingData.addonServices.push({
+                id: checkbox.value,
+                name: checkbox.dataset.serviceName,
+                price: parseFloat(checkbox.dataset.servicePrice)
+            });
+        });
+
+        console.log('[Modal] Services selected:', {
+             base: currentBookingData.baseService,
+             addons: currentBookingData.addonServices
+        });
+
+        // Populate confirmation details
+        populateConfirmationDetails();
+
+        // Move to confirmation step
+        showBookingStep('confirmationStep');
+    });
+    // --- END Review Booking Button Listener ---
+
+    // Confirmation Button Listener
+    confirmBookingBtn.addEventListener('click', async () => {
+        console.log('[Modal] Confirm Booking button clicked with data:', currentBookingData);
+        
+        // --- Validate required data ---
+        if (!currentBookingData.client || !currentBookingData.baseService || !currentBookingData.dateTime || !currentBookingData.duration) {
+            console.error('[Modal] Missing required data for booking confirmation.');
+            // TODO: Show error in modal confirmation step?
+            alert('Missing required information (Client, Base Service, or Time). Please go back and select.');
+            return;
+        }
+        
+        const user = firebase.auth().currentUser;
+        if (!user) {
+            console.error('[Modal] User not authenticated.');
+            alert('Authentication error. Please log in again.');
+            return;
+        }
+
+        // --- Set loading state --- 
+        confirmBookingBtn.disabled = true;
+        confirmBookingBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Confirming...';
+        // TODO: Clear any previous confirmation errors
+
+        try {
+            // --- Prepare Timestamps --- 
+            const startDateTime = new Date(currentBookingData.dateTime);
+            const endDateTime = new Date(startDateTime.getTime() + currentBookingData.duration * 60000); // duration is in minutes
+            
+            const startTimestamp = firebase.firestore.Timestamp.fromDate(startDateTime);
+            const endTimestamp = firebase.firestore.Timestamp.fromDate(endDateTime);
+            const startTimestampMillis = startTimestamp.toMillis();
+            const endTimestampMillis = endTimestamp.toMillis();
+
+            // --- Construct Booking Object --- 
+            const bookingData = {
+                housekeeperId: user.uid,
+                clientId: currentBookingData.client.id,
+                clientName: currentBookingData.client.name, // Store name for easy display
+                
+                startTimestamp: startTimestamp,
+                endTimestamp: endTimestamp,
+                startTimestampMillis: startTimestampMillis,
+                endTimestampMillis: endTimestampMillis,
+                durationMinutes: currentBookingData.duration,
+                
+                baseServiceId: currentBookingData.baseService.id,
+                baseServiceName: currentBookingData.baseService.name,
+                baseServicePrice: currentBookingData.baseService.price,
+                
+                addonServices: currentBookingData.addonServices.map(s => ({ // Store addons as array of objects
+                    id: s.id,
+                    name: s.name,
+                    price: s.price
+                })),
+
+                // Calculate total price (simple sum for now)
+                // TODO: Refine price calculation if needed (e.g., discounts, taxes)
+                totalPrice: currentBookingData.baseService.price + currentBookingData.addonServices.reduce((sum, addon) => sum + addon.price, 0),
+
+                status: 'confirmed', // Default status for housekeeper booking
+                frequency: 'one-time', // Explicitly set as one-time
+                notes: '', // Add a notes field later if needed
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            console.log('[Modal] Saving booking data:', bookingData);
+
+            // --- Save to Firestore --- 
+            const bookingsPath = `users/${user.uid}/bookings`;
+            const bookingsCollection = firebase.firestore().collection(bookingsPath);
+            await bookingsCollection.add(bookingData);
+
+            console.log('[Modal] Booking saved successfully!');
+            // TODO: Add success toast notification?
+
+            closeBookingModal();
+            // Refresh schedule view to show the new booking
+            await fetchAndRenderSchedule(currentWeekStart, user.uid); 
+
+        } catch (error) {
+            console.error('[Modal] Error saving booking:', error);
+            // TODO: Show error in modal confirmation step?
+            alert(`Failed to save booking: ${error.message || 'Please try again.'}`);
+        } finally {
+            // --- Reset loading state --- 
+            confirmBookingBtn.disabled = false;
+            confirmBookingBtn.textContent = 'Confirm Booking';
+        }
+    });
+
+    console.log('[Modal] Booking modal event listeners initialized.');
+}
+
+// Function to close the booking modal
+function closeBookingModal() {
+    bookingModalBackdrop.classList.add('hidden');
+    bookingModal.classList.add('translate-y-full');
+    // Reset full state including services
+    currentBookingData = { dateTime: null, duration: null, client: null, baseService: null, addonServices: [] }; 
+    console.log('[Modal] Booking modal closed.');
+}
+
+// Function to show a specific step in the booking process
+function showBookingStep(stepId) {
+    // Hide all steps first
+    // REMOVED: frequencySelectionStep from array
+    [clientSelectionStep, baseServiceSelectionStep, addonServiceSelectionStep, reviewBookingButtonContainer, confirmationStep].forEach(step => {
+        if (step) step.classList.add('hidden');
+    });
+
+    // Show the target step
+    const targetStep = document.getElementById(stepId);
+    if (targetStep) {
+        targetStep.classList.remove('hidden');
+        console.log(`[Modal] Showing step: ${stepId}`);
+        
+        // Show Add-on step and Review button when Base step is shown
+        if (stepId === 'baseServiceSelection') {
+            // Ensure elements exist before modifying classList
+            if (addonServiceSelectionStep) addonServiceSelectionStep.classList.remove('hidden');
+            if (reviewBookingButtonContainer) reviewBookingButtonContainer.classList.remove('hidden'); // Show Review button
+            console.log(`[Modal] Also showing steps: addonServiceSelection, reviewBookingButtonContainer`);
+        } // No 'else' needed here, warning logic removed as it was possibly problematic
+        
+    } else {
+        console.error(`[Modal] Step not found: ${stepId}`);
+    }
+    
+    // Scroll content area to top when changing steps
+    if (bookingContent) bookingContent.scrollTop = 0;
+}
+
+// Function to load clients for the selection step
+async function loadClientsForSelection() {
+    console.log("[Modal] Loading clients...");
+    if (!existingClientsContainer || !clientLoadingErrorMsg) {
+        console.error("[Modal] Client container or error message element not found.");
+        return;
+    }
+
+    existingClientsContainer.innerHTML = '<p class="text-gray-600 mb-2">Loading clients...</p>';
+    clientLoadingErrorMsg.classList.add('hidden');
+
+    try {
+        const user = firebase.auth().currentUser;
+        if (!user) {
+             throw new Error("User not authenticated."); // Throw error to be caught below
+        }
+
+        const clientsPath = `users/${user.uid}/clients`;
+        const clientsCollection = firebase.firestore().collection(clientsPath);
+        // Fetch clients, order by first name then last name
+        const snapshot = await clientsCollection
+                                .orderBy('firstName', 'asc')
+                                .orderBy('lastName', 'asc')
+                                .get();
+
+        existingClientsContainer.innerHTML = ''; // Clear loading message
+
+        const clients = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        if (clients.length === 0) {
+            existingClientsContainer.innerHTML = "<p class='text-gray-500 text-sm italic'>No clients found. Add clients in the 'Clients' section.</p>";
+        } else {
+            clients.forEach(client => {
+                const button = document.createElement('button');
+                // Styling adjustment for better layout
+                button.className = 'client-option w-full p-3 bg-gray-50 border border-gray-200 rounded-lg text-left mb-2 hover:bg-primary-light/50 flex items-center transition-colors duration-150';
+                button.dataset.clientId = client.id;
+                button.dataset.clientName = `${client.firstName} ${client.lastName}`;
+
+                 // Structure: Name, Phone, Address (consider adding profile picture if available)
+                const textDiv = document.createElement('div');
+                textDiv.className = 'flex-grow'; // Allow text to take available space
+
+                const nameEl = document.createElement('p');
+                nameEl.className = 'font-medium text-gray-800';
+                nameEl.textContent = `${client.firstName} ${client.lastName}`;
+                textDiv.appendChild(nameEl);
+
+                // Add phone and address details below the name
+                const detailsEl = document.createElement('p');
+                detailsEl.className = 'text-xs text-gray-500 mt-0.5'; // Smaller text for details
+                const phone = client.phone ? ` | ${client.phone}` : '';
+                detailsEl.textContent = `${client.address || 'No address'} ${phone}`;
+                textDiv.appendChild(detailsEl);
+
+                // You could add an icon/image placeholder here if needed
+
+                button.appendChild(textDiv);
+                existingClientsContainer.appendChild(button);
+            });
+        }
+        console.log('[Modal] Clients loaded and displayed.');
+    } catch (error) {
+        console.error("Error loading clients:", error);
+        existingClientsContainer.innerHTML = ''; // Clear loading message on error
+        clientLoadingErrorMsg.textContent = `Failed to load clients: ${error.message || 'Please try again.'}`;
+        clientLoadingErrorMsg.classList.remove('hidden');
+    }
+}
+
+// --- NEW: Function to populate confirmation details ---
+function populateConfirmationDetails() {
+    if (!confirmationDetailsElement) return;
+
+    let html = '';
+    
+    // Start with Client (Add top border if it's the first item now)
+    if (currentBookingData.client) {
+        // Add class for top border only if it's the first element displayed
+        const borderClass = html === '' ? '' : ' mt-3 pt-3 border-t border-gray-200'; 
+        html += `<div class="${borderClass}"><p class="text-sm font-medium text-gray-600">Client:</p><p>${currentBookingData.client.name}</p></div>`;
+    } else {
+        const borderClass = html === '' ? '' : ' mt-3 pt-3 border-t border-gray-200';
+        html += `<div class="${borderClass}"><p class="text-red-600">Client not selected.</p></div>`;
+    }
+
+    // Base Service
+    if (currentBookingData.baseService) {
+        const borderClass = html === '' ? '' : ' mt-3 pt-3 border-t border-gray-200';
+        html += `<div class="${borderClass}"><p class="text-sm font-medium text-gray-600">Base Service:</p><p>${currentBookingData.baseService.name} ($${currentBookingData.baseService.price.toFixed(2)})</p></div>`;
+    } else {
+        const borderClass = html === '' ? '' : ' mt-3 pt-3 border-t border-gray-200';
+         html += `<div class="${borderClass}"><p class="text-red-600">Base service not selected.</p></div>`;
+    }
+
+    // Add-on Services
+    if (currentBookingData.addonServices && currentBookingData.addonServices.length > 0) {
+        const borderClass = html === '' ? '' : ' mt-3 pt-3 border-t border-gray-200';
+        html += `<div class="${borderClass}"><p class="text-sm font-medium text-gray-600">Add-ons:</p><ul class="list-disc list-inside text-sm">`;
+        currentBookingData.addonServices.forEach(addon => {
+            html += `<li>${addon.name} ($${addon.price.toFixed(2)})</li>`;
+        });
+        html += `</ul></div>`;
+    }
+    
+    // --- NEW: Add Total Price Display --- 
+    if (currentBookingData.baseService) { // Only show price if base service is selected
+        const totalPrice = currentBookingData.baseService.price + currentBookingData.addonServices.reduce((sum, addon) => sum + addon.price, 0);
+        html += `<div class="mt-3 pt-3 border-t border-gray-200"><p class="text-sm font-medium text-gray-600">Estimated Total:</p><p class="font-semibold text-lg text-gray-800">$${totalPrice.toFixed(2)}</p></div>`;
+    }
+    // --- END Total Price Display ---
+
+    // Handle empty confirmation details case
+    if (html === '') {
+        html = '<p class="text-gray-500 italic">No details to confirm.</p>';
+    }
+
+    confirmationDetailsElement.innerHTML = html;
+}
+// --- END Confirmation Details Function ---
+
+// --- NEW: Cancel Confirmation Modal Management ---
+function openCancelConfirmModal(bookingId, clientName = 'this client') { // Accept optional client name for message
+    console.log('[Modal Debug] Entering openCancelConfirmModal'); // Log entry
+    if (!bookingId) {
+        console.error("Cannot open cancel confirmation: Booking ID is missing.");
         return;
     }
     
-    selectedDateTime = dateTimeString; // Store the ISO string
-    selectedDuration = durationMinutes; // Store duration
+    // --- Debug: Log Element References ---
+    console.log('[Modal Debug] cancelConfirmModal reference:', cancelConfirmModal);
+    console.log('[Modal Debug] cancelConfirmBackdrop reference:', cancelConfirmBackdrop);
+    // --- End Debug ---
 
-    // Format for display
-    const displayDate = new Date(dateTimeString);
-    // Use valid options for date and time formatting
-    const dateOptions = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
-    const timeOptions = { hour: 'numeric', minute: '2-digit', hour12: true };
-    dateTimeDisplay.innerHTML = `
-        <p class="font-medium text-lg">${displayDate.toLocaleDateString(undefined, dateOptions)}</p>
-        <p class="text-sm">${displayDate.toLocaleTimeString(undefined, timeOptions)} (${formatDuration(durationMinutes)})</p>
-    `;
-    
-    // Reset to client selection step
-    showBookingStep('clientSelection'); 
-    
-    // Load clients
-    loadClientsForSelection(); 
-    
-    // Show modal
-        modal.classList.remove('translate-y-full');
-    modal.classList.add('translate-y-0');
-    // Add backdrop maybe?
+    if (!cancelConfirmModal || !cancelConfirmBackdrop) {
+        console.error('[Modal Debug] Cannot open cancel modal - element reference is null!');
+        alert('Error: Cannot display cancellation confirmation.');
+        return;
+    }
+
+    bookingIdToCancelInput.value = bookingId;
+    // Customize message slightly if client name is available
+    cancelConfirmMessage.textContent = `Are you sure you want to cancel the booking for ${clientName}? This action cannot be undone.`;
+    cancelConfirmError.classList.add('hidden');
+    cancelConfirmIndicator.textContent = '';
+    confirmCancelBookingBtn.disabled = false;
+
+    console.log('[Modal Debug] Backdrop classes BEFORE remove hidden:', cancelConfirmBackdrop.classList.toString());
+    cancelConfirmBackdrop.classList.remove('hidden');
+    console.log('[Modal Debug] Backdrop classes AFTER remove hidden:', cancelConfirmBackdrop.classList.toString());
+
+    console.log('[Modal Debug] Modal classes BEFORE remove translate-y-full:', cancelConfirmModal.classList.toString());
+    // Use transform for drawer effect
+    cancelConfirmModal.classList.remove('translate-y-full'); 
+    console.log('[Modal Debug] Modal classes AFTER remove translate-y-full:', cancelConfirmModal.classList.toString());
+    // cancelConfirmModal.classList.remove('hidden'); // No longer using hidden
 }
+
+function closeCancelConfirmModal() {
+    console.log('[Modal Debug] Entering closeCancelConfirmModal'); // Log entry
+    // --- Debug: Log Element References ---
+    console.log('[Modal Debug] cancelConfirmModal reference:', cancelConfirmModal);
+    console.log('[Modal Debug] cancelConfirmBackdrop reference:', cancelConfirmBackdrop);
+    // --- End Debug ---
+    
+    if (!cancelConfirmModal || !cancelConfirmBackdrop) {
+         console.error('[Modal Debug] Cannot close cancel modal - element reference is null!');
+         return; // Prevent errors if elements aren't found
+    }
+    
+    console.log('[Modal Debug] Backdrop classes BEFORE add hidden:', cancelConfirmBackdrop.classList.toString());
+    cancelConfirmBackdrop.classList.add('hidden');
+    console.log('[Modal Debug] Backdrop classes AFTER add hidden:', cancelConfirmBackdrop.classList.toString());
+    
+    console.log('[Modal Debug] Modal classes BEFORE add translate-y-full:', cancelConfirmModal.classList.toString());
+    // Use transform for drawer effect
+    cancelConfirmModal.classList.add('translate-y-full'); 
+    console.log('[Modal Debug] Modal classes AFTER add translate-y-full:', cancelConfirmModal.classList.toString());
+    // cancelConfirmModal.classList.add('hidden'); // No longer using hidden
+    
+    // Reset state after transition (optional delay?)
+    // setTimeout(() => {
+        bookingIdToCancelInput.value = '';
+        cancelConfirmError.classList.add('hidden');
+        cancelConfirmIndicator.textContent = '';
+        confirmCancelBookingBtn.disabled = false;
+    // }, 300); // Match transition duration
+}
+// --- END Cancel Confirmation Modal Management ---
 
 // --- Initialization and Event Listeners ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -646,7 +1238,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // NEW: Event Delegation for Pending Actions AND Cancel Requests
+    // --- ADD: Event Listeners for Cancel Confirmation Modal ---
+    confirmCancelBookingBtn.addEventListener('click', executeBookingCancellation);
+    keepBookingBtn.addEventListener('click', closeCancelConfirmModal);
+    closeCancelModalBtnX.addEventListener('click', closeCancelConfirmModal);
+    cancelConfirmBackdrop.addEventListener('click', closeCancelConfirmModal);
+    // --- END ADD ---
+
+    // Event Delegation for Schedule Actions (including cancel)
     const scheduleContainer = document.getElementById('schedule-container');
     if (scheduleContainer) {
         scheduleContainer.addEventListener('click', (event) => {
@@ -656,7 +1255,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (pendingButton) {
                 handlePendingAction(event); // Call existing handler
             } else if (cancelButton) {
-                handleCancelRequestClick(event); // Call new handler
+                handleCancelRequestClick(event); // Updated handler now opens modal
             }
         });
     } else {
@@ -679,38 +1278,5 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// Ensure other functions like setupBookingModalListeners, loadClientsForSelection, showBookingStep, etc., are defined correctly elsewhere in the file or imported.
-// Placeholder for setupBookingModalListeners - Adapt based on actual modal HTML/JS
-function setupBookingModalListeners() {
-     console.log("Setting up booking modal listeners...");
-     document.getElementById('closeBookingModal')?.addEventListener('click', closeBookingModal);
-     // Add listeners for client selection, frequency buttons, final confirm etc.
-     // This needs to be carefully re-integrated with the new structure.
-}
-
-function closeBookingModal() {
-    const modal = document.getElementById('bookingModal');
-    if (modal) {
-        modal.classList.remove('translate-y-0');
-        modal.classList.add('translate-y-full');
-    }
-}
-
-function showBookingStep(stepId) {
-    // Hide all steps
-    document.querySelectorAll('.booking-step').forEach(step => step.classList.add('hidden'));
-    // Show the target step
-    const targetStep = document.getElementById(stepId);
-    if (targetStep) {
-        targetStep.classList.remove('hidden');
-    }
-}
-
-async function loadClientsForSelection() {
-    // Placeholder - adapt based on actual client loading logic
-    const clientContainer = document.getElementById('existingClients');
-    if (!clientContainer) return;
-    clientContainer.innerHTML = '<p>Loading clients...</p>';
-    // const clients = await firestoreService.getClients(firebase.auth().currentUser.uid);
-    // Render client buttons...
-}
+// Export functions if needed by other modules (or rely on global scope for now)
+// export { openBookingModal, closeBookingModal };

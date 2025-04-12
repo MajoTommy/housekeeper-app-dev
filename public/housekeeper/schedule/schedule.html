@@ -186,66 +186,38 @@
                         <div id="existingClients" class="mb-4">
                             <p class="text-gray-600 mb-2">Loading clients...</p>
                         </div>
-                        <button id="newClientBtn" class="w-full p-3 bg-gray-100 rounded-lg text-left mb-2 hover:bg-gray-200">
-                            <div class="flex items-center">
-                                <div class="bg-primary text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">
-                                    <i class="fas fa-plus"></i>
-                                </div>
-                                <span>Add New Client</span>
-                            </div>
-                        </button>
+                        <p id="client-loading-error" class="text-red-500 text-sm mt-1 hidden"></p>
                     </div>
                     
-                    <!-- Frequency Selection -->
-                    <div id="frequencySelection" class="booking-step hidden">
-                        <h3 class="text-lg font-bold mb-3">Select Frequency</h3>
-                        <div class="grid grid-cols-1 gap-3">
-                            <button class="frequency-option p-3 bg-gray-100 rounded-lg text-left hover:bg-gray-200" data-frequency="one-time">
-                                <div class="flex items-center">
-                                    <div class="bg-primary text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">
-                                        <i class="fas fa-calendar-day"></i>
-                                    </div>
-                                    <div>
-                                        <span class="font-medium">One-time</span>
-                                        <p class="text-sm text-gray-600">Single cleaning service</p>
-                                    </div>
-                                </div>
-                            </button>
-                            <button class="frequency-option p-3 bg-gray-100 rounded-lg text-left hover:bg-gray-200" data-frequency="weekly">
-                                <div class="flex items-center">
-                                    <div class="bg-primary text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">
-                                        <i class="fas fa-calendar-week"></i>
-                                    </div>
-                                    <div>
-                                        <span class="font-medium">Weekly</span>
-                                        <p class="text-sm text-gray-600">Every week on this day (creates 8 bookings)</p>
-                                    </div>
-                                </div>
-                            </button>
-                            <button class="frequency-option p-3 bg-gray-100 rounded-lg text-left hover:bg-gray-200" data-frequency="bi-weekly">
-                                <div class="flex items-center">
-                                    <div class="bg-primary text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">
-                                        <i class="fas fa-calendar-alt"></i>
-                                    </div>
-                                    <div>
-                                        <span class="font-medium">Bi-weekly</span>
-                                        <p class="text-sm text-gray-600">Every two weeks on this day (creates 6 bookings)</p>
-                                    </div>
-                                </div>
-                            </button>
-                            <button class="frequency-option p-3 bg-gray-100 rounded-lg text-left hover:bg-gray-200" data-frequency="monthly">
-                                <div class="flex items-center">
-                                    <div class="bg-primary text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">
-                                        <i class="fas fa-calendar-check"></i>
-                                    </div>
-                                    <div>
-                                        <span class="font-medium">Monthly</span>
-                                        <p class="text-sm text-gray-600">Once a month on this day (creates 3 bookings)</p>
-                                    </div>
-                                </div>
-                            </button>
+                    <!-- === NEW: Base Service Selection === -->
+                    <div id="baseServiceSelection" class="booking-step hidden mt-4">
+                        <h3 class="text-lg font-bold mb-3">Select Base Service</h3>
+                        <div id="base-service-options" class="space-y-2">
+                            <!-- Radio buttons for base services will be populated here -->
+                             <p class="text-gray-600 mb-2">Loading base services...</p>
                         </div>
+                         <p id="base-service-error" class="text-red-500 text-sm mt-1 hidden"></p>
                     </div>
+                    <!-- === END: Base Service Selection === -->
+
+                    <!-- === NEW: Add-on Service Selection === -->
+                     <div id="addonServiceSelection" class="booking-step hidden mt-4">
+                        <h3 class="text-lg font-bold mb-3">Select Add-on Services (Optional)</h3>
+                        <div id="addon-service-options" class="space-y-2">
+                            <!-- Checkboxes for add-on services will be populated here -->
+                            <p class="text-gray-600 mb-2">Loading add-on services...</p>
+                        </div>
+                         <p id="addon-service-error" class="text-red-500 text-sm mt-1 hidden"></p>
+                    </div>
+                    <!-- === END: Add-on Service Selection === -->
+                    
+                    <!-- === NEW: Review Booking Button === -->
+                    <div id="reviewBookingButtonContainer" class="booking-step hidden mt-6 text-right">
+                         <button type="button" id="reviewBookingBtn" class="px-6 py-2 bg-primary text-white rounded-md hover:bg-primary-dark disabled:opacity-50">
+                             Review Booking <i class="fas fa-chevron-right ml-2 text-xs"></i>
+                         </button>
+                    </div>
+                    <!-- === END: Review Booking Button === -->
                     
                     <!-- Confirmation -->
                     <div id="confirmationStep" class="booking-step hidden">
@@ -264,8 +236,42 @@
         </div>
     </div>
 
-    <!-- Booking Modal Backdrop -->
+    <!-- Backdrop for Booking Modal -->
     <div id="bookingModalBackdrop" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden transition-opacity duration-300"></div>
+
+    <!-- === UPDATED: Cancel Booking Confirmation Drawer === -->
+    <div id="cancel-confirm-modal" class="fixed inset-x-0 bottom-0 z-50 transform transition-transform duration-300 ease-in-out translate-y-full">
+        <div class="bg-white w-full rounded-t-xl shadow-xl max-h-[85vh] flex flex-col">
+             <!-- Handle -->
+             <div class="flex justify-center pt-2 pb-1">
+                 <div class="w-10 h-1 bg-gray-300 rounded-full"></div>
+             </div>
+            <!-- Header -->
+            <div class="flex justify-between items-center p-4 border-b border-gray-200">
+                <h2 class="text-lg font-semibold text-gray-800">Confirm Cancellation</h2>
+                 <button id="close-cancel-modal-btn-x" class="text-gray-500 hover:text-gray-700">
+                     <i class="fas fa-times"></i>
+                 </button> 
+            </div>
+            <!-- Body -->
+            <div class="p-4 flex-grow overflow-y-auto">
+                <p id="cancel-confirm-message" class="text-sm text-gray-700 mb-4">Are you sure you want to cancel this booking? This action cannot be undone.</p>
+                <input type="hidden" id="booking-id-to-cancel" value="">
+                 <p id="cancel-confirm-error" class="text-red-500 text-sm mt-2 hidden"></p>
+            </div>
+            <!-- Footer Actions -->
+            <div class="flex justify-end items-center p-4 border-t border-gray-200 bg-gray-50 rounded-b-xl space-x-3">
+                 <span id="cancel-confirm-indicator" class="text-sm text-gray-500 italic mr-auto"></span>
+                <button type="button" id="keep-booking-btn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300">Keep Booking</button>
+                <button type="button" id="confirm-cancel-booking-btn" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50">
+                    Confirm Cancellation
+                </button>
+            </div>
+        </div>
+    </div>
+     <!-- Backdrop for Cancel Confirmation Modal -->
+    <div id="cancel-confirm-backdrop" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden"></div> 
+    <!-- === END: Cancel Booking Confirmation Drawer === -->
 
     <script>
         // Basic auth check inline before loading main script
