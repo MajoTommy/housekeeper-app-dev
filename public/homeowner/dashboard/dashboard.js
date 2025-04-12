@@ -728,7 +728,15 @@ document.addEventListener('DOMContentLoaded', () => {
         locationEditForm?.addEventListener('submit', (e) => handleLocationSave(e, userId));
         
         // Logout Button
-        logoutButton?.addEventListener('click', handleLogout);
+        logoutButton?.addEventListener('click', () => {
+            console.log("Logout button clicked.");
+            firebase.auth().signOut().then(() => {
+                console.log("User signed out successfully.");
+                window.location.href = '/'; // Redirect to root (login page)
+            }).catch((error) => {
+                console.error("Logout Error:", error);
+            });
+        });
         
         // --- ADDED: Unlink Button Listener ---
         unlinkButton?.addEventListener('click', async () => {
@@ -748,38 +756,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log('Unlink successful, reloading dashboard data.');
                     // Reload the dashboard to show the unlinked view
                     await loadDashboardData(firebase.auth().currentUser); 
+                    console.log("User unlinked successfully, signing out and redirecting...");
+                    await firebase.auth().signOut();
+                    window.location.href = '/'; // Redirect to root (login page) after sign out
                 } catch (error) {
-                    console.error('Error during unlink operation:', error);
-                    alert(`Failed to unlink: ${error.message}`); // Show error to user
-                    // Re-enable button on error
-                    unlinkButton.textContent = 'Unlink from housekeeper';
-                    unlinkButton.disabled = false;
+                    console.error("Error during unlinking or signout:", error);
                 }
-                // No need to re-enable button on success as the view will change
             }
         });
         // --- END ADDED ---
 
         console.log('Adding event listeners for linked view...');
     };
-    
-    // --- Function to Handle Logout ---
-    const handleLogout = () => {
-        console.log('Logout initiated...');
-        firebase.auth().signOut().then(() => {
-            console.log('User signed out successfully.');
-            // Redirect to login page after sign-out
-            window.location.href = '/login.html'; // Adjust path if needed
-        }).catch((error) => {
-            console.error('Sign out error:', error);
-            alert('Error logging out. Please try again.'); // Simple feedback
-        });
-    };
-    
-    // --- Form Handlers & Unlink --- 
-    const handleProfileUpdate = async (event) => { /* ... existing ... */ };
-    const handleLocationUpdate = async (event) => { /* ... existing ... */ };
-    const handleUnlink = async (userId) => { /* ... existing ... */ };
     
     // --- Initialization ---
     // Initial check to hide loading and setup listener

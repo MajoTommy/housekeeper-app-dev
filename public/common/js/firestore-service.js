@@ -394,6 +394,15 @@ const firestoreService = {
             normalizedSettings.autoSendReceipts = false;
         }
         
+        // **** ADDED: Preserve timezone ****
+        if (typeof settings.timezone === 'string' && settings.timezone) {
+             normalizedSettings.timezone = settings.timezone;
+        } else if (!normalizedSettings.timezone) { // Only add default if missing entirely
+             // Optionally set a default timezone if none exists, or leave it null/undefined
+             normalizedSettings.timezone = null; // Or e.g., 'America/Los_Angeles'
+        }
+        // **** END ADDED ****
+        
         // Create compatibility object for schedule.js
         normalizedSettings.workingDaysCompat = {
             0: normalizedSettings.workingDays.sunday?.isWorking === true,
@@ -948,7 +957,93 @@ const firestoreService = {
             }
             throw error; // Re-throw other errors
         }
-    }
+    },
+
+    // ---- TIME OFF ----
+    async getTimeOffDates(userId, startDateString, endDateString) {
+        console.log(`[Firestore] Getting time off dates for ${userId} between ${startDateString} and ${endDateString}`);
+        if (!userId || !startDateString || !endDateString) {
+            console.error('[Firestore] getTimeOffDates requires userId, startDateString, and endDateString.');
+            throw new Error('Invalid input for getting time off dates.');
+        }
+        try {
+            const timeOffRef = db.collection('users').doc(userId).collection('timeOffDates');
+            // Firestore queries on document IDs require range filters
+            const snapshot = await timeOffRef
+                .where(firebase.firestore.FieldPath.documentId(), '>=', startDateString)
+                .where(firebase.firestore.FieldPath.documentId(), '<=', endDateString)
+                .get();
+            
+            const dates = [];
+            snapshot.forEach(doc => {
+                // Optionally check a field if the document might exist but represent something else
+                // if (doc.data()?.isTimeOff === true) { 
+                   dates.push(doc.id); // doc.id is the 'YYYY-MM-DD' string
+                // }
+            });
+            console.log('[Firestore] Found time off dates:', dates);
+            return dates;
+        } catch (error) {
+            console.error('[Firestore] Error getting time off dates:', error);
+            throw error; // Re-throw the error
+        }
+    },
+
+    async addTimeOffDate(userId, dateString) {
+        console.log(`[Firestore] Adding time off for ${userId} on ${dateString}`);
+        if (!userId || !dateString) {
+             console.error('[Firestore] addTimeOffDate requires userId and dateString.');
+            throw new Error('Invalid input for adding time off date.');
+        }
+        // Validate dateString format YYYY-MM-DD (basic check)
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+             console.error('[Firestore] Invalid dateString format for addTimeOffDate:', dateString);
+             throw new Error('Invalid date format. Use YYYY-MM-DD.');
+        }
+         try {
+            const timeOffDocRef = db.collection('users').doc(userId).collection('timeOffDates').doc(dateString);
+            // Set document with a field indicating it's time off
+            await timeOffDocRef.set({ 
+                isTimeOff: true, 
+                addedAt: firebase.firestore.FieldValue.serverTimestamp() 
+            }); 
+            console.log('[Firestore] Successfully added time off date.');
+            return true;
+        } catch (error) {
+            console.error('[Firestore] Error adding time off date:', error);
+            throw error;
+        }
+    },
+
+    async removeTimeOffDate(userId, dateString) {
+        console.log(`[Firestore] Removing time off for ${userId} on ${dateString}`);
+         if (!userId || !dateString) {
+             console.error('[Firestore] removeTimeOffDate requires userId and dateString.');
+            throw new Error('Invalid input for removing time off date.');
+        }
+         // Validate dateString format YYYY-MM-DD (basic check)
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+             console.error('[Firestore] Invalid dateString format for removeTimeOffDate:', dateString);
+             throw new Error('Invalid date format. Use YYYY-MM-DD.');
+        }
+        try {
+            const timeOffDocRef = db.collection('users').doc(userId).collection('timeOffDates').doc(dateString);
+            await timeOffDocRef.delete();
+            console.log('[Firestore] Successfully removed time off date.');
+            return true;
+        } catch (error) {
+            console.error('[Firestore] Error removing time off date:', error);
+             // Handle specific errors like 'not-found' if needed, otherwise re-throw
+             if (error.code === 'not-found') {
+                console.warn('[Firestore] Tried to remove time off date that did not exist:', dateString);
+                return false; // Or true depending on desired behavior (idempotency)
+            }
+            throw error;
+        }
+    },
+    
+    // ---- SETTINGS ----
+    // Constants for settings structure
 };
 
 // Make the service globally accessible

@@ -283,8 +283,12 @@ async function populateCoreData(homeownerUid, housekeeperUid) {
             updatedAt: firebase.firestore.FieldValue.serverTimestamp() // Add timestamp
         };
         await db.collection('users').doc(homeownerUid).set(homeownerBaseUpdateData, { merge: true });
+        // Explicitly remove the legacy working_hours field if it exists for homeowner too
+        await db.collection('users').doc(homeownerUid).update({
+            working_hours: firebase.firestore.FieldValue.delete()
+        });
         await db.collection('homeowner_profiles').doc(homeownerUid).set(homeownerProfileUpdateData, { merge: true });
-        console.log(` -> Homeowner user and profile updated.`);
+        console.log(` -> Homeowner user updated and legacy working_hours removed.`);
 
         // 2. Update Core Housekeeper Base and Profile
         console.log(`Updating housekeeper user and profile for ${housekeeperUid}...`);
@@ -301,6 +305,11 @@ async function populateCoreData(homeownerUid, housekeeperUid) {
             updatedAt: firebase.firestore.FieldValue.serverTimestamp() // Add timestamp
         };
         await db.collection('users').doc(housekeeperUid).set(housekeeperBaseUpdateData, { merge: true });
+        // Explicitly remove the legacy working_hours field if it exists
+        await db.collection('users').doc(housekeeperUid).update({
+            working_hours: firebase.firestore.FieldValue.delete()
+        });
+        console.log(` -> Housekeeper user updated and legacy working_hours removed.`);
         await db.collection('housekeeper_profiles').doc(housekeeperUid).set(housekeeperProfileUpdateData, { merge: true });
         console.log(` -> Housekeeper user and profile updated.`);
 
@@ -387,31 +396,28 @@ async function populateCoreData(homeownerUid, housekeeperUid) {
         await db.collection('users').doc(housekeeperUid).collection('settings').doc('app').set(defaultHousekeeperSettings, { merge: true });
         console.log(' -> Default settings applied.');
         
-        // *** UPDATED: 6. Add Sample Time Off Date (New Structure) ***
-        console.log(`Adding sample time off date for housekeeper ${housekeeperUid}...`);
-        const sampleTimeOffDateStr = '2025-07-26'; // Example future date
-        // Create UTC start and end of day timestamps
-        const startOfDayUTC = new Date(`${sampleTimeOffDateStr}T00:00:00.000Z`);
-        const endOfDayUTC = new Date(`${sampleTimeOffDateStr}T23:59:59.999Z`);
+        // 6. Add Sample Time Off Dates (Using YYYY-MM-DD as ID)
+        console.log(`Adding sample time off dates for housekeeper ${housekeeperUid}...`);
+        const timeOffCollectionRef = db.collection('users').doc(housekeeperUid).collection('timeOffDates');
+        const today = new Date();
+        const sampleDates = [
+            new Date(today.getFullYear(), today.getMonth() + 1, 10), // 10th of next month
+            new Date(today.getFullYear(), today.getMonth() + 1, 11)  // 11th of next month
+        ];
 
-        if (!isNaN(startOfDayUTC.getTime()) && !isNaN(endOfDayUTC.getTime())) {
-            const timeOffRef = db.collection('users').doc(housekeeperUid).collection('timeOffDates').doc(); // Auto-generate ID
+        for (const date of sampleDates) {
+            const dateString = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+            const timeOffDocRef = timeOffCollectionRef.doc(dateString); // Use date string as ID
             try {
-                await timeOffRef.set({
-                    housekeeperId: housekeeperUid, // Store housekeeperId
-                    startOfDayUTC: firebase.firestore.Timestamp.fromDate(startOfDayUTC),
-                    endOfDayUTC: firebase.firestore.Timestamp.fromDate(endOfDayUTC),
-                    reason: 'Sample Vacation Day',
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                await timeOffDocRef.set({
+                    isTimeOff: true,
+                    addedAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
-                console.log(` -> Added time off for ${sampleTimeOffDateStr} with ID ${timeOffRef.id}`);
+                console.log(` -> Added time off for ${dateString}`);
             } catch (timeOffError) {
-                 console.error(` -> Error adding time off for ${sampleTimeOffDateStr}:`, timeOffError);
+                 console.error(` -> Error adding time off for ${dateString}:`, timeOffError);
             }
-        } else {
-            console.error(` -> Invalid date generated for time off ${sampleTimeOffDateStr}`);
         }
-        // *** END UPDATED SECTION ***
 
         console.log(`--- Sample Data Population COMPLETE ---`);
         alert('Sample data population finished! Check console for details.');

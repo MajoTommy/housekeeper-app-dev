@@ -18,4 +18,6 @@ Review these files:
 - [REQUIREMENTS.md](REQUIREMENTS.md) - Key requirments for this project overall
 - [RULES.md] - Instructions for Cursor to consider when working with me
 - [NEXTSTEPS.md](NEXTSTEPS.md) - Upcoming major development tasks.
--
+- Always check the most recent `.specstory/*.md` logs for prior conversation context.
+- Use information from these logs to maintain continuity across sessions.
+- Use the logs to recall prior tasks, project goals, and decisions made.

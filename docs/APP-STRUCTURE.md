@@ -186,28 +186,27 @@ Backend logic running in Firebase Cloud Functions, providing server-side capabil
 To ensure consistency and avoid timezone-related bugs, the application follows a UTC-based standard for handling dates and times:
 
 1.  **Storage (Firestore):**
-    *   Points in time (e.g., start/end of bookings, time-off boundaries) **MUST** be stored using Firestore's native `Timestamp` type.
+    *   Points in time (e.g., start/end of bookings, time-off boundaries) **MUST** be stored using Firestore's native `Timestamp` type (e.g., `startTimestamp`, `endTimestamp`). This is the primary format for reliable storage and querying.
+    *   For convenience and frontend compatibility (especially with `date-utils.js`), booking documents **ALSO store** the corresponding numeric **UTC milliseconds** since the epoch (e.g., `startTimestampMillis`, `endTimestampMillis`). This avoids repeated `.toMillis()` calls on the client.
     *   Avoid storing dates and times as separate strings (`YYYY-MM-DD`, `HH:mm`).
     *   Configuration values like default start times in settings may still be stored as strings (e.g., "09:00") if they represent time-of-day independent of a specific date, but they **MUST** be converted to UTC for calculations.
 
-2.  **Calculation (Cloud Functions):**
-    *   All date/time arithmetic, comparisons, availability logic, and conflict checks **MUST** be performed using UTC representations (Firestore Timestamps, UTC milliseconds, or UTC minutes-since-midnight).
+2.  **Calculation (Cloud Functions & Frontend Services):**
+    *   All date/time arithmetic, comparisons, availability logic, and conflict checks **MUST** be performed using UTC representations (Firestore Timestamps or UTC milliseconds).
+    *   Backend functions (`requestBooking`, `getAvailableSlots`) and frontend services (`firestore-service.js`) are responsible for ensuring *both* `Timestamp` and millisecond fields are correctly populated when creating or updating booking-related data.
     *   Avoid performing calculations based on local time strings or browser-dependent `Date` objects.
-    *   **Use `date-fns-tz` library (specifically `require('date-fns-tz')` with CommonJS default import) within Cloud Functions for reliable conversion between local time representations (from settings) and UTC timestamps.** The `zonedTimeToUtc` function is used for this purpose in `getAvailableSlots`. 
+    *   Use `date-fns-tz` library (specifically `require('date-fns-tz')`) within Cloud Functions for reliable conversion between local time representations (from settings) and UTC representations.
 
 3.  **Data Transfer (Backend <-> Frontend):**
-    *   Data transferred between Cloud Functions and the frontend client **MUST** represent dates/times unambiguously in UTC. Preferred formats include:
-        *   Firestore Timestamps (if the client SDK handles them correctly).
-        *   ISO 8601 formatted strings with the UTC 'Z' designator (e.g., `"2025-04-10T14:30:00.000Z"`).
-        *   UTC milliseconds since the epoch (Number). (Currently used by `getAvailableSlots` -> `startTimestampMillis`, `endTimestampMillis`).
+    *   Booking data fetched from Firestore (e.g., via `firestore-service.js`) will contain both `Timestamp` objects and `startTimestampMillis`/`endTimestampMillis` numbers.
+    *   The `getAvailableSlots` Cloud Function returns available slots with `startTimestampMillis` and `endTimestampMillis`.
+    *   Frontend components should primarily rely on the **millisecond** values (`startTimestampMillis`, `endTimestampMillis`) for calculations and display formatting.
     *   Avoid transferring simple date or time strings without timezone context.
 
-4.  **Display (Frontend):**
-    *   UTC date/time values received from the backend **MUST** be formatted into the target user's relevant timezone (usually the housekeeper's configured timezone) only at the point of display in the UI.
-    *   Use reliable mechanisms for timezone conversion and formatting, such as:
-        *   The browser's built-in `Intl.DateTimeFormat` API with the `timeZone` option. (Used via `formatMillisForDisplay` in `date-utils.js`).
-        *   A robust date/time library with timezone support (e.g., `date-fns-tz`). (We use this on the backend).
+4.  **Display (Frontend - `dashboard.js`, `schedule.js`, etc.):**
+    *   Use the **millisecond** values (`startTimestampMillis`, `endTimestampMillis`) received from the backend/service layer.
+    *   Pass these millisecond values to helper functions like `formatMillisForDisplay` (in `date-utils.js`) along with the target timezone (usually the housekeeper's) to format them for display in the UI.
     *   Do **NOT** rely on the browser's default `Date.prototype.toString()` or similar methods which use the user's local timezone.
 
 5.  **User Input / Data Sending (Frontend -> Backend):**
-    *   When sending a date/time value to the backend (e.g., for booking requests), the frontend **MUST** construct and send an unambiguous UTC representation (ISO string, milliseconds) based on UTC calculations, *not* based on parsing user-facing display strings.
+    *   When sending a date/time value to the backend (e.g., for `requestBooking`), the frontend **MUST** construct and send an unambiguous UTC representation (usually an ISO 8601 string like `new Date(selectedTimeMillis).toISOString()`). The backend function (`requestBooking`) will parse this and create both the `Timestamp` and millisecond fields for storage.

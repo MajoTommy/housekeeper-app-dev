@@ -26,6 +26,34 @@
       {
         "source": "/housekeeper/dashboard{,/**}",
         "destination": "/housekeeper/dashboard.html"
+      },
+      {
+        "source": "/housekeeper/clients",
+        "destination": "/housekeeper/clients/clients.html"
+      },
+      {
+        "source": "/housekeeper/schedule",
+        "destination": "/housekeeper/schedule/schedule.html"
+      },
+      {
+        "source": "/housekeeper/settings",
+        "destination": "/housekeeper/settings/index.html"
+      },
+      {
+        "source": "/housekeeper/settings/work-schedule",
+        "destination": "/housekeeper/settings/work-schedule.html"
+      },
+      {
+        "source": "/housekeeper/settings/profile",
+        "destination": "/housekeeper/settings/profile.html"
+      },
+      {
+        "source": "/housekeeper/settings/time-off",
+        "destination": "/housekeeper/settings/time-off.html"
+      },
+      {
+        "source": "/housekeeper/settings/account",
+        "destination": "/housekeeper/settings/account.html"
       }
     ]
   },

@@ -2,6 +2,7 @@ import * as dateUtils from '/common/js/date-utils.js'; // Ensure this is at the 
 
 // Initialize the current week start date
 let currentWeekStart; // Will be set after DOMContentLoaded
+let housekeeperTimezone = 'UTC'; // << ADDED: Store timezone globally
 
 // Global booking data
 let currentBookingData = {
@@ -15,21 +16,23 @@ let bookingHandlersInitialized = false;
 
 // Global loading indicator functions
 function showLoading(message = 'Loading...') {
-    const loadingOverlay = document.getElementById('loading-overlay'); // Target existing overlay
+    const loadingOverlay = document.getElementById('loading-overlay'); // Re-query each time
     if (loadingOverlay) {
         // Optional: Update message if needed, though the current one is just an icon
         loadingOverlay.classList.remove('hidden');
     } else {
-        console.error('#loading-overlay element not found in the HTML!');
+        // Reduced severity, as it might be called early
+        console.warn('#loading-overlay element not found, might be called before DOM ready.');
     }
 }
 
 function hideLoading() {
-    const loadingOverlay = document.getElementById('loading-overlay'); // Target existing overlay
+    const loadingOverlay = document.getElementById('loading-overlay'); // Re-query each time
     if (loadingOverlay) {
         loadingOverlay.classList.add('hidden');
     } else {
-        console.error('#loading-overlay element not found in the HTML!');
+        // Reduced severity
+        console.warn('#loading-overlay element not found, might be called before DOM ready.');
     }
 }
 
@@ -203,6 +206,11 @@ async function loadUserSchedule(showLoadingIndicator = true) {
         }
         // --- End firestoreService usage --- 
 
+        // --- ADDED: Store Timezone ---
+        housekeeperTimezone = settings.timezone || dateUtils.getLocalTimezone(); // Use fetched or local
+        console.log(`Housekeeper timezone set to: ${housekeeperTimezone}`);
+        // --- END ADDED ---
+
         // --- Process workingDays (Handle potential structure differences) ---
         // Check if workingDays exists and has the named format
         if (settings.workingDays && typeof settings.workingDays === 'object' && settings.workingDays.monday !== undefined) {
@@ -259,12 +267,15 @@ async function loadUserSchedule(showLoadingIndicator = true) {
 // --- Schedule Generation (Refactored to use Cloud Function Data) ---
 async function fetchAndRenderSchedule(startDate, housekeeperId) {
     console.log(`Fetching schedule for week starting: ${startDate.toISOString()}`);
-    showLoading(); // Show loading indicator
+    
+    // --- ADDED: Slight delay for showLoading ---
+    setTimeout(() => showLoading(), 0); // Delay slightly to ensure DOM is ready
+    // --- END ADDED ---
     
     const scheduleContainer = document.getElementById('schedule-container');
     if (!scheduleContainer) {
         console.error("Schedule container element not found!");
-        hideLoading();
+        hideLoading(); // Still try to hide if showLoading failed
         return;
     }
     scheduleContainer.innerHTML = ''; // Clear previous schedule
@@ -284,7 +295,7 @@ async function fetchAndRenderSchedule(startDate, housekeeperId) {
 
         if (result.data && result.data.schedule) {
             renderScheduleFromData(result.data.schedule, startDate);
-                    } else {
+        } else {
             console.error('Invalid schedule data received from function:', result.data);
             scheduleContainer.innerHTML = '<p class="text-center text-red-500">Error loading schedule data.</p>';
         }
@@ -304,6 +315,12 @@ function renderScheduleFromData(scheduleData, weekStartDate) {
     const scheduleContainer = document.getElementById('schedule-container');
     if (!scheduleContainer) return; // Already checked, but safe
 
+    // --- UPDATED: ADD Grid Classes, don't overwrite existing (like p-4) ---
+    scheduleContainer.classList.add('grid', 'grid-cols-1', 'md:grid-cols-3', 'lg:grid-cols-7', 'gap-4');
+    // Ensure any previous styles not related to grid/padding are cleared if needed, but preserve p-4 from HTML
+    scheduleContainer.innerHTML = ''; // Clear previous schedule content
+    // --- END UPDATED ---
+
     // Get today's date for comparison
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -311,7 +328,7 @@ function renderScheduleFromData(scheduleData, weekStartDate) {
     const weekDates = dateUtils.getWeekDates(weekStartDate);
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-    // Create the grid structure - REMOVED grid classes
+    // Create the grid structure - REMOVED grid classes from here
     // scheduleContainer.className = 'grid grid-cols-1 md:grid-cols-7 gap-4'; 
     // space-y-4 is now handled in the HTML container
 
@@ -324,37 +341,47 @@ function renderScheduleFromData(scheduleData, weekStartDate) {
 
         // Create Day Column Div (now acts as Day Card)
         const dayColumn = document.createElement('div');
-        dayColumn.className = 'bg-white rounded-lg shadow flex flex-col min-h-[150px]'; // Base style for card
+        // Ensure flex column for proper stacking within the card
+        // REVERTED: REMOVE p-4 from individual card, rely on container padding
+        dayColumn.className = 'bg-white rounded-lg shadow flex flex-col min-h-[150px]'; // Base style for card NO PADDING
 
         if (isPastDay) {
             // Hide past day columns completely
             dayColumn.classList.add('hidden');
         } else {
             // Only add padding and content for non-past days
-            dayColumn.classList.add('p-4');
+            // Removed p-4 here, will add to header and slots container
+            // dayColumn.classList.add('p-4');
             
             // Add Header
             const dayHeader = document.createElement('h3');
             dayHeader.textContent = `${dayNames[date.getUTCDay()]} ${dateUtils.formatDate(date, 'short-numeric')}`;
-            // Make header larger for card layout
-            dayHeader.className = 'text-lg font-semibold mb-4 text-gray-800 flex-shrink-0 px-4 pt-4'; // Increased margin bottom to mb-4
+            // Add padding to header, consistent font size
+            // ADDED BACK internal padding for header
+            dayHeader.className = 'text-lg font-semibold mb-4 text-gray-800 flex-shrink-0 px-4 pt-4'; // Added padding back
             dayColumn.appendChild(dayHeader);
 
             // Slots Container - Add padding
             const slotsContainer = document.createElement('div');
-            slotsContainer.className = 'flex-grow space-y-2 px-4 pb-4'; // Added padding
+            // Use space-y-3 like homeowner?
+            // ADDED BACK internal padding for slots
+            slotsContainer.className = 'flex-grow space-y-3 px-4 pb-4'; // Added padding back
 
             // Populate based on status and slots
             if (dayData && dayData.slots && dayData.slots.length > 0) {
-                // Iterate through ALL returned slots for the day
-                dayData.slots.forEach(slotData => {
-                    const slotElement = createSlotElement(slotData, dateString); // Use a helper
+                dayData.slots.forEach(slot => {
+                    const slotElement = createSlotElement(slot, dateString);
                     slotsContainer.appendChild(slotElement);
-        });
-    } else {
-                // Handle no slots or error for the day
-                slotsContainer.innerHTML = `<p class="text-xs text-gray-400 text-center italic">${dayData?.message || 'No slots defined'}</p>`;
+                });
+            } else {
+                // Display "Not scheduled to work" if no slots and day is active
+                const noWorkText = document.createElement('p');
+                noWorkText.textContent = 'Not scheduled to work';
+                // Apply styling similar to homeowner view
+                noWorkText.className = 'text-center text-gray-500 text-sm mt-4'; // Centered, muted, small margin-top
+                slotsContainer.appendChild(noWorkText);
             }
+
             dayColumn.appendChild(slotsContainer);
         }
 
@@ -366,82 +393,105 @@ function renderScheduleFromData(scheduleData, weekStartDate) {
 // NEW: Helper function to create HTML element for a single time slot
 function createSlotElement(slotData, dateString) {
     const div = document.createElement('div');
-    // Consistent padding and rounding, reduced padding
-    div.className = 'p-2 rounded-lg text-sm'; 
+    // Simplified base style: More padding, remove border/shadow by default
+    div.className = 'p-3 rounded text-base'; // Slightly larger base padding and font
 
-    const startTime = slotData.startTime || 'N/A';
-    const endTime = slotData.endTime || 'N/A';
+    // --- UPDATED TIME FORMATTING ---
+    // Assume housekeeperTimezone variable is accessible here
+    // Use formatTime for simplicity (e.g., "9:00 AM")
+    const startTime = slotData.startTimestampMillis 
+        ? dateUtils.formatTime(new Date(slotData.startTimestampMillis), housekeeperTimezone, 'h:mm A') 
+        : 'N/A';
+    const endTime = slotData.endTimestampMillis 
+        ? dateUtils.formatTime(new Date(slotData.endTimestampMillis), housekeeperTimezone, 'h:mm A') 
+        : 'N/A';
+    // --- END UPDATED TIME FORMATTING ---
+
     const durationText = formatDuration(slotData.durationMinutes);
-    const timeDisplay = `${startTime} - ${endTime}`;
+    const timeDisplay = `${startTime} - ${endTime}`; // Now uses formatted times
     const durationDisplay = durationText ? `(${durationText})` : '';
 
     // --- Style and Content based on Status --- 
     switch (slotData.status) {
         case 'available':
-            // Match Homeowner Available Style
-            div.classList.add('bg-blue-50', 'border', 'border-blue-200', 'cursor-pointer', 'hover:bg-blue-100', 'flex', 'items-center', 'justify-between');
+            // Simplified Available Style: Clear blue bg, simple button
+            div.classList.add('bg-blue-100', 'flex', 'items-center', 'justify-between');
             // Text Div (Left)
             const availableTextDiv = document.createElement('div');
             availableTextDiv.innerHTML = `
-                <p class="font-semibold text-blue-800">${timeDisplay}</p>
-                <p class="text-xs text-blue-600">Available ${durationDisplay}</p>
-            `;
+                <p class="font-semibold text-blue-900">${timeDisplay}</p>
+                <p class="text-sm text-blue-700">Available ${durationDisplay}</p>
+            `; 
             div.appendChild(availableTextDiv);
             // Button Div (Right)
             const availableButton = document.createElement('button');
-            availableButton.innerHTML = 'Book <i class="fas fa-chevron-right fa-xs ml-1"></i>'; 
-            availableButton.className = 'inline-flex items-center px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded-full shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors'; // Reduced padding
+            availableButton.textContent = 'Book'; // Simpler text
+            // Simplified button style: Clear bg, good padding, no shadow/icon
+            availableButton.className = 'px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-400';
             div.appendChild(availableButton);
-            
-            // Event Listener (keep existing logic to open HK modal)
-            div.addEventListener('click', () => {
-                console.log('Available slot clicked:', dateString, slotData);
+
+            // Event Listener
+            div.addEventListener('click', (e) => { 
+                // Prevent event listener if the button itself was clicked
+                if (e.target === availableButton) return;
+                console.log('Available slot area clicked (not button):', dateString, slotData);
                 let slotDateTimeString = null;
-                try {
-                    const slotStartTimeStr = `${dateString} ${startTime}`;
-                    const slotDateObject = new Date(slotStartTimeStr);
-                    if (!isNaN(slotDateObject.getTime())) { slotDateTimeString = slotDateObject.toISOString(); }
-                } catch (e) { console.error('Error parsing start time'); }
-                
+                if (slotData.startTimestampMillis) {
+                    slotDateTimeString = new Date(slotData.startTimestampMillis).toISOString();
+                }
                 if (slotDateTimeString) {
                     openBookingModal(slotDateTimeString, slotData.durationMinutes);
-            } else {
-                    alert('Error preparing booking time.');
+                } else {
+                    alert('Error preparing booking time. Missing timestamp.');
                 }
+            });
+             // Add separate listener for the button itself if needed later, 
+             // but for now, clicking anywhere (except button) triggers modal.
+            availableButton.addEventListener('click', () => {
+                 console.log('Available slot BOOK button clicked:', dateString, slotData);
+                 let slotDateTimeString = null;
+                 if (slotData.startTimestampMillis) {
+                     slotDateTimeString = new Date(slotData.startTimestampMillis).toISOString();
+                 }
+                 if (slotDateTimeString) {
+                     openBookingModal(slotDateTimeString, slotData.durationMinutes);
+                 } else {
+                     alert('Error preparing booking time. Missing timestamp.');
+                 }
             });
             break;
         case 'pending':
-            // Keep distinct yellow style, ensure clean layout
-            div.classList.add('bg-yellow-100', 'border', 'border-yellow-300');
+            // Simplified Pending Style: Clear yellow bg, simple buttons
+            div.classList.add('bg-yellow-100');
             div.innerHTML = `
-                    <div>
-                    <p class="font-medium text-yellow-800">${timeDisplay} <span class="text-xs font-normal">${durationDisplay}</span></p>
-                    <p class="text-sm font-semibold text-yellow-900">Pending Confirmation</p>
-                    <p class="text-xs text-yellow-700 mt-1">Client: ${slotData.clientName || 'Loading...'}</p>
-                    </div>
-                <div class="mt-2 flex space-x-2">
-                    <button class="flex-1 px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-md shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-green-500" data-booking-id="${slotData.bookingId}" data-action="confirm">Confirm</button>
-                    <button class="flex-1 px-3 py-1.5 text-xs font-medium bg-red-600 text-white rounded-md shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-red-500" data-booking-id="${slotData.bookingId}" data-action="reject">Reject</button>
+                <div>
+                    <p class="font-semibold text-yellow-900">${timeDisplay} <span class="text-sm font-normal">${durationDisplay}</span></p>
+                    <p class="text-base font-semibold text-yellow-800">Pending</p>
+                    <p class="text-sm text-yellow-700 mt-1">Client: ${slotData.clientName || '...'}</p>
+                </div>
+                <div class="mt-3 flex space-x-3">
+                    <button class="flex-1 px-4 py-2 text-sm font-medium bg-green-500 text-white rounded hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-green-400" data-booking-id="${slotData.bookingId}" data-action="confirm">Confirm</button>
+                    <button class="flex-1 px-4 py-2 text-sm font-medium bg-red-500 text-white rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-red-400" data-booking-id="${slotData.bookingId}" data-action="reject">Reject</button>
                 </div>
             `;
             break;
-        case 'booked': 
+        case 'booked':
         case 'confirmed':
-            // Match Homeowner Non-Available Style (Gray) + Cancel Btn
-            div.classList.add('bg-gray-100', 'flex', 'items-center', 'justify-between');
+            // Simplified Booked/Confirmed Style: Clearer gray bg, simple cancel button
+            div.classList.add('bg-gray-200', 'flex', 'items-center', 'justify-between');
             // Info Div (Left)
             const confirmedInfoDiv = document.createElement('div');
             confirmedInfoDiv.innerHTML = `
-                <p class="font-medium text-gray-700">${timeDisplay} <span class="text-xs font-normal text-gray-500">${durationDisplay}</span></p>
-                <p class="text-sm font-semibold ${slotData.status === 'confirmed' ? 'text-green-700' : 'text-gray-600'}">${slotData.status === 'confirmed' ? 'Confirmed' : 'Booked'}</p>
-                <p class="text-xs text-gray-500 mt-1">Client: ${slotData.clientName || 'Loading...'}</p>
+                <p class="font-semibold text-gray-800">${timeDisplay} <span class="text-sm font-normal text-gray-600">${durationDisplay}</span></p>
+                <p class="text-base font-semibold ${slotData.status === 'confirmed' ? 'text-green-700' : 'text-gray-700'}">${slotData.status === 'confirmed' ? 'Confirmed' : 'Booked'}</p>
+                <p class="text-sm text-gray-600 mt-1">Client: ${slotData.clientName || '...'}</p>
             `;
             div.appendChild(confirmedInfoDiv);
             // Cancel Button Div (Right)
             const cancelButton = document.createElement('button');
             cancelButton.textContent = 'Cancel';
-            // Style like Homeowner cancel button
-            cancelButton.className = 'ml-4 px-2 py-1 text-xs font-medium text-red-600 bg-red-100 rounded hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-red-500';
+            // Simplified button style
+            cancelButton.className = 'ml-4 px-4 py-2 bg-red-500 text-white text-sm font-medium rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-red-400';
             cancelButton.dataset.bookingId = slotData.bookingId;
             cancelButton.dataset.action = 'request_cancel';
             div.appendChild(cancelButton);
@@ -449,12 +499,12 @@ function createSlotElement(slotData, dateString) {
         case 'unavailable':
         case 'break':
         default:
-            // Match Homeowner Non-Available Style (Gray)
-            div.classList.add('bg-gray-100');
+            // Simplified Unavailable/Break Style: Clearer gray bg
+            div.classList.add('bg-gray-200');
             div.innerHTML = `
-                <div> <!-- Wrap text for consistent structure -->
-                    <p class="text-gray-600">${timeDisplay}</p>
-                    <p class="text-xs text-gray-400">${slotData.type === 'break' ? 'Break' : 'Unavailable'}</p>
+                <div>
+                    <p class="text-gray-700">${timeDisplay}</p>
+                    <p class="text-sm text-gray-500">${slotData.type === 'break' ? 'Break' : 'Unavailable'}</p>
                 </div>
             `;
             break;
@@ -612,6 +662,21 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         console.error('Schedule container not found for action delegation.');
     }
+
+    // Handle logout if a logout button exists on this page
+    // Ensure the button has id="logout-button"
+    const logoutButton = document.getElementById('logout-button');
+    logoutButton?.addEventListener('click', () => {
+        firebase.auth().signOut()
+            .then(() => {
+                console.log('User signed out successfully');
+                window.location.href = '/'; // Redirect to root (login page)
+            })
+            .catch((error) => {
+                console.error('Sign out error:', error);
+                alert('Error signing out.');
+            });
+    });
 });
 
 // Ensure other functions like setupBookingModalListeners, loadClientsForSelection, showBookingStep, etc., are defined correctly elsewhere in the file or imported.

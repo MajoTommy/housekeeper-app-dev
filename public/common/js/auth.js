@@ -1,13 +1,14 @@
 document.addEventListener('DOMContentLoaded', function() {
-    // Check if user is already logged in
-    firebase.auth().onAuthStateChanged(function(user) {
-        if (user && window.location.pathname.includes('login.html')) {
-            // User is signed in and on login page, redirect to dashboard
-            window.location.href = 'index.html';
-        }
-    });
+    // Check if user is already logged in - Handled by auth-router.js now
+    // firebase.auth().onAuthStateChanged(function(user) {
+    //     if (user && window.location.pathname.includes('login.html')) {
+    //         // User is signed in and on login page, redirect to dashboard
+    //         window.location.href = 'index.html';
+    //     }
+    // });
 
     // Login form submission
+    // Form ID should now be on index.html
     const loginForm = document.getElementById('login-form');
     if (loginForm) {
         loginForm.addEventListener('submit', function(e) {

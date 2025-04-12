@@ -43,9 +43,9 @@
 <body class="h-full pb-40">
     <!-- Header -->
     <div class="sticky top-0 z-40 bg-white border-b border-gray-200">
-        <div class="flex items-center justify-between px-4 py-4">
+        <div class="flex items-center justify-between px-4 py-6">
             <h1 class="text-xl font-semibold text-gray-900">Settings</h1>
-            <div></div> <!-- Empty div to maintain spacing -->
+            <!-- Removed settings/logout buttons -->
         </div>
     </div>
 
@@ -58,6 +58,10 @@
             <div>
                 <h2 id="user-display-name" class="text-lg font-semibold text-gray-900">Loading...</h2> <!-- ID for Name -->
                 <p id="user-email" class="text-sm text-gray-500">Loading...</p> <!-- ID for Email -->
+                <!-- Logout Button Added Below Email -->
+                <button type="button" id="logout-button" class="text-sm font-medium text-red-600 hover:text-red-800 focus:outline-none mt-1">
+                    Logout
+                </button>
             </div>
             <div class="ml-auto">
                  <!-- Edit button could go here if needed -->

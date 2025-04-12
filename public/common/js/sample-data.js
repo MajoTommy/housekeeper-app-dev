@@ -549,7 +549,8 @@ async function resetAndPopulateDatabase() {
         const housekeeperCollections = [
             'clients',
             'bookings',
-            'payments'
+            'payments',
+            'timeOffDates'
         ];
         
         const homeownerCollections = [];

@@ -2138,3 +2138,27 @@ async function saveNewClient() {
         showErrorMessage('Error adding new client: ' + error.message);
     }
 }
+
+// If no user is signed in, show the login prompt.
+function showLoginPrompt() {
+    const appContainer = document.getElementById('app-container');
+    appContainer.innerHTML = `
+        <div class="text-center mt-10">
+            <p class="mb-4">Please log in to manage your clients.</p>
+            <a href="/" class="mt-4 inline-block px-4 py-2 bg-primary text-white rounded">
+                Go to Login
+            </a>
+        </div>
+    `;
+}
+
+// Handle potential sign-out (if a logout button exists on this page)
+// Example - adapt selector if needed
+const logoutBtn = document.getElementById('logout-button-clients'); 
+if (logoutBtn) {
+    logoutBtn.addEventListener('click', () => {
+        firebase.auth().signOut().then(() => {
+            window.location.href = '/'; // Redirect to root (login page)
+        }).catch(error => console.error('Logout error:', error));
+    });
+}

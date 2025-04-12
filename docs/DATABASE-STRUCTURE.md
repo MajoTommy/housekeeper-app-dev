@@ -182,21 +182,41 @@ For housekeepers, stores their client information. Added via UI or `populate-sam
 
 ### Bookings (`/users/{housekeeperId}/bookings/{bookingId}`)
 
-For housekeepers, stores their booking information. Added via UI (`schedule.js` -> `firestoreService.addBooking`) or `populate-sample-data.js`.
+Stores booking/appointment records for a specific housekeeper.
 
 ```javascript
 {
-  clientId: "homeowner_user_id_or_generated_client_id", // (String) Links to homeowner UID or a client doc ID
-  clientName: "Corey Homeowner", // (String) Denormalized client name at time of booking
-  date: "2025-08-15", // (String) Format YYYY-MM-DD
-  startTime: "10:00", // (String) Format HH:MM (24-hour)
-  endTime: "12:00", // (String) Format HH:MM (24-hour)
-  status: "scheduled" | "completed" | "canceled", // (String)
-  frequency: "one-time" | "weekly" | "bi-weekly" | "monthly", // (String)
-  notes: "First cleaning for Corey.", // (String, Optional)
-  address: "101 Home Sweet Ln", // (String, Optional) Denormalized address at time of booking
-  createdAt: Timestamp, // Set by firestoreService.addBooking
-  updatedAt: Timestamp // (Optional) Set on updates
+  // Core Identifiers
+  "housekeeperId": "wnvHPASoOlUUeofBcbi2wq3ZSRz2", // (String) UID of the housekeeper this booking belongs to.
+  "homeownerId": "oVq1QoYHcRRTkh0KjMeGfhkgx5H3", // (String) UID of the homeowner who booked (or clientId if booked by housekeeper).
+  
+  // Denormalized Client/Homeowner Info (for display)
+  "clientName": "Corey Homeowner", // (String) Name of the homeowner/client.
+  "address": "101 Home Sweet Ln", // (String) Address where the service will occur (denormalized from profile).
+
+  // Primary Time Fields (Stored as Firestore Timestamps)
+  "startTimestamp": Timestamp, // (Timestamp) Start date and time of the booking (UTC).
+  "endTimestamp": Timestamp, // (Timestamp) End date and time of the booking (UTC).
+
+  // Millisecond Time Fields (Stored as Numbers for Frontend Use)
+  "startTimestampMillis": 1744642800000, // (Number) UTC milliseconds since epoch for start time.
+  "endTimestampMillis": 1744655400000, // (Number) UTC milliseconds since epoch for end time.
+  
+  // Booking Details
+  "status": "pending" | "confirmed" | "cancelled_by_homeowner" | "cancelled_by_housekeeper" | "completed" | "rejected", // (String) Current status.
+  "frequency": "one-time" | "weekly" | "bi-weekly" | "monthly", // (String, Optional)
+  "notes": "First cleaning for Corey.", // (String, Optional) Notes from the booker.
+  "serviceType": "Standard Cleaning", // (String, Optional) Type of service requested.
+
+  // Auditing Timestamps
+  "createdAt": Timestamp, // (Timestamp) When the booking was created.
+  "updatedAt": Timestamp, // (Timestamp) When the booking was last updated.
+  "confirmedAt": Timestamp, // (Timestamp, Optional) When confirmed by housekeeper.
+  "cancelledAt": Timestamp, // (Timestamp, Optional) When cancelled.
+  
+  // Cancellation Details (Optional)
+  "cancelledBy": "homeowner" | "housekeeper", // (String, Optional)
+  "cancellationReason": "Reason provided..." // (String, Optional)
 }
 ```
 

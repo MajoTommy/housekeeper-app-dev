@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Housekeeper App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <!-- Firestore SDK is needed for firestore-service.js -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+    
+    <!-- Firebase Config -->
+    <script src="../../common/js/firebase-config.js"></script>
+    <!-- Firestore Service -->
+    <script src="../../common/js/firestore-service.js"></script>
+    <!-- Auth Service -->
+    <script src="../../common/js/auth.js"></script>
+    <!-- Auth Router -->
+    <script src="../../common/js/auth-router.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            DEFAULT: '#2196F3',
+                            light: '#E3F2FD',
+                        },
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="h-full pb-20">
+    <!-- Header -->
+    <div class="bg-white border-b border-gray-200">
+        <div class="flex items-center justify-center px-4 py-6">
+            <!-- Centered Title -->
+            <h1 class="text-xl font-semibold text-gray-900">Settings</h1>
+        </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <main class="p-4 md:p-6">
+         <!-- Settings options grid -->
+         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+            <!-- Profile Card -->
+            <a href="/housekeeper/settings/profile" class="bg-white p-6 rounded-lg shadow hover:shadow-lg transition-shadow duration-200 flex flex-col items-center text-center">
+                <div class="mb-3 text-primary text-3xl">
+                    <i class="fas fa-user-circle"></i>
+                </div>
+                <h3 class="text-lg font-semibold mb-1 text-gray-800">My Profile</h3>
+                <p class="text-gray-600 text-sm">Manage personal info & account details.</p>
+            </a>
+            
+            <!-- Work Schedule Card -->
+            <a href="/housekeeper/settings/work-schedule" class="bg-white p-6 rounded-lg shadow hover:shadow-lg transition-shadow duration-200 flex flex-col items-center text-center">
+                 <div class="mb-3 text-primary text-3xl">
+                    <i class="fas fa-calendar-alt"></i>
+                </div>
+                <h3 class="text-lg font-semibold mb-1 text-gray-800">Work Schedule</h3>
+                <p class="text-gray-600 text-sm">Set availability & standard work hours.</p>
+            </a>
+            
+            <!-- Time Off Card -->
+            <a href="/housekeeper/settings/time-off" class="bg-white p-6 rounded-lg shadow hover:shadow-lg transition-shadow duration-200 flex flex-col items-center text-center">
+                 <div class="mb-3 text-primary text-3xl">
+                    <i class="fas fa-calendar-times"></i>
+                </div>
+                <h3 class="text-lg font-semibold mb-1 text-gray-800">Time Off</h3>
+                <p class="text-gray-600 text-sm">Request and view approved time off.</p>
+            </a>
+            
+            <!-- Account & App Card -->
+            <a href="/housekeeper/settings/account" class="bg-white p-6 rounded-lg shadow hover:shadow-lg transition-shadow duration-200 flex flex-col items-center text-center">
+                 <div class="mb-3 text-primary text-3xl">
+                    <i class="fas fa-sliders-h"></i>
+                </div>
+                <h3 class="text-lg font-semibold mb-1 text-gray-800">Account & App</h3>
+                <p class="text-gray-600 text-sm">Manage app settings & account details.</p>
+            </a>
+
+            <!-- Add more settings cards as needed -->
+            
+        </div>
+    </main>
+
+    <!-- Mobile Footer Navigation -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30">
+        <div class="mx-auto max-w-7xl">
+            <div class="flex justify-around">
+                <a href="/housekeeper/schedule" class="flex flex-col items-center py-3 px-6 text-gray-500 hover:text-primary">
+                    <i class="fas fa-calendar-alt text-xl"></i>
+                    <span class="text-xs mt-1">Schedule</span>
+                </a>
+                <a href="/housekeeper/clients" class="flex flex-col items-center py-3 px-6 text-gray-500 hover:text-primary">
+                    <i class="fas fa-users text-xl"></i>
+                    <span class="text-xs mt-1">Clients</span>
+                </a>
+                <a href="/housekeeper/settings" class="flex flex-col items-center py-3 px-6 text-primary"> <!-- Current Page -->
+                    <i class="fas fa-cog text-xl"></i>
+                    <span class="text-xs mt-1">Settings</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

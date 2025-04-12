@@ -906,4 +906,12 @@ document.addEventListener('DOMContentLoaded', () => {
          console.log('Waiting for auth state...');
          showLoading(true); // Show loading initially until auth state is confirmed
     }
+
+    // Optional: Redirect to login if user is somehow not authenticated
+    // firebase.auth().onAuthStateChanged((user) => {
+    //     if (!user) {
+    //         console.log("User not authenticated, redirecting to login...");
+    //         window.location.href = '/'; // Redirect to root (login page)
+    //     }
+    // });
 }); 

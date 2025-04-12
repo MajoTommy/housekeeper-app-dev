@@ -92,7 +92,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             // --- NEW: Redirect from index/root to login if not logged in ---
             if (currentPath.endsWith('/index.html') || currentPath === '/' || currentPath.endsWith('/')) {
                 // Allow exceptions for specific files accessible when logged out
-                const allowedRootFiles = ['/index.html', '/signup.html', '/forgot-password.html', '/404.html']; // ADDED /index.html, REMOVED /login.html
+                const allowedRootFiles = ['/index.html', '/signup.html', '/forgot-password.html', '/404.html']; 
                 let onAllowedPage = false;
                 for (const allowedFile of allowedRootFiles) {
                     // Handle root path explicitly or ensure endsWith check works
@@ -108,7 +108,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 // Only redirect from root/index if not already on an allowed page
                 if (!onAllowedPage) {
                      console.log('Not logged in and on index/root page, redirecting to login (index.html).');
-                     window.location.href = baseUrl + 'index.html'; 
+                     window.location.href = baseUrl + 'index.html'; // Target is index.html
                      return; // Stop further checks
                 }
             }
