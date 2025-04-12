@@ -15000,6 +15000,177 @@ _**Assistant**_
 
 ---
 
+Okay, that redirect to `/homeowner/dashboard.html` after signing up as a housekeeper is definitely incorrect. The redirect logic needs adjustment.
+
+This typically happens in one of two places:
+
+1.  **`signup.js`:** The script handling the sign-up form might have a hardcoded redirect upon successful user creation.
+2.  **`auth-router.js`:** More likely, the authentication router detects the newly signed-up and logged-in user, checks their role, and then redirects them based on that role. The path configured for the 'housekeeper' role might be wrong.
+
+Let's investigate `auth-router.js` first, as it's specifically designed to handle these role-based redirects after login/signup.
+
+
+
+---
+
+Read file: public/common/js/auth-router.js
+
+---
+
+Okay, reviewing `auth-router.js`, I see a few places where redirects happen, but let's focus on the logic when a user *is* logged in (which includes immediately after signup):
+
+```javascript
+            if (user) {
+                // ... (get user profile and role) ...
+
+                // Check if on the landing page or login page
+                if (currentPath.endsWith('/index.html') ||
+                    currentPath.endsWith('/login.html') ||
+                    currentPath === '/' ||
+                    currentPath.endsWith('/') ||
+                    currentPath.includes('/signup.html')) { // <-- Includes signup page
+
+                    console.log('On landing/login/signup page, redirecting based on role');
+
+                    // Redirect based on role
+                    if (userRole === 'housekeeper') {
+                        // **** PROBLEM AREA 1 ****
+                        window.location.href = baseUrl + 'housekeeper/schedule/schedule.html'; // Redirects to the .html file
+                    } else {
+                        // **** PROBLEM AREA 2 ****
+                        window.location.href = baseUrl + 'homeowner/dashboard/dashboard.html'; // Redirects to the .html file
+                    }
+                    return;
+                }
+
+                // ... (logic for redirecting if in the wrong section) ...
+                // This section also uses the .html file paths
+            }
+```
+
+**The Problem:**
+
+The redirect logic here uses the direct `.html` file paths (e.g., `housekeeper/schedule/schedule.html`, `homeowner/dashboard/dashboard.html`). This contradicts the `cleanUrls: true` setting and the explicit rewrite rules we set up in `firebase.json` which map clean URLs (like `/housekeeper/schedule`) to these `.html` files.
+
+When you sign up, the router detects you're on `/signup.html`, checks your role, and redirects you to the `.html` file. This works sometimes (especially if the file exists at that exact path), but it bypasses the intended clean URL routing and can lead to inconsistencies or 404s if the rewrite rules aren't perfectly mirrored by the file structure.
+
+**Solution:**
+
+We need to update all the redirect destinations within `auth-router.js` to use the **clean URLs** defined in the `firebase.json` rewrites:
+
+*   `housekeeper/schedule/schedule.html` should become `/housekeeper/schedule`
+*   `homeowner/dashboard/dashboard.html` should become `/homeowner/dashboard`
+
+I'll make these changes now.
+
+
+
+---
+
+```diff
+                      currentPath.includes('/signup.html')) {
+                      
+-                     console.log('On landing/login page, redirecting based on role');
++                     console.log('On landing/login/signup page, redirecting based on role');
+                      
+-                     // Redirect based on role
++                     // Redirect based on role using CLEAN URLs
+                      if (userRole === 'housekeeper') {
+-                         window.location.href = baseUrl + 'housekeeper/schedule/schedule.html';
++                         window.location.href = baseUrl + 'housekeeper/schedule'; // Use clean URL
+                      } else {
+-                         window.location.href = baseUrl + 'homeowner/dashboard/dashboard.html';
++                         window.location.href = baseUrl + 'homeowner/dashboard'; // Use clean URL
+                      }
+                      return;
+                  if (userRole === 'housekeeper' && inHomeownerSection) {
+                      console.log('Housekeeper in homeowner section, redirecting');
+-                     window.location.href = baseUrl + 'housekeeper/schedule/schedule.html';
++                     window.location.href = baseUrl + 'housekeeper/schedule'; // Use clean URL
+                      return;
+                  } else if (userRole === 'homeowner' && inHousekeeperSection) {
+                      console.log('Homeowner in housekeeper section, redirecting');
+-                     window.location.href = baseUrl + 'homeowner/dashboard/dashboard.html';
++                     window.location.href = baseUrl + 'homeowner/dashboard'; // Use clean URL
+                      return;
+                  }
+```
+
+---
+
+Okay, I've updated `auth-router.js` to use the clean URLs (`/housekeeper/schedule` and `/homeowner/dashboard`) for redirects.
+
+Let's deploy this change:
+
+
+---
+
+```bash
+firebase deploy --only hosting
+```
+
+```
+PS C:\Users\tim\Cursor\housekeeping-app-dev> firebase deploy --only hosting
+(node:20664) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative inste
+ad.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+=== Deploying to 'housekeeper-app-dev'...
+i  deploying hosting
+i  hosting[housekeeper-app-dev]: beginning deploy...
+i  hosting[housekeeper-app-dev]: found 36 files in public
++  hosting[housekeeper-app-dev]: file upload complete
+i  hosting[housekeeper-app-dev]: finalizing version...
++  hosting[housekeeper-app-dev]: version finalized
+i  hosting[housekeeper-app-dev]: releasing new version...
++  hosting[housekeeper-app-dev]: release complete
+
++  Deploy complete!
+
+Project Console: https://console.firebase.google.com/project/housekeeper-app-dev/overview
+Hosting URL: https://housekeeper-app-dev.web.app
+PS C:\Users\tim\Cursor\housekeeping-app-dev>
+```
+
+---
+
+Deployment complete.
+
+Please try the sign-up process again locally (you might need a hard refresh on the signup page or use an incognito window). After successful sign-up as a **housekeeper**, you should now be redirected to the correct clean URL: `/housekeeper/schedule`.
+
+---
+
+_**User**_
+
+Ok. That is good for tonight.  Please first read docs app-structure.md and data-structure.md and edit and change based on work we have done. 
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Okay, I will update the documentation based on the work we've done.
+
+**1. Reading Current Documentation**
+
+
+---
+
+Read file: docs/Database-Structure.md
+
+---
+
+Read file: docs/App-Structure.md
+
+---
+
+
+
+---
+
 
 
 ---

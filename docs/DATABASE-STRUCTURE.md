@@ -4,24 +4,30 @@ This document outlines the structure of the Firestore database for the Housekeep
 
 ## Root Collections
 
--   `/users`: Stores user profile information for both housekeepers and homeowners.
--   `/invites`: (If applicable) Stores invitation codes or pending invites.
+-   `/users`: Stores base user profile information (auth details, role).
+-   `/housekeeper_profiles`: Stores extended profile information specific to housekeepers.
+-   `/homeowner_profiles`: Stores extended profile information specific to homeowners.
+-   `/properties`: Stores details about homeowner properties (address, size, etc.).
+-   `/invites`: (Currently unused, potential for future invite system)
 
 ## `/users/{userId}` Document
 
-Contains basic profile information common to all users.
+Contains basic profile information common to all users, primarily sourced from Firebase Auth and initial signup.
 
 ```json
 {
-  "uid": "userId",
-  "email": "user@example.com",
-  "role": "housekeeper" | "homeowner",
-  "firstName": "Casey",
-  "lastName": "Keeper",
-  "createdAt": Timestamp,
-  // Other common fields...
+  "email": "user@example.com", // From Auth
+  "role": "housekeeper" | "homeowner", // Set during signup
+  "firstName": "Casey", // Set during signup/profile edit
+  "lastName": "Keeper", // Set during signup/profile edit
+  "phone": "555-333-4444", // Set during signup/profile edit
+  "companyName": "Core Cleaning Co.", // Set during profile edit (housekeeper only)
+  "createdAt": Timestamp, // Set on creation
+  "updatedAt": Timestamp, // Set on updates
+  "lastLogin": Timestamp // (Optional) Set by Auth triggers/functions
 }
 ```
+*Note: Fields like `hourly_rate`, `service_area`, `working_hours` are deprecated here; use profile/settings subcollections.* 
 
 ### Subcollections under `/users/{userId}`
 
@@ -35,73 +41,73 @@ Contains basic profile information common to all users.
           "lastName": "Name",
           "email": "client@example.com",
           "phone": "555-1234",
-          "address": "123 Main St, Anytown, CA 90210",
-          "accessInfo": "Key under mat, code 1234",
-          "specialInstructions": "Beware of dog",
-          // Other client details...
+          "address": "123 Main St", // Full address string
+          "city": "Anytown",
+          "state": "CA",
+          "zip": "90210",
+          "notes": "Notes specific to the client",
+          "createdAt": Timestamp,
+          "updatedAt": Timestamp
         }
         ```
 -   `/bookings`: Stores *all* booking/appointment records for this housekeeper.
     -   `/bookings/{bookingId}`:
         ```json
         {
-          "date": "YYYY-MM-DD", // String format for the date of the booking
-          "startTime": "HH:MM AM/PM", // String format (e.g., "9:00 AM", "1:30 PM")
-          "endTime": "HH:MM AM/PM", // String format
-          "clientId": "clientId | homeownerUserId", // Reference to /clients/{clientId} OR /users/{userId} if homeowner booked directly
-          "clientName": "Client Full Name", // Denormalized for easier display
-          "clientAddress": "Client Address", // Denormalized
-          "clientPhone": "Client Phone", // Denormalized
-          "accessInfo": "Access notes for this specific booking", // Denormalized or booking-specific
-          "status": "upcoming" | "done" | "cancelled",
-          "frequency": "one-time" | "weekly" | "bi-weekly" | "monthly", // Optional recurrence info
+          "housekeeperId": "{userId}", // Housekeeper UID
+          "clientId": "clientId | homeownerUserId", // UID of the client (from /clients or /users)
+          "clientName": "Client Full Name", // Denormalized
+          "address": "Client Address", // Denormalized from client/property at booking time
+          
+          "startTimestamp": Timestamp, // Primary storage (UTC)
+          "endTimestamp": Timestamp, // Primary storage (UTC)
+          "startTimestampMillis": Number, // UTC milliseconds since epoch
+          "endTimestampMillis": Number, // UTC milliseconds since epoch
+          
+          "status": "pending" | "confirmed" | "cancelled_by_homeowner" | "cancelled_by_housekeeper" | "completed",
+          "frequency": "one-time" | "weekly" | "bi-weekly" | "monthly", // Optional
+          "notes": "Booking specific notes", // Optional
+          "serviceType": "Standard Cleaning", // Optional
+
           "createdAt": Timestamp,
-          "updatedAt": Timestamp
-          // Potentially price, job duration estimate, etc.
+          "updatedAt": Timestamp,
+          "confirmedAt": Timestamp, // Optional
+          "cancelledAt": Timestamp, // Optional
+          "cancelledBy": "homeowner" | "housekeeper", // Optional
+          "cancellationReason": "Reason..." // Optional
         }
         ```
-        *Note: The `date` field is currently stored/queried as a `YYYY-MM-DD` String.*
 -   `/settings`: Stores application-specific settings for the housekeeper.
-    -   `/settings/app`: (Single document for simplicity)
+    -   `/settings/app`: (Single document)
         ```json
         {
-          "workingDays": {
+          "workingDays": { // Default weekly availability pattern
             "monday": {
               "isWorking": true,
-              "startTime": "HH:MM AM/PM", // e.g., "8:00 AM"
-              "jobsPerDay": 2, // Number of distinct job blocks
-              "jobDurations": [ 210, 210 ], // Array of job durations in minutes, length matches jobsPerDay
-              "breakDurations": [ 60 ] // Array of break durations in minutes, length is jobsPerDay - 1
+              "startTime": "08:00", // 24-hour format string HH:mm (e.g., "08:00", "14:30")
+              "jobsPerDay": 2,
+              "jobDurations": [ 210, 210 ], // Durations in minutes
+              "breakDurations": [ 60 ] // Durations in minutes
             },
-            "tuesday": { "isWorking": false, /* ... other fields null or default */ },
-            "wednesday": { /* ... */ },
-            "thursday": { /* ... */ },
-            "friday": { /* ... */ },
-            "saturday": { /* ... */ },
-            "sunday": { /* ... */ }
+            // ... other days (tuesday to sunday)
           },
-          "timezone": "America/Winnipeg", // IANA Timezone string (e.g., "America/Los_Angeles")
-          "autoSendReceipts": false, // Example setting
+          "timezone": "America/Los_Angeles", // IANA Timezone string
+          "autoSendReceipts": false,
+          "workingDaysCompat": { // For legacy schedule.js compatibility
+                "0": false, "1": true, "2": true, "3": true, "4": false, "5": true, "6": false
+          },
           "updatedAt": Timestamp
         }
         ```
-        *Note: This structure represents the housekeeper's **default** weekly availability pattern.*
-
--   **(Planned) `/availabilityOverrides`**: Stores exceptions to the default weekly pattern.
-    -   `/availabilityOverrides/{overrideId}`:
+-   `/timeOffDates`: Stores individual dates marked as time off via the calendar.
+    -   `/timeOffDates/{YYYY-MM-DD}`: (Document ID is the date)
         ```json
         {
-          "type": "block_day" | "block_time" | "add_working_day" | "modify_hours",
-          "startDate": "YYYY-MM-DD", // Start date of override
-          "endDate": "YYYY-MM-DD", // End date (can be same as start for single day)
-          "startTime": "HH:MM AM/PM", // Optional: For block_time or modify_hours
-          "endTime": "HH:MM AM/PM", // Optional: For block_time or modify_hours
-          "isWorking": boolean, // Optional: For add_working_day
-          "reason": "Vacation", // Optional description
-          "createdAt": Timestamp
+          "isTimeOff": true, 
+          "addedAt": Timestamp 
         }
         ```
-        *Note: Structure is tentative. Needs to handle various override types.*
+        *Note: This structure is used by the current Time Off calendar UI. Other structures (with auto-IDs) might exist from previous versions or other features but are not used by this specific UI.*
 
 #### If `role` is "homeowner":
 
@@ -109,19 +115,96 @@ Contains basic profile information common to all users.
     -   `/settings/app`: (Single document)
         ```json
         {
-          "linkedHousekeeperId": "housekeeperUserId", // UID of the linked housekeeper
-          // Other homeowner settings...
+          "defaultPropertyId": "propertyId", // Optional: Default property for quick booking
+          "notificationPreferences": { // Optional
+            "bookingConfirmations": true,
+            "reminderAlerts": true
+          },
+          "paymentSettings": { // Optional, Future
+            "autoCharge": true
+          },
+          "updatedAt": Timestamp
         }
         ```
--   `/bookings`: (Optional, could live under housekeeper only) Stores bookings *made by this homeowner*. Might duplicate data in housekeeper's bookings.
-    -   `/bookings/{bookingId}`: (Similar structure to housekeeper's booking, linking back to housekeeper)
+        *Note: `linkedHousekeeperId` is now stored in the `/homeowner_profiles/{userId}` document.*
+
+## `/housekeeper_profiles/{userId}` Document
+
+Stores extended profile information specific to housekeepers.
+
+```json
+{
+  "firstName": "Casey", // May duplicate /users/{userId}
+  "lastName": "Keeper", // May duplicate /users/{userId}
+  "phone": "555-333-4444", // May duplicate /users/{userId}
+  "companyName": "Core Cleaning Co.", // May duplicate /users/{userId}
+  "address": "202 Clean St", // Optional
+  "city": "Workville", // Optional
+  "state": "CA", // Optional
+  "zip": "90212", // Optional
+  "serviceZipCodes": ["90210", "90211", "90212"], // Optional
+  "inviteCode": "YGG3GW", // 6-character code for linking homeowners
+  "bio": "Professional cleaning service...", // Optional
+  "profilePictureUrl": "https://...", // Optional
+  "createdAt": Timestamp,
+  "updatedAt": Timestamp
+  // Note: workingDays structure is now stored in /users/{userId}/settings/app
+}
+```
+
+## `/homeowner_profiles/{userId}` Document
+
+Stores extended profile information specific to homeowners.
+
+```json
+{
+  "firstName": "Corey", // May duplicate /users/{userId}
+  "lastName": "Homeowner", // May duplicate /users/{userId}
+  "phone": "555-111-2222", // May duplicate /users/{userId}
+  "address": "101 Home Sweet Ln", // Primary address for profile
+  "city": "Homestead",
+  "state": "CA",
+  "zip": "90211",
+  "specialInstructions": "Default instructions for cleaners", // Optional
+  "linkedHousekeeperId": "housekeeperUserId", // UID of the linked housekeeper (if any)
+  "preferredContactMethod": "email", // Optional
+  "createdAt": Timestamp,
+  "updatedAt": Timestamp
+}
+```
+
+## `/properties/{propertyId}` Document
+
+Stores details about individual properties owned by homeowners.
+
+```json
+{
+  "ownerId": "homeownerUserId", // UID of the homeowner who owns this property
+  "name": "Main Residence", // Nickname for the property
+  "address": {
+      "street": "123 Main St",
+      "city": "Anytown",
+      "state": "CA",
+      "zip": "90210"
+  },
+  "size": 2200, // Optional: Square footage
+  "bedrooms": 3, // Optional
+  "bathrooms": 2, // Optional
+  "specialInstructions": "Property-specific instructions.",
+  "accessInformation": "Key under the flowerpot.",
+  "photos": [], // Optional: Array of image URLs
+  "preferredHousekeeperId": null, // Optional: If homeowner has preference different from main link
+  "createdAt": Timestamp,
+  "updatedAt": Timestamp
+}
+```
 
 ## Considerations
 
--   **Denormalization:** Client details (`clientName`, `clientAddress`, etc.) are denormalized into booking records for efficient display on the housekeeper's schedule without requiring extra reads. Updates to client profiles would ideally trigger updates to future booking records (using Cloud Functions).
--   **Date/Time Handling:** Storing dates as `YYYY-MM-DD` strings simplifies some queries but requires careful handling in Cloud Functions compared to Timestamps, especially regarding timezones and range queries. Storing times as `HH:MM AM/PM` strings requires parsing logic. Using minutes-since-midnight internally in functions can be more robust. Timezone information from housekeeper settings is crucial for interpreting these values correctly for display.
--   **Scalability:** For very high booking volumes, sharding or different data modeling might be needed, but the current structure is suitable for typical use cases.
--   **Overrides:** The planned override system adds complexity but provides necessary flexibility. Careful implementation is needed in the `getAvailableSlots` function to layer overrides onto default settings before subtracting bookings.
+-   **Denormalization:** Client details and addresses are denormalized into booking records. Consider Cloud Functions to update future bookings if profile/client info changes.
+-   **Consistency:** Basic user info (name, phone) is potentially duplicated between `/users/{userId}` and the role-specific profile (`/housekeeper_profiles` or `/homeowner_profiles`). Updates should ideally write to both locations atomically (e.g., using batched writes as implemented in `updateHousekeeperProfileAndUser`).
+-   **Date/Time Handling:** Uses Firestore Timestamps (UTC) for primary storage of event times (bookings). Millisecond versions are stored alongside for frontend convenience. Timezone settings (`/users/{housekeeperId}/settings/app.timezone`) are crucial for correctly formatting these UTC times for display in the UI.
+-   **Time Off:** The current calendar UI uses `YYYY-MM-DD` document IDs. Other formats might exist from old data/features but aren't used by this UI.
 
 ## Overview
 

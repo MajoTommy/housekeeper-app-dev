@@ -36,142 +36,138 @@ Each role has a consistent footer navigation menu:
 
 ## File Structure
 
-### Authentication Pages (Common)
-- `public/login.html` - User login
-- `public/signup.html` - New user registration with role selection
-- `public/forgot-password.html` - Password recovery
-- `public/404.html` - Error page
-- `public/index.html` - Landing page that redirects based on role
+### Root / Common Files
+- `public/index.html` - Landing/Login page. Redirects logged-in users.
+- `public/signup.html` - New user registration with role selection.
+- `public/forgot-password.html` - Password recovery.
+- `public/404.html` - Custom 404 page.
+- `public/dev-tools.html` - Developer utility page (not for production).
+- `public/common/js/` - Directory for JavaScript modules shared between roles.
+    - `firebase-config.js`: Initializes Firebase SDKs.
+    - `firestore-service.js`: Centralized functions for Firestore interactions (CRUD operations for users, profiles, clients, bookings, settings, time-off).
+    - `auth.js`: Handles user login, logout, signup, password reset logic.
+    - `auth-router.js`: Manages role-based redirects after authentication state changes.
+    - `date-utils.js`: Utility functions for date/time formatting and manipulation.
+    - `sample-data.js`: **DEPRECATED / REMOVE?** Contains old logic/button for populating data (replaced by `/js/populate-sample-data.js` and `/dev-tools.html`).
+- `public/js/`
+    - `populate-sample-data.js`: Script containing logic and sample data structures used by `dev-tools.html` to populate Firestore for testing.
 
-### Housekeeper Pages
-- `public/housekeeper/schedule/schedule.html` - Main schedule view (formerly dashboard.html)
-- `public/housekeeper/clients/clients.html` - Client management
-- `public/housekeeper/settings/settings.html` - Schedule configuration and time off management
+### Housekeeper Section (`public/housekeeper/`)
+- `public/housekeeper/schedule/`
+    - `schedule.html`: Main schedule view.
+    - `schedule.js`: UI logic for displaying schedule, handling booking modal.
+- `public/housekeeper/clients/`
+    - `clients.html`: Client list and management view.
+    - `clients.js`: UI logic for displaying clients, search, add/edit modals.
+- `public/housekeeper/settings/`
+    - `index.html`: Main settings navigation page (card layout).
+    - `profile.html`: Displays housekeeper profile, invite code; includes edit modal.
+    - `profile.js`: Logic for displaying profile, handling edit modal.
+    - `work-schedule.html`: UI for configuring default weekly work schedule.
+    - `work-schedule.js`: Logic for managing work schedule UI and saving settings.
+    - `time-off.html`: UI for viewing/managing single-day time off via calendar.
+    - `time-off.js`: Logic for time-off calendar interaction and saving.
+    - `account.html`: UI for setting timezone, auto-send receipts etc.
+    - `account.js`: Logic for account settings page.
 
-### Homeowner Pages
-- `public/homeowner/dashboard.html` - Unified main dashboard.
-- `public/homeowner/settings/settings.html` - Separate settings page (may be refactored into dashboard modals later).
+### Homeowner Section (`public/homeowner/`)
+- `public/homeowner/dashboard/`
+    - `dashboard.html`: Unified main dashboard view.
+    - `dashboard.js`: UI logic for the dashboard, displaying data, handling profile/location edit modals.
+- `public/homeowner/schedule/` (Future/Placeholder)
+    - `schedule.html`: Potential future view for homeowner schedule/booking requests.
+    - `schedule.js`
+- `public/homeowner/account/` (Future/Placeholder)
+    - `account.html`: Potential future view for homeowner account settings.
+    - `account.js`
 
 ## JavaScript Structure
 
-### Common Scripts (shared between roles)
-- `public/common/js/firebase-config.js` - Firebase configuration
-- `public/common/js/firestore-service.js` - Centralized database service for Firestore CRUD operations. Provides functions for managing user profiles, clients, settings, and bookings (e.g., `getHomeownerProfile`, `updateHomeownerProfile`, `updateHomeownerLocation`, `getHousekeeperProfile`, `getUserSettings`, `updateUserSettings`, `linkHomeownerToHousekeeper`, `unlinkHomeownerFromHousekeeper`, `addClient`, `getClients`, `addBooking`, `getBookingsForHousekeeperInRange`, `getUpcomingHomeownerBookings`, `getPastHomeownerBookings`, etc.). It does *not* handle complex availability calculations (see `getAvailableSlots` Cloud Function).
-- `public/common/js/auth.js` - Authentication functionality (login, logout, password reset).
-- `public/common/js/auth-router.js` - Role-based routing logic after login.
-- `public/common/js/defaults.js` - Default app settings (may not be fully utilized).
-- `public/common/js/sample-data.js` - **DEPRECATED / Signup Support:** Contains logic to create the *initial minimal profile* for a user immediately after signup. (Previously used for broader sample data).
-- `public/common/js/maps-config.js` - **DO NOT COMMIT KEY:** Holds the Google Maps API Key. Must be added to `.gitignore`. (Currently loaded via inline script in HTML due to loading issues).
+### Common Scripts (`public/common/js/`)
+- `firebase-config.js`
+- `firestore-service.js`: Centralized Firestore CRUD operations (users, profiles, clients, bookings, settings, time-off, properties).
+- `auth.js`
+- `auth-router.js`: Handles redirects based on role and login state, using clean URLs.
+- `date-utils.js`: Date/time formatting (UTC-aware).
+- `sample-data.js`: **DEPRECATED/REMOVE?**
 
+### Housekeeper Scripts (`public/housekeeper/.../*.js`)
+- Each page generally has a corresponding JS file for its specific UI logic.
+- They interact with `firestore-service.js` for data and `auth.js` for auth state.
+- `schedule.js` may call Cloud Functions directly if needed for complex logic like availability checks (though ideally proxied via `firestore-service` if possible).
 
-### Housekeeper Scripts
-- `public/housekeeper/schedule/schedule.js` - Handles the housekeeper's schedule view UI. Fetches availability data by calling the `getAvailableSlots` Cloud Function directly. Manages the booking modal workflow (client selection, frequency, confirmation) and calls `firestore-service.js` to save bookings.
-- `public/housekeeper/clients/clients.js` - Client management functionality.
-- `public/housekeeper/settings/settings.js` - Settings functionality (work schedule, time off, invite code), using `firestore-service.js` as single source of truth.
-
-### Homeowner Scripts
-- `public/homeowner/js/dashboard.js` - Handles the entire unified dashboard UI. Fetches homeowner profile, linked housekeeper info, upcoming/past bookings. Displays data. Handles modals for "Edit Profile" and "Edit Location" (including Google Places Autocomplete integration). Manages linking/unlinking actions.
-- `public/homeowner/js/settings.js` - Logic for the separate settings page (if still used).
+### Homeowner Scripts (`public/homeowner/.../*.js`)
+- `dashboard.js` is the primary script, handling multiple pieces of functionality.
+- Interacts heavily with `firestore-service.js`.
 
 ### Authentication Scripts
-- `public/js/signup.js` - Signup logic with role selection, calls logic in `sample-data.js` upon success.
+- `public/js/signup.js`: Handles signup form submission, calls `auth.js`.
 
-### Developer Tools Scripts (Not for production)
-- `public/js/populate-sample-data.js` - Contains logic and comprehensive sample data structures (users, profiles, clients, bookings) for populating Firestore for development testing. Intended to be run via `dev-tools.html`.
+### Developer Tools Scripts
+- `public/js/populate-sample-data.js`: Logic run by `dev-tools.html`.
 
 ## CSS and Images
-- `public/css/` - Contains common stylesheet files
-- `public/images/` - Contains app images and icons
+- Tailwind CSS is used via CDN.
+- FontAwesome is used via CDN.
+- Minimal custom CSS if any.
+- `public/images/` - App images/icons.
 
 ## Developer Tools
-- `public/dev-tools.html` - A standalone HTML page accessible only during development (e.g., at `/dev-tools.html`). Provides a UI (input fields for UIDs, button) to trigger the data population script (`populate-sample-data.js`) for setting up consistent test data scenarios.
+- `public/dev-tools.html`: Standalone page to trigger data population using `populate-sample-data.js`.
 
 ## Core Features
 
 ### Housekeeper Features
 
-#### Schedule
-- View weekly schedule
-- Book new cleanings
-- Manage existing appointments
-- Navigate between weeks
-- View daily time slots
+#### Schedule (`/housekeeper/schedule`)
+- View weekly schedule (fetches data, potentially via Cloud Function).
+- Book new cleanings (modal workflow).
+- Manage existing appointments (view details, cancel - *future*).
 
-#### Clients
-- View and search client list
-- Add new clients
-- Edit client details
-- View client booking history
+#### Clients (`/housekeeper/clients`)
+- View/search client list.
+- Add/Edit clients (modal workflow).
 
-#### Settings
-- Configure working days
-- Set up schedule preferences (start times, job durations)
-- Adjust break times
-- Configure number of jobs per day
+#### Settings (`/housekeeper/settings`)
+- Main navigation via cards.
+- **My Profile (`.../profile`):** View name, email, invite code. Edit details (name, phone, company) via modal.
+- **Work Schedule (`.../work-schedule`):** Configure default weekly work hours, start time, jobs/day, breaks. Saves via footer button.
+- **Time Off (`.../time-off`):** Toggle individual days off on a calendar. Saves via footer button.
+- **Account & App (`.../account`):** Set timezone, other app preferences. Saves via footer button.
 
 ### Homeowner Features
 
-#### Dashboard
-- **Linked View:**
-  - View linked housekeeper's name and company.
-  - View next upcoming cleaning details (date, time, service).
-  - View list of recent past cleanings.
-  - Edit profile information (name, phone, instructions) via modal.
-  - Edit location details (address, city, state, zip) via modal with Google Places Autocomplete validation.
-  - Unlink from the current housekeeper.
-- **Not Linked View:**
-  - Enter an invite code to link with a housekeeper.
-
-#### Settings (Separate Page - Potential Refactor)
-- Manage notification preferences (future).
-- Manage payment settings (future).
-- Account management (future).
+#### Dashboard (`/homeowner/dashboard`)
+- View linked housekeeper info.
+- View next/past cleanings.
+- Edit profile (modal).
+- Edit location (modal).
+- Link/Unlink housekeeper.
 
 ## Database Integration
-All pages use the Firestore database through the `firestore-service.js`, which provides:
-- User-specific data fetching
-- Role-based access control
-- Real-time updates for schedule and bookings
-- Centralized functions for adding/updating users, profiles, clients, bookings, and settings.
+- Primarily through `firestore-service.js`.
+- Cloud Functions may be called directly for complex backend logic (e.g., `getAvailableSlots`, `requestBooking`).
 
 ## Authentication & Routing
-The application implements role-based authentication:
-- New users select their role (housekeeper or homeowner) during signup
-- `auth-router.js` redirects users to the appropriate interface based on their role
-- Each interface only shows functionality relevant to that user role
+- Role selected at signup.
+- `auth-router.js` handles redirects to correct sections (`/housekeeper/schedule` or `/homeowner/dashboard`) using clean URLs.
 
 ## Cloud Functions (`/functions`)
-
-Backend logic running in Firebase Cloud Functions, providing server-side capabilities and secure access to data.
-
--   `index.js`: Main entry point for Cloud Functions.
-    -   **`getAvailableSlots`**: 
-        -   **Type:** HTTPS Callable Function.
-        -   **Purpose:** Calculates the actual availability status and slots for a specific housekeeper within a given date range. It is the **single source of truth** for schedule availability, used by **both** the homeowner and housekeeper schedule views.
-        -   **Why:** Centralizes the complex logic of combining default settings (`/users/{hkId}/settings/app`), existing bookings (`/users/{hkId}/bookings`), and time off (`/users/{hkId}/timeOffDates`) to determine true availability. This avoids client-side complexity and ensures consistency.
-        -   **Usage:** Called directly via `firebase.functions().httpsCallable('getAvailableSlots')` from both `public/homeowner/js/schedule.js` and `public/housekeeper/js/schedule.js`.
-        -   **Output Structure:** Returns an object like `{ schedule: { "YYYY-MM-DD": { status: "available|fully_booked|not_working", message: "...", slots: [...] } } }`. When `status` is `"available"`, the `slots` array contains objects like `{ startTime: "HH:mm AM/PM", endTime: "HH:mm AM/PM", durationMinutes: number }`.
-    -   **`requestBooking`**: 
-        -   **Type:** HTTPS Callable Function.
-        -   **Purpose:** Handles a homeowner's request to book a specific time slot.
-        -   **Why:** Provides a secure backend endpoint to validate the request (is the user authenticated? is the slot still available?), create the booking document in Firestore with a `pending` status, and prevent conflicts.
-        -   **Usage:** Called via `firebase.functions().httpsCallable('requestBooking')` from `public/homeowner/js/schedule.js` when the homeowner confirms the booking in the drawer modal.
-        -   **Output Structure:** Returns `{ success: true, bookingId: "..." }` on success or throws an `HttpsError` on failure (e.g., conflict, invalid input).
-
--   `package.json`: Defines dependencies for the Cloud Functions.
-    -   **Key Dependencies (Ensure these are installed in `/functions` before deployment):**
-        -   `firebase-admin`: Required for interacting with Firebase services (Firestore, Auth) from the backend.
-        -   `firebase-functions`: Core SDK for writing Cloud Functions.
-        -   `firebase-functions/logger`: For structured logging within functions.
-        -   *(Optional but Recommended)* `cors`: Middleware for handling Cross-Origin Resource Sharing, especially if using `onRequest` triggers or encountering CORS issues with `onCall`.
-    -   **Installation:** Run `npm install` within the `/functions` directory.
+- `getAvailableSlots`: Calculates availability (HTTPS Callable).
+- `requestBooking`: Handles booking requests (HTTPS Callable).
+- `cancelBooking`: Handles booking cancellations (HTTPS Callable - needs authentication).
+- Potentially others for triggers (e.g., updating denormalized data).
 
 ## Testing and Deployment
-- **Testing:** Use the Firebase Local Emulator Suite to test functions, Firestore interactions, and Auth locally.
-- **Deployment:**
-  - `firebase deploy` - Deploys all Firebase features (Hosting, Firestore rules, Functions).
-  - `firebase deploy --only hosting` - Deploys only the web app (HTML, JS, CSS).
-  - `firebase deploy --only functions` - Deploys only Cloud Functions.
+- Use Firebase Local Emulator Suite.
+- Deploy Hosting: `firebase deploy --only hosting`
+- Deploy Functions: `firebase deploy --only functions`
+
+## Date/Time Handling Standard (UTC-Based)
+- **Storage:** Use Firestore `Timestamp` for points in time. Store UTC milliseconds alongside (e.g., `startTimestampMillis`).
+- **Calculation:** Perform using UTC (Timestamps or milliseconds).
+- **Display:** Format milliseconds using `date-utils.js` and the appropriate timezone (usually housekeeper's setting).
+- **Input:** Send unambiguous UTC representations (ISO string) to backend functions.
 
 ## Potential Improvements
 - Refactor homeowner settings into dashboard modals.
@@ -180,33 +176,3 @@ Backend logic running in Firebase Cloud Functions, providing server-side capabil
 - Enhance error handling and user feedback.
 - Replace Tailwind CDN with a build step (e.g., using PostCSS CLI) for production.
 - Improve date/time handling robustness, potentially using a dedicated library like `date-fns` or `dayjs`.
-
-## Date/Time Handling Standard (UTC-Based)
-
-To ensure consistency and avoid timezone-related bugs, the application follows a UTC-based standard for handling dates and times:
-
-1.  **Storage (Firestore):**
-    *   Points in time (e.g., start/end of bookings, time-off boundaries) **MUST** be stored using Firestore's native `Timestamp` type (e.g., `startTimestamp`, `endTimestamp`). This is the primary format for reliable storage and querying.
-    *   For convenience and frontend compatibility (especially with `date-utils.js`), booking documents **ALSO store** the corresponding numeric **UTC milliseconds** since the epoch (e.g., `startTimestampMillis`, `endTimestampMillis`). This avoids repeated `.toMillis()` calls on the client.
-    *   Avoid storing dates and times as separate strings (`YYYY-MM-DD`, `HH:mm`).
-    *   Configuration values like default start times in settings may still be stored as strings (e.g., "09:00") if they represent time-of-day independent of a specific date, but they **MUST** be converted to UTC for calculations.
-
-2.  **Calculation (Cloud Functions & Frontend Services):**
-    *   All date/time arithmetic, comparisons, availability logic, and conflict checks **MUST** be performed using UTC representations (Firestore Timestamps or UTC milliseconds).
-    *   Backend functions (`requestBooking`, `getAvailableSlots`) and frontend services (`firestore-service.js`) are responsible for ensuring *both* `Timestamp` and millisecond fields are correctly populated when creating or updating booking-related data.
-    *   Avoid performing calculations based on local time strings or browser-dependent `Date` objects.
-    *   Use `date-fns-tz` library (specifically `require('date-fns-tz')`) within Cloud Functions for reliable conversion between local time representations (from settings) and UTC representations.
-
-3.  **Data Transfer (Backend <-> Frontend):**
-    *   Booking data fetched from Firestore (e.g., via `firestore-service.js`) will contain both `Timestamp` objects and `startTimestampMillis`/`endTimestampMillis` numbers.
-    *   The `getAvailableSlots` Cloud Function returns available slots with `startTimestampMillis` and `endTimestampMillis`.
-    *   Frontend components should primarily rely on the **millisecond** values (`startTimestampMillis`, `endTimestampMillis`) for calculations and display formatting.
-    *   Avoid transferring simple date or time strings without timezone context.
-
-4.  **Display (Frontend - `dashboard.js`, `schedule.js`, etc.):**
-    *   Use the **millisecond** values (`startTimestampMillis`, `endTimestampMillis`) received from the backend/service layer.
-    *   Pass these millisecond values to helper functions like `formatMillisForDisplay` (in `date-utils.js`) along with the target timezone (usually the housekeeper's) to format them for display in the UI.
-    *   Do **NOT** rely on the browser's default `Date.prototype.toString()` or similar methods which use the user's local timezone.
-
-5.  **User Input / Data Sending (Frontend -> Backend):**
-    *   When sending a date/time value to the backend (e.g., for `requestBooking`), the frontend **MUST** construct and send an unambiguous UTC representation (usually an ISO 8601 string like `new Date(selectedTimeMillis).toISOString()`). The backend function (`requestBooking`) will parse this and create both the `Timestamp` and millisecond fields for storage.
