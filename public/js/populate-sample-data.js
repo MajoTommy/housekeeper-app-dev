@@ -81,6 +81,59 @@ const manualClientsData = [
     }
 ];
 
+// --- NEW: Sample Services Data ---
+const sampleServicesData = (housekeeperUid) => [
+    {
+        serviceName: 'Standard Cleaning',
+        type: 'base',
+        basePrice: 120,
+        description: 'Basic cleaning for homes up to 2000 sq ft. Includes dusting, vacuuming, mopping, surface cleaning in kitchen and bathrooms.',
+        isActive: true,
+        ownerId: housekeeperUid // Ensure ownerId is set
+    },
+    {
+        serviceName: 'Deep Cleaning',
+        type: 'base',
+        basePrice: 250,
+        description: 'Thorough cleaning including baseboards, inside windows, light fixtures, etc.',
+        isActive: true,
+        ownerId: housekeeperUid
+    },
+    {
+        serviceName: 'Move-In/Out Cleaning',
+        type: 'base',
+        basePrice: 350,
+        description: 'Comprehensive cleaning for empty homes.',
+        isActive: false, // Example of an inactive service
+        ownerId: housekeeperUid
+    },
+    {
+        serviceName: 'Inside Refrigerator',
+        type: 'addon',
+        basePrice: 35,
+        description: 'Clean and sanitize the interior of the refrigerator.',
+        isActive: true,
+        ownerId: housekeeperUid
+    },
+    {
+        serviceName: 'Inside Oven',
+        type: 'addon',
+        basePrice: 45,
+        description: 'Clean the interior of the oven.',
+        isActive: true,
+        ownerId: housekeeperUid
+    },
+    {
+        serviceName: 'Laundry (per load)',
+        type: 'addon',
+        basePrice: 25,
+        description: 'Wash and dry one load of laundry.',
+        isActive: true,
+        ownerId: housekeeperUid
+    }
+];
+// --- END: Sample Services Data ---
+
 // Helper function specifically for generating Timestamps in this script
 // Assumes input reflects intended LOCAL time for the sample data, converts to UTC Timestamp
 // WARNING: This is a simplistic conversion for sample data only. Relies on browser parsing.
@@ -243,6 +296,7 @@ async function populateCoreData(homeownerUid, housekeeperUid) {
         await deleteCollection(housekeeperUserRef.collection('clients'));
         await deleteCollection(housekeeperUserRef.collection('timeOffDates'));
         await deleteCollection(housekeeperUserRef.collection('settings')); // Deletes settings/app etc.
+        await deleteCollection(housekeeperUserRef.collection('services')); // <-- ADDED: Delete existing services
         console.log(' -> Housekeeper subcollections deleted.');
 
         // 0b. Delete Housekeeper Profile
@@ -419,6 +473,20 @@ async function populateCoreData(homeownerUid, housekeeperUid) {
             }
         }
 
+        // --- Phase 4: Create Sample Services for Housekeeper --- <-- NEW PHASE
+        console.log('--- Starting Service Creation Phase ---');
+        const serviceBatch = db.batch();
+        const services = sampleServicesData(housekeeperUid); // Get sample data with correct ownerId
+
+        services.forEach((service, index) => {
+            const serviceRef = db.collection('users').doc(housekeeperUid).collection('services').doc(); // Auto-generate ID
+            serviceBatch.set(serviceRef, service);
+            console.log(`   -> Prepared set operation for service ${index + 1}: ${service.serviceName}`);
+        });
+
+        await serviceBatch.commit();
+        console.log('--- Service Creation Phase Complete ---');
+
         console.log(`--- Sample Data Population COMPLETE ---`);
         alert('Sample data population finished! Check console for details.');
 
@@ -434,3 +502,19 @@ if (typeof window !== 'undefined') {
 }
 
 console.log('populate-sample-data.js loaded. Ready to be called via dev-tools.html or console.'); 
+
+// Add event listener if the button exists (runs on dev-tools.html)
+document.addEventListener('DOMContentLoaded', () => {
+    const populateButton = document.getElementById('populate-sample-data-button');
+    if (populateButton) {
+        populateButton.addEventListener('click', () => {
+            const homeownerUidInput = document.getElementById('homeowner-uid-input');
+            const housekeeperUidInput = document.getElementById('housekeeper-uid-input');
+            const homeownerUid = homeownerUidInput ? homeownerUidInput.value.trim() : null;
+            const housekeeperUid = housekeeperUidInput ? housekeeperUidInput.value.trim() : null;
+            populateCoreData(homeownerUid, housekeeperUid);
+        });
+    } else {
+        // console.log('Not on dev-tools page, skipping populate button listener.');
+    }
+}); 

@@ -1,0 +1,76 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- Users Collection ---
+    match /users/{userId} {
+      // Allow users to read their own profile
+      allow read: if request.auth != null && request.auth.uid == userId;
+      // Allow users to update their own profile (e.g., settings)
+      allow update: if request.auth != null && request.auth.uid == userId;
+      // Allow authenticated users to create their own user document (usually during signup)
+      allow create: if request.auth != null && request.auth.uid == userId;
+      // Generally, users should not delete their own accounts directly via client-side rules
+      // Deletion should be handled by a Cloud Function or admin process.
+      allow delete: if false; // Or specific admin role check
+
+      // --- Bookings Subcollection (Homeowner Perspective) ---
+      // Homeowners can manage bookings where they are the homeownerId
+      match /bookings/{bookingId} {
+        allow read, create, update: if request.auth != null && request.resource.data.homeownerId == request.auth.uid;
+        // Allow deletion only if the user is the homeowner (consider status checks)
+        allow delete: if request.auth != null && resource.data.homeownerId == request.auth.uid;
+
+        // Note: Housekeepers access bookings via a different path or Cloud Function
+      }
+
+      // --- Schedules Subcollection (Housekeeper Perspective) ---
+      // Housekeepers manage their own schedules
+      match /schedules/{scheduleId} {
+          allow read, create, update, delete: if request.auth != null && request.auth.uid == userId;
+          // Ensure data integrity (e.g., valid start/end times)
+          // validate if: /* validation rules */ true;
+      }
+
+      // --- Services Subcollection (Housekeeper Perspective) ---
+      match /services/{serviceId} {
+          // Allow housekeepers (authenticated users) to manage their own services
+          allow read, create, update, delete: if request.auth != null && request.auth.uid == userId;
+
+          // Validation rules for service data
+          // Ensure required fields are present and types are correct
+          // allow write: if request.auth != null && request.auth.uid == userId
+          //             && request.resource.data.serviceName is string
+          //             && request.resource.data.serviceName.size() > 0
+          //             && request.resource.data.serviceName.size() < 100
+          //             && request.resource.data.type is string
+          //             && (request.resource.data.type == 'base' || request.resource.data.type == 'addon')
+          //             && request.resource.data.basePrice is number
+          //             && request.resource.data.basePrice >= 0
+          //             && request.resource.data.isActive is bool
+          //             && (!('description' in request.resource.data) || request.resource.data.description is string)
+          //             && (!('description' in request.resource.data) || request.resource.data.description.size() < 500)
+          //             && request.resource.data.ownerId == userId; // Ensure ownerId matches
+      }
+    }
+
+    // --- Bookings Collection (Alternative Top-Level Structure - Less Common) ---
+    // If bookings were a top-level collection, rules might look like this:
+    // match /bookings/{bookingId} {
+    //   allow read: if request.auth != null && (resource.data.homeownerId == request.auth.uid || resource.data.housekeeperId == request.auth.uid);
+    //   allow create: if request.auth != null && request.resource.data.homeownerId == request.auth.uid;
+    //   allow update: if request.auth != null && (
+    //       (resource.data.homeownerId == request.auth.uid) || // Homeowner updates
+    //       (resource.data.housekeeperId == request.auth.uid)    // Housekeeper updates (e.g., status)
+    //   );
+    //   allow delete: if request.auth != null && resource.data.homeownerId == request.auth.uid; // Only homeowners can delete?
+    // }
+
+    // --- Notifications Collection (Example) ---
+    // match /notifications/{userId}/{notificationId} {
+    //   allow read, update, delete: if request.auth != null && request.auth.uid == userId;
+    //   // Prevent clients from creating arbitrary notifications, usually done via Cloud Functions
+    //   allow create: if false; // Or admin/function check
+    // }
+  }
+} 

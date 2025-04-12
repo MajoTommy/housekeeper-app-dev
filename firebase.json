@@ -54,6 +54,10 @@
       {
         "source": "/housekeeper/settings/account",
         "destination": "/housekeeper/settings/account.html"
+      },
+      {
+        "source": "/housekeeper/settings/services-pricing",
+        "destination": "/housekeeper/settings/services-pricing.html"
       }
     ]
   },
