@@ -80,14 +80,14 @@ const firestoreService = {
             if (doc.exists) {
                 const profileData = doc.data();
                 console.log('[Firestore] Raw homeowner profile data fetched:', profileData);
-                console.log('[Firestore] Checking linkedHousekeeperId within raw data:', profileData.linkedHousekeeperId);
+                
+                // Check for the RENAMED field
+                console.log('[Firestore] Checking HomeownerInstructions within raw data:', profileData.HomeownerInstructions);
                 
                 console.log('[Firestore] Homeowner profile found (returning):', profileData);
                 return profileData;
             } else {
                 console.warn('[Firestore] No homeowner profile found for ID:', userId);
-                // A profile document should have been created at signup. 
-                // If it's missing, there might be an issue, but return null for now.
                 return null;
             }
         } catch (error) {
@@ -95,6 +95,30 @@ const firestoreService = {
             return null;
         }
     },
+
+    // --- NEW: Get Specific Client Details from Housekeeper's List ---
+    async getClientDetails(housekeeperId, clientId) {
+        console.log(`[Firestore] Getting client details for housekeeper ${housekeeperId}, client ${clientId}`);
+        if (!housekeeperId || !clientId) {
+            console.error('[Firestore] getClientDetails called with invalid IDs');
+            return null;
+        }
+        try {
+            const clientRef = db.collection('users').doc(housekeeperId).collection('clients').doc(clientId);
+            const doc = await clientRef.get();
+            if (doc.exists) {
+                console.log('[Firestore] Client details found:', doc.data());
+                return { id: doc.id, ...doc.data() };
+            } else {
+                console.warn(`[Firestore] No client document found at users/${housekeeperId}/clients/${clientId}`);
+                return null;
+            }
+        } catch (error) {
+            console.error('[Firestore] Error getting client details:', error);
+            return null;
+        }
+    },
+    // --- END NEW ---
 
     // NEW: Update Homeowner Profile
     async updateHomeownerProfile(homeownerId, profileData) {
@@ -105,21 +129,23 @@ const firestoreService = {
         }
         try {
             const profileRef = db.collection('homeowner_profiles').doc(homeownerId);
+            
             // Ensure we have an update timestamp
             const dataToUpdate = {
-                ...profileData,
+                ...profileData, 
+                // Make sure profileData includes HomeownerInstructions if it was edited
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             };
             
-            // Remove undefined fields to avoid Firestore errors if they exist
+            // Remove undefined fields
             Object.keys(dataToUpdate).forEach(key => dataToUpdate[key] === undefined && delete dataToUpdate[key]);
 
             await profileRef.update(dataToUpdate);
             console.log(`[Firestore] Homeowner profile updated successfully for ID: ${homeownerId}`);
-            return true; // Indicate success
+            return true;
         } catch (error) {
             console.error('[Firestore] Error updating homeowner profile:', error);
-            throw error; // Re-throw the error to be caught by the caller
+            throw error;
         }
     },
 
@@ -771,7 +797,7 @@ const firestoreService = {
                 // Optional fields from bookingData
                 clientName: bookingData.clientName || null,
                 frequency: bookingData.frequency || 'one-time',
-                notes: bookingData.notes || '',
+                BookingNote: bookingData.BookingNote || '',
                 address: bookingData.address || null,
                 // System fields
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -1094,6 +1120,30 @@ const firestoreService = {
     
     // ---- SETTINGS ----
     // Constants for settings structure
+
+    // --- NEW: Get Booking Details ---
+    async getBookingDetails(housekeeperId, bookingId) {
+        console.log(`[Firestore] Getting booking details for housekeeper ${housekeeperId}, booking ${bookingId}`);
+        if (!housekeeperId || !bookingId) {
+            console.error('[Firestore] getBookingDetails called with invalid IDs');
+            return null;
+        }
+        try {
+            const bookingRef = db.collection('users').doc(housekeeperId).collection('bookings').doc(bookingId);
+            const doc = await bookingRef.get();
+            if (doc.exists) {
+                console.log('[Firestore] Booking details found:', doc.data());
+                // Return data including the ID
+                return { id: doc.id, ...doc.data() }; 
+            } else {
+                console.warn(`[Firestore] No booking document found at users/${housekeeperId}/bookings/${bookingId}`);
+                return null;
+            }
+        } catch (error) {
+            console.error('[Firestore] Error getting booking details:', error);
+            return null;
+        }
+    },
 };
 
 // Make the service globally accessible

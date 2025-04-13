@@ -1,8 +1,10 @@
 import * as dateUtils from '/common/js/date-utils.js'; // Ensure this is at the top
 
 // Initialize the current week start date
-let currentWeekStart; // Will be set after DOMContentLoaded
+let currentWeekStart = null; // Will be set after DOMContentLoaded
 let housekeeperTimezone = 'UTC'; // << ADDED: Store timezone globally
+let userProfile = null; // Store user profile globally
+let userSettings = null; // <<< DECLARED GLOBALLY >>>
 
 // Global booking data
 let currentBookingData = {
@@ -50,8 +52,31 @@ const cancelConfirmError = document.getElementById('cancel-confirm-error');
 const cancelConfirmIndicator = document.getElementById('cancel-confirm-indicator');
 // --- END Cancel Confirm Modal Elements ---
 
+// --- NEW: Booking Detail Modal Elements (CORRECTED IDs) ---
+const bookingDetailModal = document.getElementById('booking-detail-modal');
+const bookingDetailBackdrop = document.getElementById('booking-detail-backdrop');
+const bookingDetailContent = document.getElementById('booking-detail-content');
+// REMOVED: Variables for buttons, using onclick instead
+// const closeBookingDetailModalBtn = document.getElementById('closeBookingDetailModalBtn'); 
+// const closeBookingDetailModalFooterBtn = document.getElementById('closeBookingDetailModalFooterBtn');
+// --- END Booking Detail Modal Elements ---
+
 // Flag to track if booking handlers are set up - DECLARED ONCE HERE
 let bookingHandlersInitialized = false;
+
+// --- NEW: escapeHtml utility ---
+function escapeHtml(unsafe) {
+    if (unsafe === null || unsafe === undefined) {
+        return '';
+    }
+    return String(unsafe)
+         .replace(/&/g, "&amp;")
+         .replace(/</g, "&lt;")
+         .replace(/>/g, "&gt;")
+         .replace(/"/g, "&quot;")
+         .replace(/'/g, "&#039;");
+ }
+ // --- END escapeHtml --- 
 
 // Global loading indicator functions
 function showLoading(message = 'Loading...') {
@@ -228,58 +253,31 @@ async function loadUserSchedule(showLoadingIndicator = true) {
             return;
         }
 
-        // Get user settings from Firestore
+        userProfile = await firestoreService.getUserProfile(user.uid);
+        console.log('User profile:', userProfile);
+
         console.log('Fetching user settings from Firestore...');
-        // --- Using firestoreService now --- 
-        let settings = await firestoreService.getUserSettings(user.uid);
+        userSettings = await firestoreService.getUserSettings(user.uid);
+        if (!userSettings) {
+            console.warn('User settings not found or failed to load, using defaults.');
+            userSettings = DEFAULT_SETTINGS; // Use imported defaults
+        } else {
+            // Merge with defaults to ensure all necessary properties exist
+             userSettings = { ...DEFAULT_SETTINGS, ...userSettings };
+             console.log('User settings from Firestore:', userSettings);
+        }
+        console.log('Merged settings:', userSettings);
         
-        // Use defaults if no settings found
-        if (!settings) {
-            console.log('No settings found in Firestore, using default settings');
-            settings = DEFAULT_SETTINGS;
+        // Set timezone globally if available in settings
+        if (userSettings.timezone) {
+            housekeeperTimezone = userSettings.timezone;
+            console.log('Housekeeper timezone set to:', housekeeperTimezone);
         } else {
-            console.log('User settings from Firestore:', settings);
-            // Merge with defaults to ensure all properties exist
-            settings = { ...DEFAULT_SETTINGS, ...settings };
-            console.log('Merged settings:', settings);
+            console.warn('Timezone not found in user settings, using default:', housekeeperTimezone);
         }
-        // --- End firestoreService usage --- 
 
-        // --- ADDED: Store Timezone ---
-        housekeeperTimezone = settings.timezone || dateUtils.getLocalTimezone(); // Use fetched or local
-        console.log(`Housekeeper timezone set to: ${housekeeperTimezone}`);
-        // --- END ADDED ---
-
-        // --- Process workingDays (Handle potential structure differences) ---
-        // Check if workingDays exists and has the named format
-        if (settings.workingDays && typeof settings.workingDays === 'object' && settings.workingDays.monday !== undefined) {
-            console.log('Detected named workingDays format, creating compatibility layer.');
-            // Create compatibility layer
-            settings.workingDaysCompat = {
-                0: settings.workingDays.sunday?.isWorking === true,
-                1: settings.workingDays.monday?.isWorking === true,
-                2: settings.workingDays.tuesday?.isWorking === true, 
-                3: settings.workingDays.wednesday?.isWorking === true,
-                4: settings.workingDays.thursday?.isWorking === true,
-                5: settings.workingDays.friday?.isWorking === true,
-                6: settings.workingDays.saturday?.isWorking === true
-            };
-            // Use the compatibility layer for schedule generation
-            settings.processedWorkingDays = settings.workingDaysCompat;
-        } else if (settings.workingDays && typeof settings.workingDays === 'object') {
-            // Assume numeric format (0-6), ensure boolean values
-            console.log('Detected numeric workingDays format, ensuring boolean values.');
-            const processed = {};
-            for (let i = 0; i < 7; i++) {
-                processed[i] = !!settings.workingDays[i]; // Convert to boolean
-            }
-            settings.processedWorkingDays = processed;
-        } else {
-            console.warn('workingDays format not recognized or missing, using default processed values.');
-            settings.processedWorkingDays = { ...DEFAULT_SETTINGS.workingDays }; // Use default numeric format
-        }
-        console.log('Processed working days for schedule generation:', settings.processedWorkingDays);
-        // --- End workingDays processing ---
+        // Handle working days format (backward compatibility)
+        // ... (rest of loadUserSchedule function uses the global userSettings) ...
 
         // Debug working days
         // debugWorkingDays(settings);
@@ -334,7 +332,7 @@ async function fetchAndRenderSchedule(startDate, housekeeperId) {
 
         if (result.data && result.data.schedule) {
             renderScheduleFromData(result.data.schedule, startDate);
-        } else {
+                    } else {
             console.error('Invalid schedule data received from function:', result.data);
             scheduleContainer.innerHTML = '<p class="text-center text-red-500">Error loading schedule data.</p>';
         }
@@ -411,8 +409,8 @@ function renderScheduleFromData(scheduleData, weekStartDate) {
                 dayData.slots.forEach(slot => {
                     const slotElement = createSlotElement(slot, dateString);
                     slotsContainer.appendChild(slotElement);
-                });
-            } else {
+        });
+    } else {
                 // Display "Not scheduled to work" if no slots and day is active
                 const noWorkText = document.createElement('p');
                 noWorkText.textContent = 'Not scheduled to work';
@@ -460,7 +458,7 @@ function createSlotElement(slotData, dateString) {
             availableTextDiv.innerHTML = `
                 <p class="font-semibold text-blue-900">${timeDisplay}</p>
                 <p class="text-sm text-blue-700">Available ${durationDisplay}</p>
-            `; 
+            `;
             div.appendChild(availableTextDiv);
             // Button Div (Right)
             const availableButton = document.createElement('button');
@@ -468,7 +466,7 @@ function createSlotElement(slotData, dateString) {
             // Simplified button style: Clear bg, good padding, no shadow/icon
             availableButton.className = 'px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-400';
             div.appendChild(availableButton);
-
+            
             // Event Listener
             div.addEventListener('click', (e) => { 
                 // Prevent event listener if the button itself was clicked
@@ -480,7 +478,7 @@ function createSlotElement(slotData, dateString) {
                 }
                 if (slotDateTimeString) {
                     openBookingModal(slotDateTimeString, slotData.durationMinutes);
-                } else {
+            } else {
                     alert('Error preparing booking time. Missing timestamp.');
                 }
             });
@@ -496,28 +494,30 @@ function createSlotElement(slotData, dateString) {
                      openBookingModal(slotDateTimeString, slotData.durationMinutes);
                  } else {
                      alert('Error preparing booking time. Missing timestamp.');
-                 }
+                }
             });
             break;
         case 'pending':
             // Simplified Pending Style: Clear yellow bg, simple buttons
             div.classList.add('bg-yellow-100');
             div.innerHTML = `
-                <div>
+                    <div>
                     <p class="font-semibold text-yellow-900">${timeDisplay} <span class="text-sm font-normal">${durationDisplay}</span></p>
                     <p class="text-base font-semibold text-yellow-800">Pending</p>
                     <p class="text-sm text-yellow-700 mt-1">Client: ${slotData.clientName || '...'}</p>
-                </div>
+                    </div>
                 <div class="mt-3 flex space-x-3">
                     <button class="flex-1 px-4 py-2 text-sm font-medium bg-green-500 text-white rounded hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-green-400" data-booking-id="${slotData.bookingId}" data-action="confirm">Confirm</button>
                     <button class="flex-1 px-4 py-2 text-sm font-medium bg-red-500 text-white rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-red-400" data-booking-id="${slotData.bookingId}" data-action="reject">Reject</button>
                 </div>
             `;
             break;
-        case 'booked':
+        case 'booked': 
         case 'confirmed':
             // Simplified Booked/Confirmed Style: Clearer gray bg, simple cancel button
-            div.classList.add('bg-gray-200', 'flex', 'items-center', 'justify-between');
+            div.classList.add('bg-gray-200', 'flex', 'items-center', 'justify-between', 'cursor-pointer');
+            div.dataset.action = 'view_details';
+            div.dataset.bookingId = slotData.bookingId;
             // Info Div (Left)
             const confirmedInfoDiv = document.createElement('div');
             confirmedInfoDiv.innerHTML = `
@@ -526,14 +526,6 @@ function createSlotElement(slotData, dateString) {
                 <p class="text-sm text-gray-600 mt-1">Client: ${slotData.clientName || '...'}</p>
             `;
             div.appendChild(confirmedInfoDiv);
-            // Cancel Button Div (Right)
-            const cancelButton = document.createElement('button');
-            cancelButton.textContent = 'Cancel';
-            // Simplified button style
-            cancelButton.className = 'ml-4 px-4 py-2 bg-red-500 text-white text-sm font-medium rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-red-400';
-            cancelButton.dataset.bookingId = slotData.bookingId;
-            cancelButton.dataset.action = 'request_cancel';
-            div.appendChild(cancelButton);
             break;
         case 'unavailable':
         case 'break':
@@ -661,7 +653,7 @@ async function loadAndDisplayServicesForBooking() {
         addonServiceErrorMsg.classList.remove('hidden');
         return;
     }
-
+    
     // Clear previous options and errors
     baseServiceOptionsContainer.innerHTML = '<p class="text-gray-600 mb-2">Loading base services...</p>';
     addonServiceOptionsContainer.innerHTML = '<p class="text-gray-600 mb-2">Loading add-on services...</p>';
@@ -785,7 +777,7 @@ async function openBookingModal(dateTimeString, durationMinutes) {
 
     // Reset steps visibility
     showBookingStep('clientSelection'); // Start with client selection
-
+    
     // Load clients
     await loadClientsForSelection();
     
@@ -1199,6 +1191,212 @@ function closeCancelConfirmModal() {
 }
 // --- END Cancel Confirmation Modal Management ---
 
+// --- NEW: Booking Detail Modal Management ---
+async function openBookingDetailModal(bookingId) {
+    console.log('[Detail Modal] Opening for bookingId:', bookingId);
+    const modal = document.getElementById('booking-detail-modal');
+    const content = document.getElementById('booking-detail-content');
+    const modalTitle = document.getElementById('booking-detail-title'); // Assume title element exists
+    const user = firebase.auth().currentUser;
+
+    if (!modal || !content || !modalTitle || !user) {
+        console.error('Modal elements or user not found for booking detail');
+        return;
+    }
+
+    showLoading('Loading booking details...');
+    content.innerHTML = ''; // Clear previous content
+
+    try {
+        // 1. Fetch Booking Data
+        const bookingData = await firestoreService.getBookingDetails(user.uid, bookingId);
+        console.log("[Detail Modal] Booking data fetched:", bookingData);
+        if (!bookingData) {
+            throw new Error('Booking data not found.');
+        }
+
+        // 2. Fetch Homeowner Profile OR Client Details (for instructions/notes)
+        let homeownerProfile = null;
+        let clientDetailsFromList = null; 
+        if (bookingData.clientId) { 
+            try {
+                homeownerProfile = await firestoreService.getHomeownerProfile(bookingData.clientId);
+                console.log("[Detail Modal] Homeowner profile fetched:", homeownerProfile);
+                
+                if (!homeownerProfile) {
+                    console.warn(`[Detail Modal] Homeowner profile null, fetching client details from list.`);
+                    clientDetailsFromList = await firestoreService.getClientDetails(user.uid, bookingData.clientId);
+                    console.log("[Detail Modal] Client details fetched from list:", clientDetailsFromList);
+                }
+            } catch (profileError) {
+                 console.warn(`[Detail Modal] Could not fetch homeowner profile for ${bookingData.clientId}, attempting client list fallback:`, profileError);
+                try {
+                    clientDetailsFromList = await firestoreService.getClientDetails(user.uid, bookingData.clientId);
+                    console.log("[Detail Modal] Client details fetched from list after profile error:", clientDetailsFromList);
+                } catch (fallbackError) {
+                     console.error(`[Detail Modal] Failed to fetch client details even from list for ${bookingData.clientId}:`, fallbackError);
+                }
+            }
+        }
+
+        // 3. Populate Modal Content
+        modalTitle.textContent = `Booking Details`; // Or more specific if needed
+        let detailHtml = '<div class="space-y-3">';
+        
+        // Date & Time
+        const formatOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric', timeZone: userSettings?.timezone || 'UTC' };
+        const startStr = bookingData.startTimestamp?.toDate().toLocaleString(undefined, formatOptions);
+        const endStr = bookingData.endTimestamp?.toDate().toLocaleTimeString(undefined, { hour: 'numeric', minute: 'numeric', timeZone: userSettings?.timezone || 'UTC' });
+        const duration = bookingData.duration ? `(${bookingData.duration} hr${bookingData.duration > 1 ? 's' : ''})` : ''; // Add duration if available
+        detailHtml += `<div><p class="text-sm font-medium text-gray-600">When:</p><p>${startStr || 'N/A'} - ${endStr || 'N/A'} ${duration}</p></div>`;
+        
+        // Client Name
+        detailHtml += `<div><p class="text-sm font-medium text-gray-600">Client:</p><p>${escapeHtml(bookingData.clientName || clientDetailsFromList?.firstName || 'N/A')}</p></div>`; 
+
+        // Address
+        const address = bookingData.address || homeownerProfile?.address || clientDetailsFromList?.address || 'N/A';
+        detailHtml += `<div><p class="text-sm font-medium text-gray-600">Address:</p><p>${escapeHtml(address)}</p></div>`; 
+
+        // Base Service & Price
+        const baseServiceName = bookingData.baseServiceName || 'Base Service';
+        const baseServicePrice = bookingData.baseServicePrice !== undefined ? `$${bookingData.baseServicePrice.toFixed(2)}` : 'N/A';
+        detailHtml += `<div><p class="text-sm font-medium text-gray-600">Base Service:</p><p>${escapeHtml(baseServiceName)} (${baseServicePrice})</p></div>`;
+
+        // Addons
+        if (bookingData.addons && bookingData.addons.length > 0) {
+            detailHtml += '<div><p class="text-sm font-medium text-gray-600">Add-ons:</p><ul class="list-disc list-inside text-sm">';
+            bookingData.addons.forEach(addon => {
+                const addonPrice = addon.price !== undefined ? `$${addon.price.toFixed(2)}` : 'N/A';
+                detailHtml += `<li>${escapeHtml(addon.serviceName || 'Addon')} (${addonPrice})</li>`;
+            });
+            detailHtml += '</ul></div>';
+        }
+
+        // Total Price
+        const totalPrice = bookingData.totalPrice !== undefined ? `$${bookingData.totalPrice.toFixed(2)}` : 'N/A';
+        detailHtml += `<div><p class="text-sm font-medium text-gray-600">Estimated Total:</p><p class="font-semibold">${totalPrice}</p></div>`;
+
+        // Booking Note
+        const bookingNote = bookingData.BookingNote;
+        if (bookingNote) {
+             detailHtml += `<div><p class="text-sm font-medium text-gray-600">Booking Note:</p><p class="text-sm whitespace-pre-wrap">${escapeHtml(bookingNote)}</p></div>`;
+        }
+
+        // Homeowner Instructions
+        const homeownerInstructions = homeownerProfile?.HomeownerInstructions;
+        if (homeownerInstructions) {
+             detailHtml += `<div><p class="text-sm font-medium text-gray-600">Homeowner General Instructions:</p><p class="text-sm whitespace-pre-wrap">${escapeHtml(homeownerInstructions)}</p></div>`;
+        }
+        
+        // Housekeeper Internal Note (from fallback)
+        const housekeeperInternalNote = clientDetailsFromList?.HousekeeperInternalNote;
+        if (housekeeperInternalNote) {
+             detailHtml += `<div><p class="text-sm font-medium text-gray-600">Housekeeper Notes / Access Info:</p><p class="text-sm whitespace-pre-wrap">${escapeHtml(housekeeperInternalNote)}</p></div>`;
+        }
+
+        detailHtml += '</div>'; // Close space-y-3 div
+        content.innerHTML = detailHtml;
+
+        // Set up modal buttons based on booking status
+        setupModalButtons(modal, bookingData);
+        
+        hideLoading();
+
+        // --- Add More Logging and Ensure Visibility Logic --- 
+        console.log('[Detail Modal] About to remove hidden class from modal:', modal);
+        console.log('[Detail Modal] Modal classes BEFORE remove:', modal.className);
+        modal.classList.remove('hidden');
+        console.log('[Detail Modal] Modal classes AFTER remove:', modal.className);
+
+        const backdrop = document.getElementById('booking-detail-backdrop');
+        if (backdrop) {
+            console.log('[Detail Modal] Showing backdrop');
+            backdrop.classList.remove('hidden');
+            setTimeout(() => { 
+                backdrop.style.opacity = '0.5'; 
+                console.log('[Detail Modal] Backdrop opacity set');
+            }, 10); // Fade in backdrop
+        } else {
+            console.warn('[Detail Modal] Backdrop element not found!');
+        }
+        
+        // Animate modal in
+        setTimeout(() => { 
+            modal.style.transform = 'translateY(0)'; 
+            console.log('[Detail Modal] Modal transform set to translateY(0)');
+        }, 10); 
+        // --- END Visibility Logic --- 
+
+    } catch (error) {
+        hideLoading();
+        console.error('[Detail Modal] Error loading booking details:', error);
+        content.innerHTML = `<p class="text-red-500 p-4">Error loading details: ${error.message}</p>`;
+        // Optionally set a default title or hide it
+        modalTitle.textContent = 'Error'; 
+        modal.classList.remove('hidden'); // Show modal even on error to display message
+    }
+}
+
+// --- NEW: Function to setup buttons in Detail Modal Footer ---
+function setupModalButtons(modalElement, bookingData) {
+    const footer = modalElement.querySelector('#booking-detail-footer');
+    if (!footer) {
+        console.error('[Modal Buttons] Footer element not found in detail modal.');
+        return;
+    }
+    
+    footer.innerHTML = ''; // Clear existing buttons
+    const bookingId = bookingData.id;
+    const clientName = bookingData.clientName || 'this client'; // For confirmation message
+
+    // Default: Add Close button
+    const closeButton = document.createElement('button');
+    closeButton.textContent = 'Close';
+    closeButton.className = 'w-full inline-flex justify-center rounded-lg bg-white px-3 py-3.5 text-sm font-semibold text-black shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50';
+    closeButton.onclick = closeBookingDetailModal; // <<< ATTACH function directly
+
+    // Add Cancel button for relevant statuses
+    if (bookingData.status === 'confirmed' || bookingData.status === 'booked') { // Add other cancellable statuses if needed
+        const cancelButton = document.createElement('button');
+        cancelButton.textContent = 'Cancel Booking';
+        cancelButton.className = 'w-full mb-3 inline-flex justify-center rounded-lg bg-red-600 px-3 py-3.5 text-sm font-semibold text-white shadow-sm hover:bg-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700'; // Red cancel button style
+        
+        // <<< UPDATED: Close detail modal BEFORE opening confirm modal >>>
+        cancelButton.onclick = () => {
+            closeBookingDetailModal(); // Close the current detail modal
+            // Use setTimeout to allow the close animation to start before opening the next modal
+            setTimeout(() => {
+                 openCancelConfirmModal(bookingId, clientName); // Then open the confirm modal
+            }, 150); // Small delay (adjust if needed)
+        };
+        // <<< END UPDATE >>>
+        
+        footer.appendChild(cancelButton); // Add cancel button first
+    }
+
+    footer.appendChild(closeButton); // Add close button last (or always)
+}
+// --- END NEW ---
+
+// --- Close Booking Detail Modal --- 
+function closeBookingDetailModal() {
+    const modal = document.getElementById('booking-detail-modal');
+    const backdrop = document.getElementById('booking-detail-backdrop');
+    if (modal) {
+        modal.style.transform = 'translateY(100%)';
+        modal.classList.add('hidden'); // Add hidden after transition starts
+    }
+    if (backdrop) {
+        backdrop.style.opacity = '0';
+        backdrop.classList.add('hidden');
+    }
+    // Re-enable body scrolling
+    document.body.style.overflow = '';
+    document.documentElement.style.overflow = '';
+}
+// --- END NEW ---
+
+// <<< RESTORED DOMContentLoaded Listener and its contents >>>
 // --- Initialization and Event Listeners ---
 document.addEventListener('DOMContentLoaded', () => {
     currentWeekStart = dateUtils.getStartOfWeek(new Date()); // Initialize to current week's Monday
@@ -1208,13 +1406,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (user) {
             console.log('Auth state changed, user logged in. Loading schedule...');
             loadUserSchedule(); 
-    if (!bookingHandlersInitialized) {
+            if (!bookingHandlersInitialized) {
                  setupBookingModalListeners(); 
-        bookingHandlersInitialized = true;
-    }
+                 bookingHandlersInitialized = true;
+            }
         } else {
             console.log('No user logged in, redirecting...');
-            window.location.href = '../../login.html';
+            // Assuming auth-router handles redirection, or uncomment below if needed
+            // window.location.href = '/'; 
         }
     });
 
@@ -1239,24 +1438,85 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- ADD: Event Listeners for Cancel Confirmation Modal ---
-    confirmCancelBookingBtn.addEventListener('click', executeBookingCancellation);
-    keepBookingBtn.addEventListener('click', closeCancelConfirmModal);
-    closeCancelModalBtnX.addEventListener('click', closeCancelConfirmModal);
-    cancelConfirmBackdrop.addEventListener('click', closeCancelConfirmModal);
+    confirmCancelBookingBtn?.addEventListener('click', executeBookingCancellation); // Added safe navigation
+    keepBookingBtn?.addEventListener('click', closeCancelConfirmModal); // Added safe navigation
+    closeCancelModalBtnX?.addEventListener('click', closeCancelConfirmModal); // Added safe navigation
+    cancelConfirmBackdrop?.addEventListener('click', closeCancelConfirmModal); // Added safe navigation
     // --- END ADD ---
 
-    // Event Delegation for Schedule Actions (including cancel)
+    // --- ADD: Event Listeners for Booking Detail Modal (Backdrop and NEW Header Close) ---
+    document.getElementById('close-detail-modal-btn-x')?.addEventListener('click', closeBookingDetailModal);
+    bookingDetailBackdrop?.addEventListener('click', closeBookingDetailModal); // Existing backdrop listener
+    // --- END ADD ---
+
+    // Event Delegation for Schedule Actions (including cancel AND view details)
     const scheduleContainer = document.getElementById('schedule-container');
     if (scheduleContainer) {
         scheduleContainer.addEventListener('click', (event) => {
-            const pendingButton = event.target.closest('button[data-action="confirm"], button[data-action="reject"]');
-            const cancelButton = event.target.closest('button[data-action="request_cancel"]');
+            // --- Debug: Log the clicked element ---
+            console.log('[Schedule Click Listener] Clicked element:', event.target);
+            // --- End Debug ---
             
-            if (pendingButton) {
-                handlePendingAction(event); // Call existing handler
-            } else if (cancelButton) {
-                handleCancelRequestClick(event); // Updated handler now opens modal
+            const targetElement = event.target;
+            
+            // Check for View Details click (on the slot div itself)
+            const detailSlot = targetElement.closest('[data-action="view_details"]');
+            if (detailSlot) {
+                 const bookingId = detailSlot.dataset.bookingId;
+                 console.log(`[Schedule Click Listener] View details clicked for booking: ${bookingId}`);
+                 if (bookingId) {
+                     openBookingDetailModal(bookingId);
+                 }
+                 return; // Prevent further checks if detail view was triggered
             }
+
+            // Check for BOOK button click on AVAILABLE slot
+            const bookButton = targetElement.closest('button[data-action="book_slot"]');
+            if (bookButton) {
+                const slotDataStr = bookButton.dataset.slotData;
+                if (slotDataStr) {
+                    try {
+                        const slotData = JSON.parse(slotDataStr);
+                        console.log('Available slot BOOK button clicked:', slotData.start, slotData);
+                        openBookingModal(slotData); // Open the NEW booking modal
+                    } catch (e) {
+                        console.error("Error parsing slot data for booking:", e);
+                    }
+                } else {
+                    console.error('Missing slot data on book button');
+                }
+                 return;
+            }
+
+            // Check for clicks on the AVAILABLE slot AREA (not the button) -> Also open booking modal
+            const availableSlotArea = targetElement.closest('.bg-blue-100[data-slot-data]'); // Target the blue background div with data
+             if (availableSlotArea && !bookButton) { // Ensure it wasn't the button itself
+                 const slotDataStr = availableSlotArea.dataset.slotData;
+                 if (slotDataStr) {
+                     try {
+                         const slotData = JSON.parse(slotDataStr);
+                         console.log('Available slot area clicked (not button):', slotData.start, slotData);
+                         openBookingModal(slotData); // Open the NEW booking modal
+                     } catch (e) {
+                         console.error("Error parsing slot data for booking from area click:", e);
+                     }
+                 } else {
+                     console.error('Missing slot data on available slot area');
+                 }
+                 return;
+             }
+
+            // Check for Pending Action click (existing logic)
+            const pendingButton = targetElement.closest('button[data-action="confirm"], button[data-action="reject"]');
+            if (pendingButton) {
+                 console.log('[Schedule Click Listener] Pending action button clicked'); // Debug log
+                handlePendingAction(event); 
+                 return;
+            }
+            
+            // --- Debug: Log if no specific action was detected ---
+            console.log('[Schedule Click Listener] Click detected, but no specific action target found (view details, cancel, pending, book).');
+            // --- End Debug ---
         });
     } else {
         console.error('Schedule container not found for action delegation.');
@@ -1269,14 +1529,12 @@ document.addEventListener('DOMContentLoaded', () => {
         firebase.auth().signOut()
             .then(() => {
                 console.log('User signed out successfully');
-                window.location.href = '/'; // Redirect to root (login page)
+                // Auth router should handle redirect automatically
+                // window.location.href = '/'; 
             })
             .catch((error) => {
                 console.error('Sign out error:', error);
                 alert('Error signing out.');
             });
     });
-});
-
-// Export functions if needed by other modules (or rely on global scope for now)
-// export { openBookingModal, closeBookingModal };
+}); // <<< RESTORED Closing brace and parenthesis for DOMContentLoaded listener

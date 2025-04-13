@@ -16,23 +16,20 @@
 
 // Separate base user data from profile-specific data for clarity
 const coreHomeownerBaseData = {
-    email: 'core-home@yourapp.com',
+    email: 'tim@majorinc.ca',
     role: 'homeowner'
 };
 const coreHomeownerProfileData = {
     firstName: 'Corey',
     lastName: 'Homeowner',
-    address: '101 Home Sweet Ln',
-    city: 'Homestead',
-    state: 'CA',
-    zip: '90211',
+    address: '101 Home Sweet Ln, Homestead, CA 90211',
     phone: '555-111-2222',
-    specialInstructions: 'Please use the back door. Small dog is friendly.'
+    HomeownerInstructions: 'Please use the back door. Small dog is friendly.',
     // linkedHousekeeperId will be added in the function
 };
 
 const coreHousekeeperBaseData = {
-    email: 'core-keeper@yourapp.com',
+    email: 'tim+keeper@majorinc.ca',
     role: 'housekeeper'
 };
 const coreHousekeeperProfileData = {
@@ -64,20 +61,16 @@ const manualClientsData = [
         lastName: 'Clientone',
         email: 'manual1@example.com',
         phone: '555-555-0001',
-        address: '789 Test Ave',
-        city: 'Sampletown',
-        state: 'CA',
-        zip: '90210'
+        address: '789 Test Ave, Sampletown, CA 90210',
+        HousekeeperInternalNote: 'Key under the mat'
     },
     {
         firstName: 'Another',
         lastName: 'Manualperson',
         email: 'manual2@example.com',
         phone: '555-555-0002',
-        address: '10 Downing St',
-        city: 'Otherplace',
-        state: 'CA',
-        zip: '90028'
+        address: '10 Downing St, Otherplace, CA 90028',
+        HousekeeperInternalNote: 'Key under the mat'
     }
 ];
 
@@ -187,7 +180,7 @@ const sampleBookingsData = (
             endTimestampMillis: booking1EndMillis,
             status: 'confirmed', // Use 'confirmed' or 'pending' based on new model
             frequency: 'one-time',
-            notes: 'First cleaning for Corey.',
+            BookingNote: 'First cleaning for Corey.',
             address: coreHomeownerProfileData.address, // Store address at booking time
             createdAt: firebase.firestore.FieldValue.serverTimestamp() // Add timestamp
         },
@@ -202,7 +195,7 @@ const sampleBookingsData = (
             endTimestampMillis: booking2EndMillis,
             status: 'completed',
             frequency: 'one-time',
-            notes: 'Completed cleaning.',
+            BookingNote: 'Completed cleaning.',
             address: coreHomeownerProfileData.address,
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         },
@@ -217,7 +210,7 @@ const sampleBookingsData = (
             endTimestampMillis: booking3EndMillis,
             status: 'pending', // Example pending booking
             frequency: 'one-time',
-            notes: 'Regular cleaning for Manual Client 1.',
+            BookingNote: 'Regular cleaning for Manual Client 1.',
             address: manualClientsData[0].address,
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         }

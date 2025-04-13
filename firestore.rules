@@ -82,10 +82,21 @@ service cloud.firestore {
     }
 
     match /homeowner_profiles/{userId} {
-        // Allow owner to manage their profile
-        allow read, write: if request.auth != null && request.auth.uid == userId;
-        // Allow linked housekeeper to READ profile (e.g., for address, contact)
-        allow read: if request.auth != null && request.auth.uid == resource.data.linkedHousekeeperId;
+      // Allow owner to read/write their own profile
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // Housekeeper can READ homeowner profile if linked
+      // Check if the requesting housekeeper's ID exists in the homeowner's linkedHousekeeperId field
+      allow read: if request.auth != null && request.auth.token.role == 'housekeeper' && resource.data.linkedHousekeeperId == request.auth.uid;
+      
+      // Validate profile data on write (example)
+      // Ensure required fields exist, types are correct
+      // --- UPDATE: Ensure HomeownerInstructions is a string if provided ---
+      allow write: if request.auth != null && request.auth.uid == userId 
+                    && request.resource.data.firstName is string
+                    && request.resource.data.lastName is string
+                    && (!request.resource.data.key('HomeownerInstructions') || request.resource.data.HomeownerInstructions is string); 
+      // Add other validation rules as needed (phone format, address fields etc.)
     }
     
     // --- Properties Collection ---

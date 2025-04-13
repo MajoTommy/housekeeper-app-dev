@@ -235,7 +235,12 @@ function createClientListItem(clientId, client) {
     
     // Format the address
     let address = 'No address';
-    if (client.street) {
+    // <<< FIX: Check for simple 'address' field first >>>
+    if (client.address) {
+        address = client.address;
+    } 
+    // <<< FIX: Fallback to complex formatting ONLY if simple address doesn't exist >>>
+    else if (client.street) { 
         const parts = [];
         if (client.street) parts.push(client.street);
         
@@ -270,60 +275,37 @@ function createClientListItem(clientId, client) {
     
     // Create the HTML for the client item
     clientElement.innerHTML = `
-        <div class="p-4">
-            <div class="flex items-center justify-between">
-                <div class="min-w-0 flex-1">
-                    <div class="flex items-center gap-x-3">
-                        <div class="flex-shrink-0">
-                            <div class="h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center">
-                                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                                </svg>
-                            </div>
-                        </div>
-                        <div>
-                            <h3 class="text-base font-semibold leading-7 text-gray-900">${fullName}</h3>
-                            ${client.frequency ? `<span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">${client.frequency}</span>` : ''}
-                        </div>
-                    </div>
-                    <div class="mt-3 grid grid-cols-1 gap-1 text-sm leading-6">
-                        <div class="flex items-center gap-x-2">
-                            <svg class="h-5 w-5 flex-none text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
-                            </svg>
-                            <span class="text-black">${address}</span>
-                        </div>
-                        <div class="flex items-center gap-x-2">
-                            <svg class="h-5 w-5 flex-none text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
-                            </svg>
-                            <span class="text-primary">${phone}</span>
-                        </div>
-                        <div class="flex items-center gap-x-2">
-                            <svg class="h-5 w-5 flex-none text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
-                            </svg>
-                            <span class="text-black">${client.accessInformation || 'Key under the mat'}</span>
-                        </div>
-                    </div>
+        <div class="flex items-center p-4">
+            <div class="mr-4">
+                <span class="inline-flex items-center justify-center h-10 w-10 rounded-full bg-secondary text-white">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                </span>
+            </div>
+            <div class="flex-grow">
+                <h3 class="text-lg font-semibold text-gray-900">${escapeHtml(fullName)}</h3>
+                <div class="text-sm text-gray-600 flex items-center mt-1">
+                    <svg class="h-4 w-4 mr-1.5 text-gray-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path></svg>
+                    <span>${escapeHtml(address)}</span>
                 </div>
-                <button class="inline-flex items-center gap-x-1.5 rounded-md bg-white px-2.5 py-1.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
-                    <svg class="-ml-0.5 h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    Details
+                <div class="text-sm text-gray-600 flex items-center mt-1">
+                    <svg class="h-4 w-4 mr-1.5 text-gray-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path></svg>
+                    <span>${escapeHtml(phone)}</span>
+                </div>
+                <!-- <<< UPDATED: Display HousekeeperInternalNote >>> -->
+                <div class="text-sm text-gray-600 flex items-center mt-1">
+                    <svg class="h-4 w-4 mr-1.5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"></path></svg>
+                    <span>${escapeHtml(client.HousekeeperInternalNote || 'No internal notes')}</span> 
+                </div>
+                <!-- <<< END UPDATED >>> -->
+            </div>
+            <div class="ml-4 flex-shrink-0">
+                <button onclick='openClientDetailsModal("${clientId}", ${JSON.stringify(client).replace(/'/g, "&#39;")})' class="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                     <svg class="h-4 w-4 mr-1.5 text-gray-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z"></path><path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"></path></svg>
+                     Details
                 </button>
             </div>
         </div>
     `;
-    
-    // Add click handler to open modal
-    clientElement.addEventListener('click', () => {
-        openClientDetailsModal(clientId, client);
-    });
-    
     return clientElement;
 }
 
@@ -348,7 +330,12 @@ function openClientDetailsModal(clientId, client) {
     
     // Format the address
     let address = 'No address';
-    if (client.street) {
+    // <<< FIX: Prioritize simple client.address field >>>
+    if (client.address) {
+        address = client.address;
+    } 
+    // <<< FIX: Fallback to complex formatting only if simple address is missing >>>
+    else if (client.street) { 
         const parts = [];
         if (client.street) parts.push(client.street);
         if (client.city) parts.push(client.city);
@@ -587,123 +574,42 @@ function switchToEditMode() {
     // Update bottom sheet content with edit form - improved for mobile
     const modalContent = modal.querySelector('.bg-white');
     modalContent.innerHTML = `
-        <div class="flex justify-center pt-2 pb-1">
-            <div class="w-10 h-1 bg-gray-300 rounded-full"></div>
-        </div>
-        <div class="flex justify-between items-center p-4 border-b border-gray-200">
-            <h2 class="text-xl font-semibold text-gray-900">Edit Client</h2>
-            <button onclick="cancelEdit()" class="text-primary hover:text-primary-dark p-1 rounded-full hover:bg-gray-100">
-                <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-            </button>
-        </div>
-        
-        <div class="px-4 py-5 overflow-y-auto flex-grow bg-gray-50 -webkit-overflow-scrolling-touch">
-            <form id="client-edit-form" class="space-y-6 max-w-lg mx-auto">
-                <!-- Name Fields - 2 column grid on same row for all screen sizes -->
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label for="modal-first-name" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">First Name</label>
-                        <input type="text" id="modal-first-name" 
-                            class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
-                            value="${clientData.firstName || ''}">
-                    </div>
-                    
-                    <div>
-                        <label for="modal-last-name" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Last Name</label>
-                        <input type="text" id="modal-last-name" 
-                            class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
-                            value="${clientData.lastName || ''}">
-                    </div>
-                </div>
+        <div class="p-4 space-y-4">
+            <div>
+                <label for="editFirstName" class="block text-sm font-medium text-gray-700">First Name</label>
+                <input type="text" id="editFirstName" value="${escapeHtml(clientData.firstName || '')}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+            </div>
+            <div>
+                <label for="editLastName" class="block text-sm font-medium text-gray-700">Last Name</label>
+                <input type="text" id="editLastName" value="${escapeHtml(clientData.lastName || '')}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+            </div>
+            <div>
+                <label for="editEmail" class="block text-sm font-medium text-gray-700">Email</label>
+                <input type="email" id="editEmail" value="${escapeHtml(clientData.email || '')}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+            </div>
+            <div>
+                <label for="editPhone" class="block text-sm font-medium text-gray-700">Phone</label>
+                <input type="tel" id="editPhone" value="${escapeHtml(clientData.phone || '')}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+            </div>
+            
+            <!-- <<< UPDATED: Single Address Textarea >>> -->
+            <div>
+                <label for="editAddress" class="block text-sm font-medium text-gray-700">Address</label>
+                <textarea id="editAddress" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">${escapeHtml(clientData.address || '')}</textarea>
+            </div>
+            <!-- <<< END UPDATED >>> -->
 
-                <div>
-                    <label for="modal-phone" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Phone</label>
-                    <input type="tel" id="modal-phone" 
-                        class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
-                        value="${clientData.phone || ''}">
-                </div>
+            <!-- <<< UPDATED: Label and Field Name >>> -->
+            <div>
+                <label for="editHousekeeperInternalNote" class="block text-sm font-medium text-gray-700">Housekeeper Notes / Access Info</label>
+                <textarea id="editHousekeeperInternalNote" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">${escapeHtml(clientData.HousekeeperInternalNote || '')}</textarea>
+            </div>
+            <!-- <<< END UPDATED >>> -->
 
-                <!-- Address Section with visual grouping -->
-                <div class="pt-2 pb-1 border-t border-gray-200">
-                    <h3 class="text-base font-medium text-gray-900 mb-4">Address Information</h3>
-                    
-                    <div class="space-y-4">
-                        <div>
-                            <label for="modal-street" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Street Address</label>
-                            <input type="text" id="modal-street" 
-                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
-                                value="${clientData.street || ''}">
-                        </div>
-
-                        <div>
-                            <label for="modal-city" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">City</label>
-                            <input type="text" id="modal-city" 
-                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
-                                value="${clientData.city || ''}">
-                        </div>
-                        
-                        <div>
-                            <label for="modal-country" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Country</label>
-                            <select id="modal-country" onchange="updateStateProvinceField()"
-                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">
-                                <option value="">Select a country</option>
-                                <option value="United States" ${clientData.country === 'United States' ? 'selected' : ''}>United States</option>
-                                <option value="Canada" ${clientData.country === 'Canada' ? 'selected' : ''}>Canada</option>
-                                <option value="Other" ${clientData.country && clientData.country !== 'United States' && clientData.country !== 'Canada' ? 'selected' : ''}>Other</option>
-                            </select>
-                        </div>
-                        
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label id="state-province-label" for="modal-state" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">State/Province</label>
-                                <div id="state-province-container">
-                                    <!-- This will be populated by JavaScript based on country selection -->
-                                    <input type="text" id="modal-state" 
-                                        class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
-                                        value="${clientData.state || ''}">
-                                </div>
-                            </div>
-                            <div>
-                                <label for="modal-zip" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">ZIP/Postal Code</label>
-                                <input type="text" id="modal-zip" 
-                                    class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
-                                    value="${clientData.zip || ''}">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Additional Information Section -->
-                <div class="pt-2 pb-1 border-t border-gray-200">
-                    <h3 class="text-base font-medium text-gray-900 mb-4">Additional Information</h3>
-                    
-                    <div class="space-y-4">
-                        <div>
-                            <label for="modal-access-info" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Access Information</label>
-                            <input type="text" id="modal-access-info" 
-                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
-                                value="${clientData.accessInformation || clientData.accessInfo || ''}">
-                        </div>
-
-                        <div>
-                            <label for="modal-special-instructions" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Special Instructions</label>
-                            <textarea id="modal-special-instructions" rows="3" 
-                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">${clientData.specialInstructions || ''}</textarea>
-                        </div>
-                    </div>
-                </div>
-            </form>
-        </div>
-
-        <div class="px-4 py-4 bg-white border-t border-gray-200">
-            <button onclick="saveClientDetails()" class="w-full mb-3 inline-flex justify-center rounded-lg bg-primary px-3 py-3.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
-                Save Changes
-            </button>
-            <button onclick="cancelEdit()" class="w-full inline-flex justify-center rounded-lg bg-white px-3 py-3.5 text-sm font-semibold text-black shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
-                Cancel
-            </button>
+            <div>
+                <label for="editNotes" class="block text-sm font-medium text-gray-700">Notes (Special Instructions)</label>
+                <textarea id="editNotes" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">${escapeHtml(clientData.notes || '')}</textarea>
+            </div>
         </div>
     `;
     
@@ -742,25 +648,22 @@ async function saveClientDetails() {
         // Show loading state
         showLoading('Saving changes...');
         
-        // Get form values
-        const updatedClient = {
-            firstName: document.getElementById('modal-first-name').value.trim(),
-            lastName: document.getElementById('modal-last-name').value.trim(),
-            phone: document.getElementById('modal-phone').value.trim(),
-            street: document.getElementById('modal-street').value.trim(),
-            city: document.getElementById('modal-city').value.trim(),
-            country: document.getElementById('modal-country').value.trim(),
-            state: document.getElementById('modal-state').value.trim(),
-            zip: document.getElementById('modal-zip').value.trim(),
-            accessInformation: document.getElementById('modal-access-info').value.trim(),
-            specialInstructions: document.getElementById('modal-special-instructions').value.trim(),
+        // Get values from form fields
+        const updatedData = {
+            firstName: document.getElementById('editFirstName').value.trim(),
+            lastName: document.getElementById('editLastName').value.trim(),
+            email: document.getElementById('editEmail').value.trim(),
+            phone: document.getElementById('editPhone').value.trim(),
+            // <<< UPDATED: Get single address field >>>
+            address: document.getElementById('editAddress').value.trim(),
+            // <<< END UPDATED >>>
+            HousekeeperInternalNote: document.getElementById('editHousekeeperInternalNote').value.trim(),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
         
-        // Validate required fields
-        if (!updatedClient.firstName || !updatedClient.lastName) {
-            hideLoading();
-            showErrorMessage('First name and last name are required');
+        // Basic Validation
+        if (!updatedData.firstName && !updatedData.lastName) {
+            showErrorMessage('Please enter at least a first or last name.');
             return;
         }
         
@@ -768,7 +671,7 @@ async function saveClientDetails() {
         const db = firebase.firestore();
         await db.collection('users').doc(user.uid)
             .collection('clients').doc(clientId)
-            .update(updatedClient);
+            .update(updatedData);
         
         // Hide loading state
         hideLoading();
@@ -777,7 +680,7 @@ async function saveClientDetails() {
         closeClientDetailsModal();
         
         // Show success message
-        showSuccessMessage(`Client ${updatedClient.firstName} ${updatedClient.lastName} updated successfully`);
+        showSuccessMessage(`Client ${updatedData.firstName} ${updatedData.lastName} updated successfully`);
         
         // Refresh the client list
         loadAllClients();
@@ -1948,111 +1851,49 @@ function openAddClientModal() {
             </div>
             
             <div class="px-4 py-5 overflow-y-auto flex-grow bg-gray-50 -webkit-overflow-scrolling-touch">
-                <form id="client-edit-form" class="space-y-6 max-w-lg mx-auto">
-                    <!-- Name Fields - 2 column grid on same row for all screen sizes -->
+                <form id="client-add-form" class="space-y-4 max-w-lg mx-auto">
+                    <!-- Name Fields -->
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label for="modal-first-name" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">First Name</label>
-                            <input type="text" id="modal-first-name" 
-                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
-                                placeholder="First Name">
+                            <label for="modal-first-name" class="block text-sm font-medium text-gray-700 mb-1.5">First Name</label>
+                            <input type="text" id="modal-first-name" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm">
                         </div>
-                        
                         <div>
-                            <label for="modal-last-name" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Last Name</label>
-                            <input type="text" id="modal-last-name" 
-                                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
-                                placeholder="Last Name">
+                            <label for="modal-last-name" class="block text-sm font-medium text-gray-700 mb-1.5">Last Name</label>
+                            <input type="text" id="modal-last-name" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm">
                         </div>
                     </div>
-
+                    <!-- Phone -->
                     <div>
-                        <label for="modal-phone" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Phone</label>
-                        <input type="tel" id="modal-phone" 
-                            class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
-                            placeholder="Phone Number">
+                        <label for="modal-phone" class="block text-sm font-medium text-gray-700 mb-1.5">Phone</label>
+                        <input type="tel" id="modal-phone" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm">
                     </div>
-
-                    <!-- Address Section with visual grouping -->
-                    <div class="pt-2 pb-1 border-t border-gray-200">
-                        <h3 class="text-base font-medium text-gray-900 mb-4">Address Information</h3>
-                        
-                        <div class="space-y-4">
-                            <div>
-                                <label for="modal-street" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Street Address</label>
-                                <input type="text" id="modal-street" 
-                                    class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
-                                    placeholder="Street Address">
-                            </div>
-
-                            <div>
-                                <label for="modal-city" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">City</label>
-                                <input type="text" id="modal-city" 
-                                    class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
-                                    placeholder="City">
-                            </div>
-                            
-                            <div>
-                                <label for="modal-country" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Country</label>
-                                <select id="modal-country" onchange="updateStateProvinceField()"
-                                    class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">
-                                    <option value="">Select a country</option>
-                                    <option value="United States">United States</option>
-                                    <option value="Canada">Canada</option>
-                                    <option value="Other">Other</option>
-                                </select>
-                            </div>
-                            
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label id="state-province-label" for="modal-state" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">State/Province</label>
-                                    <div id="state-province-container">
-                                        <!-- This will be populated by JavaScript based on country selection -->
-                                        <input type="text" id="modal-state" 
-                                            class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
-                                            placeholder="State/Province">
-                                    </div>
-                                </div>
-                                <div>
-                                    <label for="modal-zip" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">ZIP/Postal Code</label>
-                                    <input type="text" id="modal-zip" 
-                                        class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
-                                        placeholder="ZIP/Postal Code">
-                                </div>
-                            </div>
-                        </div>
+                    <!-- <<< UPDATED: Single Address Textarea >>> -->
+                    <div>
+                        <label for="modal-address" class="block text-sm font-medium text-gray-700 mb-1.5">Address</label>
+                        <textarea id="modal-address" rows="3" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"></textarea>
                     </div>
-
-                    <!-- Additional Information Section -->
-                    <div class="pt-2 pb-1 border-t border-gray-200">
-                        <h3 class="text-base font-medium text-gray-900 mb-4">Additional Information</h3>
-                        
-                        <div class="space-y-4">
-                            <div>
-                                <label for="modal-access-info" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Access Information</label>
-                                <input type="text" id="modal-access-info" 
-                                    class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
-                                    placeholder="Key code, entry instructions, etc.">
-                            </div>
-
-                            <div>
-                                <label for="modal-special-instructions" class="block text-sm font-medium leading-6 text-gray-900 mb-1.5">Special Instructions</label>
-                                <textarea id="modal-special-instructions" rows="3" 
-                                    class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6"
-                                    placeholder="Special cleaning instructions, preferences, etc."></textarea>
-                            </div>
-                        </div>
+                    <!-- <<< END UPDATED >>> -->
+                    <!-- Notes / Instructions -->
+                    <div>
+                        <label for="modal-notes" class="block text-sm font-medium text-gray-700 mb-1.5">Notes (Access/Special Instructions)</label>
+                        <textarea id="modal-notes" rows="3" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"></textarea>
                     </div>
+                    <!-- <<< UPDATED: Label and Field Name >>> -->
+                    <div>
+                        <label for="modal-HousekeeperInternalNote" class="block text-sm font-medium text-gray-700 mb-1.5">Housekeeper Notes / Access Info</label>
+                        <textarea id="modal-HousekeeperInternalNote" rows="3" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"></textarea>
+                    </div>
+                     <!-- <<< END UPDATED >>> -->
                 </form>
             </div>
-
             <div class="px-4 py-4 bg-white border-t border-gray-200">
-                <button onclick="saveNewClient()" class="w-full mb-3 inline-flex justify-center rounded-lg bg-primary px-3 py-3.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
-                    Add Client
-                </button>
-                <button onclick="closeClientDetailsModal()" class="w-full inline-flex justify-center rounded-lg bg-white px-3 py-3.5 text-sm font-semibold text-black shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
-                    Cancel
-                </button>
+                 <button onclick="saveNewClient()" class="w-full mb-3 inline-flex justify-center rounded-lg bg-primary px-3 py-3.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+                     Add Client
+                 </button>
+                 <button onclick="closeClientDetailsModal()" class="w-full inline-flex justify-center rounded-lg bg-white px-3 py-3.5 text-sm font-semibold text-black shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+                     Cancel
+                 </button>
             </div>
         </div>
     `;
@@ -2089,27 +1930,25 @@ async function saveNewClient() {
             throw new Error('You must be logged in to add a client');
         }
         
-        // Show loading state
         showLoading('Adding new client...');
         
-        // Get form values
+        // <<< UPDATED: Read from simplified form fields >>>
         const newClient = {
             firstName: document.getElementById('modal-first-name').value.trim(),
             lastName: document.getElementById('modal-last-name').value.trim(),
             phone: document.getElementById('modal-phone').value.trim(),
-            street: document.getElementById('modal-street').value.trim(),
-            city: document.getElementById('modal-city').value.trim(),
-            country: document.getElementById('modal-country').value.trim(),
-            state: document.getElementById('modal-state').value.trim(),
-            zip: document.getElementById('modal-zip').value.trim(),
-            accessInformation: document.getElementById('modal-access-info').value.trim(),
-            specialInstructions: document.getElementById('modal-special-instructions').value.trim(),
+            address: document.getElementById('modal-address').value.trim(), // Read from single address field
+            notes: document.getElementById('modal-notes').value.trim(), // Use single notes field
+            // REMOVED: Old fields like street, city, state, zip, country, accessInformation, specialInstructions
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            linkedHomeownerId: null, // Explicitly null for manual clients
+            HousekeeperInternalNote: document.getElementById('modal-HousekeeperInternalNote').value.trim(),
         };
+        // <<< END UPDATED >>>
         
         // Validate required fields
-        if (!newClient.firstName || !newClient.lastName) {
+        if (!newClient.firstName && !newClient.lastName) {
             hideLoading();
             showErrorMessage('First name and last name are required');
             return;
@@ -2120,17 +1959,10 @@ async function saveNewClient() {
         const docRef = await db.collection('users').doc(user.uid)
             .collection('clients').add(newClient);
         
-        // Hide loading state
         hideLoading();
-        
-        // Close the modal
         closeClientDetailsModal();
-        
-        // Show success message
         showSuccessMessage(`Client ${newClient.firstName} ${newClient.lastName} added successfully`);
-        
-        // Refresh the client list
-        loadAllClients();
+        loadAllClients(); // Refresh the client list
         
     } catch (error) {
         console.error('Error adding new client:', error);
@@ -2162,3 +1994,16 @@ if (logoutBtn) {
         }).catch(error => console.error('Logout error:', error));
     });
 }
+
+// Helper function to escape HTML characters for security
+function escapeHtml(unsafe) {
+    if (unsafe === null || unsafe === undefined) {
+        return '';
+    }
+    return String(unsafe)
+         .replace(/&/g, "&amp;")
+         .replace(/</g, "&lt;")
+         .replace(/>/g, "&gt;")
+         .replace(/"/g, "&quot;")
+         .replace(/'/g, "&#039;");
+ }

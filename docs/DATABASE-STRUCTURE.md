@@ -50,24 +50,36 @@ Contains basic profile information common to all users, primarily sourced from F
           "updatedAt": Timestamp
         }
         ```
--   `/bookings`: Stores *all* booking/appointment records for this housekeeper.
+-   `/bookings`: Stores booking/appointment records for this housekeeper. Read by linked homeowners.
     -   `/bookings/{bookingId}`:
         ```json
         {
           "housekeeperId": "{userId}", // Housekeeper UID
           "clientId": "clientId | homeownerUserId", // UID of the client (from /clients or /users)
           "clientName": "Client Full Name", // Denormalized
-          "address": "Client Address", // Denormalized from client/property at booking time
+          "address": "Client Address", // Optional: Denormalized from client/property at booking time - Consider adding?
           
           "startTimestamp": Timestamp, // Primary storage (UTC)
           "endTimestamp": Timestamp, // Primary storage (UTC)
           "startTimestampMillis": Number, // UTC milliseconds since epoch
           "endTimestampMillis": Number, // UTC milliseconds since epoch
+          "durationMinutes": Number, // Duration of booking
           
           "status": "pending" | "confirmed" | "cancelled_by_homeowner" | "cancelled_by_housekeeper" | "completed",
-          "frequency": "one-time" | "weekly" | "bi-weekly" | "monthly", // Optional
+          "frequency": "one-time", // Currently only one-time bookings are created via UI
           "notes": "Booking specific notes", // Optional
-          "serviceType": "Standard Cleaning", // Optional
+
+          // --- NEW: Service Details ---
+          "baseServiceId": "serviceDocId",
+          "baseServiceName": "Standard Cleaning", // Denormalized name at booking time
+          "baseServicePrice": 120.00, // Denormalized price at booking time
+          "addonServices": [
+              { "id": "addonId1", "name": "Inside Oven", "price": 45.00 },
+              { "id": "addonId2", "name": "Laundry", "price": 25.00 }
+              // ... other selected addons
+          ],
+          "totalPrice": 190.00, // Calculated total at booking time
+          // --- END: Service Details ---
 
           "createdAt": Timestamp,
           "updatedAt": Timestamp,
@@ -126,7 +138,9 @@ Contains basic profile information common to all users, primarily sourced from F
           "updatedAt": Timestamp
         }
         ```
-        *Note: `linkedHousekeeperId` is now stored in the `/homeowner_profiles/{userId}` document.*
+        *Note: `linkedHousekeeperId` is stored in `/homeowner_profiles/{userId}`.*
+
+   `/bookings`: **THIS SUBCOLLECTION IS NOT USED.** Homeowners view their bookings by querying `/users/{linkedHousekeeperId}/bookings` based on matching `clientId` and the `linkedHousekeeperId` field in `/homeowner_profiles/{homeownerId}`.
 
 ## `/housekeeper_profiles/{userId}` Document
 
@@ -201,10 +215,11 @@ Stores details about individual properties owned by homeowners.
 
 ## Considerations
 
--   **Denormalization:** Client details and addresses are denormalized into booking records. Consider Cloud Functions to update future bookings if profile/client info changes.
+-   **Denormalization:** Client name, service names, and service prices are denormalized into booking records. Consider Cloud Functions to update future bookings if profile/client/service info changes (low priority for MVP).
 -   **Consistency:** Basic user info (name, phone) is potentially duplicated between `/users/{userId}` and the role-specific profile (`/housekeeper_profiles` or `/homeowner_profiles`). Updates should ideally write to both locations atomically (e.g., using batched writes as implemented in `updateHousekeeperProfileAndUser`).
 -   **Date/Time Handling:** Uses Firestore Timestamps (UTC) for primary storage of event times (bookings). Millisecond versions are stored alongside for frontend convenience. Timezone settings (`/users/{housekeeperId}/settings/app.timezone`) are crucial for correctly formatting these UTC times for display in the UI.
 -   **Time Off:** The current calendar UI uses `YYYY-MM-DD` document IDs. Other formats might exist from old data/features but aren't used by this UI.
+-   **Homeowner Access:** Homeowner views rely on security rules allowing reads from `/users/{linkedHousekeeperId}/bookings` based on matching `clientId` and the `linkedHousekeeperId` field in `/homeowner_profiles/{homeownerId}`.
 
 ## Overview
 

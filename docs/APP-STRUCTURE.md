@@ -55,7 +55,7 @@ Each role has a consistent footer navigation menu:
 ### Housekeeper Section (`public/housekeeper/`)
 - `public/housekeeper/schedule/`
     - `schedule.html`: Main schedule view.
-    - `schedule.js`: UI logic for displaying schedule, handling booking modal.
+    - `schedule.js`: UI logic for displaying schedule, handling booking modal (including client and service selection, one-time booking confirmation).
 - `public/housekeeper/clients/`
     - `clients.html`: Client list and management view.
     - `clients.js`: UI logic for displaying clients, search, add/edit modals.
@@ -69,6 +69,8 @@ Each role has a consistent footer navigation menu:
     - `time-off.js`: Logic for time-off calendar interaction and saving.
     - `account.html`: UI for setting timezone, auto-send receipts etc.
     - `account.js`: Logic for account settings page.
+    - `services-pricing.html`: UI for viewing/managing base and add-on services.
+    - `services-pricing.js`: Logic for loading, displaying, adding, editing, and deleting services.
 
 ### Homeowner Section (`public/homeowner/`)
 - `public/homeowner/dashboard/`
@@ -121,8 +123,8 @@ Each role has a consistent footer navigation menu:
 
 #### Schedule (`/housekeeper/schedule`)
 - View weekly schedule (fetches data, potentially via Cloud Function).
-- Book new cleanings (modal workflow).
-- Manage existing appointments (view details, cancel - *future*).
+- Book new *one-time* cleanings (modal workflow: select client, select base/add-on services, confirm).
+- Manage existing appointments (view details, cancel - which deletes the booking).
 
 #### Clients (`/housekeeper/clients`)
 - View/search client list.
@@ -134,6 +136,7 @@ Each role has a consistent footer navigation menu:
 - **Work Schedule (`.../work-schedule`):** Configure default weekly work hours, start time, jobs/day, breaks. Saves via footer button.
 - **Time Off (`.../time-off`):** Toggle individual days off on a calendar. Saves via footer button.
 - **Account & App (`.../account`):** Set timezone, other app preferences. Saves via footer button.
+- **Services & Pricing (`.../services-pricing`):** Add, view, edit, activate/deactivate, and delete base and add-on services with prices.
 
 ### Homeowner Features
 
@@ -146,7 +149,8 @@ Each role has a consistent footer navigation menu:
 
 ## Database Integration
 - Primarily through `firestore-service.js`.
-- Cloud Functions may be called directly for complex backend logic (e.g., `getAvailableSlots`, `requestBooking`).
+- Cloud Functions may be called directly for complex backend logic (e.g., `getAvailableSlots`).
+- Booking data is stored under `/users/{housekeeperId}/bookings` and read directly by linked homeowners (using security rules).
 
 ## Authentication & Routing
 - Role selected at signup.
