@@ -1,3 +1,7 @@
+// <<< NEW: Import date formatting function >>>
+import { formatDateForDisplay } from '../../common/js/date-utils.js';
+// <<< END NEW >>>
+
 // Debug function to help diagnose issues
 function debugFirebaseStatus() {
     console.log('=== Firebase Debug Information ===');
@@ -223,66 +227,58 @@ async function loadAllClients() {
 // Create a client list item element
 function createClientListItem(clientId, client) {
     const clientElement = document.createElement('div');
-    clientElement.className = 'mb-4 bg-white rounded-lg shadow overflow-hidden';
-    
+    // Add cursor-pointer and hover effect, and onclick handler
+    clientElement.className = 'mb-4 bg-white rounded-lg shadow overflow-hidden cursor-pointer hover:shadow-md transition-shadow duration-150 ease-in-out';
+    clientElement.onclick = () => openClientDetailsModal(clientId, client);
+
     // Get client properties with fallbacks
     const firstName = client.firstName || '';
     const lastName = client.lastName || '';
     const fullName = firstName && lastName ? `${lastName}, ${firstName}` : (firstName || lastName || 'Unnamed Client');
-    
+
     const phone = client.phone || 'No phone';
     const email = client.email || 'No email';
-    
+
     // Format the address
     let address = 'No address';
-    // <<< FIX: Check for simple 'address' field first >>>
     if (client.address) {
         address = client.address;
-    } 
-    // <<< FIX: Fallback to complex formatting ONLY if simple address doesn't exist >>>
-    else if (client.street) { 
+    } else if (client.street) {
         const parts = [];
         if (client.street) parts.push(client.street);
-        
         const cityState = [];
         if (client.city) cityState.push(client.city);
-        
-        // Handle state and country
         if (client.state) {
             if (client.country) {
-                if (client.country === 'United States') {
-                    cityState.push(`${client.state}, USA`);
-                } else if (client.country === 'Canada') {
-                    cityState.push(`${client.state}, Canada`);
-                } else if (client.country === 'Other') {
-                    cityState.push(client.state);
-                } else {
-                    cityState.push(`${client.state}, ${client.country}`);
-                }
+                if (client.country === 'United States') cityState.push(`${client.state}, USA`);
+                else if (client.country === 'Canada') cityState.push(`${client.state}, Canada`);
+                else if (client.country === 'Other') cityState.push(client.state);
+                else cityState.push(`${client.state}, ${client.country}`);
             } else {
                 cityState.push(client.state);
             }
         } else if (client.country) {
             cityState.push(client.country);
         }
-        
         if (cityState.length > 0) parts.push(cityState.join(', '));
-        
         if (client.zip) parts.push(client.zip);
-        
         address = parts.join(', ');
     }
-    
-    // Create the HTML for the client item
+
+    // Create the HTML for the client item - Button removed, onclick on main element
     clientElement.innerHTML = `
         <div class="flex items-center p-4">
             <div class="mr-4">
-                <span class="inline-flex items-center justify-center h-10 w-10 rounded-full bg-secondary text-white">
-                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                <span class="inline-flex items-center justify-center h-10 w-10 rounded-full bg-primary-light text-primary-dark">
+                    <!-- Simple initials or icon -->
+                    <span class="text-lg font-medium">${escapeHtml(firstName.charAt(0))}${escapeHtml(lastName.charAt(0))}</span>
                 </span>
             </div>
             <div class="flex-grow">
-                <h3 class="text-lg font-semibold text-gray-900">${escapeHtml(fullName)}</h3>
+                <h3 class="text-lg font-semibold text-gray-900 flex items-center">
+                    <span>${escapeHtml(fullName)}</span>
+                    ${client.isLinked ? '<span class="ml-2 inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 ring-1 ring-inset ring-blue-500/10"><i class="fas fa-link mr-1 text-xs"></i>Linked</span>' : ''}
+                </h3>
                 <div class="text-sm text-gray-600 flex items-center mt-1">
                     <svg class="h-4 w-4 mr-1.5 text-gray-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path></svg>
                     <span>${escapeHtml(address)}</span>
@@ -291,21 +287,20 @@ function createClientListItem(clientId, client) {
                     <svg class="h-4 w-4 mr-1.5 text-gray-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path></svg>
                     <span>${escapeHtml(phone)}</span>
                 </div>
-                <!-- <<< UPDATED: Display HousekeeperInternalNote >>> -->
                 <div class="text-sm text-gray-600 flex items-center mt-1">
                     <svg class="h-4 w-4 mr-1.5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"></path></svg>
-                    <span>${escapeHtml(client.HousekeeperInternalNote || 'No internal notes')}</span> 
+                    <span>${escapeHtml(client.HousekeeperInternalNote || 'No internal notes')}</span>
                 </div>
-                <!-- <<< END UPDATED >>> -->
-            </div>
-            <div class="ml-4 flex-shrink-0">
-                <button onclick='openClientDetailsModal("${clientId}", ${JSON.stringify(client).replace(/'/g, "&#39;")})' class="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                     <svg class="h-4 w-4 mr-1.5 text-gray-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z"></path><path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"></path></svg>
-                     Details
-                </button>
             </div>
         </div>
+        <!-- Invite Prompt (if applicable) - Placed after the main flex container -->
+        ${!client.isLinked ? `
+            <div class="px-4 pb-3 pt-1 bg-yellow-50 border-t border-yellow-200 text-sm text-yellow-800">
+                <p><i class="fas fa-info-circle mr-1"></i>This client isn't linked. <a href="#" class="font-medium underline hover:text-yellow-900" onclick="event.stopPropagation(); alert('Invite feature coming soon for client ID: ${clientId}');">Invite them</a> to manage bookings online.</p>
+            </div>
+        ` : ''}
     `;
+
     return clientElement;
 }
 
@@ -375,7 +370,8 @@ function openClientDetailsModal(clientId, client) {
             </div>
             <div class="flex justify-between items-center p-4 border-b border-gray-200">
                 <h2 class="text-xl font-semibold text-gray-900">${client.lastName}, ${client.firstName}</h2>
-                <button onclick="closeClientDetailsModal()" class="text-primary hover:text-primary-dark">
+                <!-- <<< MODIFIED: Removed onclick, added ID >>> -->
+                <button id="view-modal-close-button" class="text-primary hover:text-primary-dark p-1 rounded-full hover:bg-gray-100">
                     <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                     </svg>
@@ -395,20 +391,39 @@ function openClientDetailsModal(clientId, client) {
                     <svg class="h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
                     </svg>
-                    <a href="tel:${client.phone}" class="text-primary">${client.phone || 'No phone provided'}</a>
+                    ${client.phone ? `<a href="tel:${escapeHtml(client.phone)}" class="text-primary hover:underline">${escapeHtml(client.phone)}</a>` : '<span class="text-gray-500">No phone provided</span>'}
                 </div>
-
+                <!-- <<< NEW: Email >>> -->
+                <div class="flex items-center gap-x-2">
+                     <svg class="h-5 w-5 text-primary flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+                    </svg>
+                    ${client.email ? `<a href="mailto:${escapeHtml(client.email)}" class="text-primary hover:underline">${escapeHtml(client.email)}</a>` : '<span class="text-gray-500">No email provided</span>'}
+                </div>
+                <!-- <<< END NEW >>> -->
+                <!-- Housekeeper Internal Notes -->
                 <div class="flex items-center gap-x-2">
                     <svg class="h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
                     </svg>
-                    <span class="text-black">${client.accessInformation || 'Key under the mat'}</span>
+                    <span>${escapeHtml(client.HousekeeperInternalNote || 'No internal notes')}</span>
                 </div>
-
                 <div class="mt-6">
                     <h3 class="font-medium text-gray-900">Special Instructions</h3>
                     <p class="mt-2 text-black">${client.specialInstructions || 'No special instructions'}</p>
                 </div>
+                <div class="pt-2">
+                    <h3 class="font-medium text-gray-900 text-sm">Homeowner Instructions</h3>
+                    <p class="mt-1 text-black text-sm">${escapeHtml(client.HomeownerInstructions)}</p>
+                </div>
+                <!-- <<< NEW: Linked Status & Timestamps >>> -->
+                 <div class="pt-4 mt-4 border-t border-gray-200 text-xs text-gray-500 space-y-1">
+                    <p><strong>Status:</strong> ${client.isLinked ? `<span class="font-medium text-blue-700"><i class="fas fa-link"></i> Linked</span> (ID: ${escapeHtml(client.linkedHomeownerId)})` : '<span class="font-medium text-yellow-700"><i class="fas fa-unlink"></i> Not Linked</span>'}</p>
+                    <!-- <<< MODIFIED: Directly call imported function >>> -->
+                    ${client.createdAt ? `<p><strong>Created:</strong> ${formatDateForDisplay(client.createdAt?.toDate ? client.createdAt.toDate() : client.createdAt)}</p>` : ''}
+                    ${client.updatedAt ? `<p><strong>Last Updated:</strong> ${formatDateForDisplay(client.updatedAt?.toDate ? client.updatedAt.toDate() : client.updatedAt)}</p>` : ''}
+                 </div>
+                <!-- <<< END NEW >>> -->
             </div>
 
             <div class="p-4 border-t border-gray-200 bg-gray-50">
@@ -435,6 +450,15 @@ function openClientDetailsModal(clientId, client) {
         backdrop.style.opacity = '1';
     }, 10);
     
+    // <<< NEW: Add event listener programmatically >>>
+    const closeButton = modal.querySelector('#view-modal-close-button'); // Use unique ID
+    if (closeButton) {
+        closeButton.addEventListener('click', closeClientDetailsModal);
+    } else {
+        console.error('Could not find close button in client details modal');
+    }
+    // <<< END NEW >>>
+
     // Add close on backdrop click
     backdrop.addEventListener('click', () => {
         closeClientDetailsModal();
@@ -1843,7 +1867,8 @@ function openAddClientModal() {
             </div>
             <div class="flex justify-between items-center p-4 border-b border-gray-200">
                 <h2 class="text-xl font-semibold text-gray-900">Add New Client</h2>
-                <button onclick="closeClientDetailsModal()" class="text-primary hover:text-primary-dark p-1 rounded-full hover:bg-gray-100">
+                <!-- <<< MODIFIED: Removed onclick, added ID >>> -->
+                <button id="add-modal-close-button" class="text-primary hover:text-primary-dark p-1 rounded-full hover:bg-gray-100">
                     <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                     </svg>
@@ -1911,6 +1936,15 @@ function openAddClientModal() {
         backdrop.style.opacity = '1';
     }, 10);
     
+    // <<< NEW: Add event listener programmatically >>>
+    const closeButton = modal.querySelector('#add-modal-close-button'); // Use unique ID
+    if (closeButton) {
+        closeButton.addEventListener('click', closeClientDetailsModal);
+    } else {
+        console.error('Could not find close button in add client modal');
+    }
+    // <<< END NEW >>>
+
     // Add close on backdrop click
     backdrop.addEventListener('click', () => {
         closeClientDetailsModal();

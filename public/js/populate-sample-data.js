@@ -360,15 +360,46 @@ async function populateCoreData(homeownerUid, housekeeperUid) {
         await db.collection('housekeeper_profiles').doc(housekeeperUid).set(housekeeperProfileUpdateData, { merge: true });
         console.log(` -> Housekeeper user and profile updated.`);
 
+        // <<< NEW: Add Linked Homeowner to Housekeeper's Client List >>>
+        console.log(`Adding linked homeowner (${homeownerUid}) to housekeeper's (${housekeeperUid}) client list...`);
+        const linkedClientData = {
+            firstName: coreHomeownerProfileData.firstName,
+            lastName: coreHomeownerProfileData.lastName,
+            email: coreHomeownerBaseData.email,
+            phone: coreHomeownerProfileData.phone, // Assuming phone is in profile
+            address: coreHomeownerProfileData.address, // Use the single address field
+            isLinked: true, // <<< The important flag
+            linkedHomeownerId: homeownerUid, // Optional: Store the homeowner ID here too for reference
+            HomeownerInstructions: coreHomeownerProfileData.HomeownerInstructions,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            // Note: We DON'T copy HousekeeperInternalNote here, that stays on the client record only
+        };
+        // Use the homeowner's UID as the document ID in the housekeeper's client list
+        // This makes it easy to find the corresponding client doc if you know the homeowner UID
+        const linkedClientRef = db.collection('users').doc(housekeeperUid).collection('clients').doc(homeownerUid);
+        await linkedClientRef.set(linkedClientData); // Use set() to ensure the doc ID is the homeownerUid
+        console.log(` -> Linked homeowner added to client list with ID: ${homeownerUid}`);
+        // <<< END NEW >>>
+
         // 3. Add Manual Clients
         console.log(`Adding manual clients for housekeeper ${housekeeperUid}...`);
         const addedClientIds = [];
         for (const clientData of manualClientsData) {
             console.log(`  -> Adding client: ${clientData.firstName} ${clientData.lastName}`);
             try {
-                // Use addClient function if available
+                // Augment the base client data with linking status and timestamps
+                const fullClientData = {
+                    ...clientData,
+                    isLinked: false,
+                    linkedHomeownerId: null,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                };
+
+                // Use addClient function if available, passing the augmented data
                 if (typeof fsService.addClient === 'function') {
-                     const newClientId = await fsService.addClient(housekeeperUid, clientData); // Assumes it returns the new ID
+                     const newClientId = await fsService.addClient(housekeeperUid, fullClientData); // Assumes it returns the new ID
                      if (newClientId) {
                          addedClientIds.push(newClientId);
                          console.log(`     Added via addClient with ID: ${newClientId}`);
@@ -376,7 +407,7 @@ async function populateCoreData(homeownerUid, housekeeperUid) {
                          console.warn(`     addClient function did not return an ID for ${clientData.firstName}. Attempting direct add...`);
                          // Fallback if addClient doesn't return ID
                          const clientsRef = firebase.firestore().collection('users').doc(housekeeperUid).collection('clients');
-                         const docRef = await clientsRef.add(clientData);
+                         const docRef = await clientsRef.add(fullClientData);
                          addedClientIds.push(docRef.id);
                           console.log(`     Added directly with ID: ${docRef.id}`);
                      }
@@ -384,7 +415,7 @@ async function populateCoreData(homeownerUid, housekeeperUid) {
                     // Fallback to direct Firestore add if service function doesn't exist
                     console.warn('firestoreService.addClient function not found. Using direct Firestore add.')
                     const clientsRef = firebase.firestore().collection('users').doc(housekeeperUid).collection('clients');
-                    const docRef = await clientsRef.add(clientData);
+                    const docRef = await clientsRef.add(fullClientData);
                     addedClientIds.push(docRef.id);
                     console.log(`     Added directly with ID: ${docRef.id}`);
                 }

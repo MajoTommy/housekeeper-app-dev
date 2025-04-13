@@ -1035,6 +1035,48 @@ const firestoreService = {
         }
     },
 
+    // --- NEW: Update Booking Note --- 
+    async updateBookingNote(housekeeperId, bookingId, newNote) {
+        console.log(`[Firestore] Updating BookingNote for housekeeper ${housekeeperId}, booking ${bookingId}`);
+        if (!housekeeperId || !bookingId || newNote === undefined || newNote === null) {
+            console.error('[Firestore] updateBookingNote called with invalid IDs or note');
+            throw new Error('Invalid arguments for updating booking note.');
+        }
+        try {
+            const bookingRef = db.collection('users').doc(housekeeperId).collection('bookings').doc(bookingId);
+            await bookingRef.update({
+                BookingNote: newNote,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            console.log('[Firestore] BookingNote updated successfully');
+            return true;
+        } catch (error) {
+            console.error('[Firestore] Error updating BookingNote:', error);
+            throw error;
+        }
+    },
+
+    // --- NEW: Update Housekeeper Internal Note (on Client doc) --- 
+    async updateHousekeeperInternalNote(housekeeperId, clientId, newNote) {
+        console.log(`[Firestore] Updating HousekeeperInternalNote for housekeeper ${housekeeperId}, client ${clientId}`);
+        if (!housekeeperId || !clientId || newNote === undefined || newNote === null) {
+            console.error('[Firestore] updateHousekeeperInternalNote called with invalid IDs or note');
+            throw new Error('Invalid arguments for updating housekeeper internal note.');
+        }
+        try {
+            const clientRef = db.collection('users').doc(housekeeperId).collection('clients').doc(clientId);
+            await clientRef.update({
+                HousekeeperInternalNote: newNote,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            console.log('[Firestore] HousekeeperInternalNote updated successfully');
+            return true;
+        } catch (error) {
+            console.error('[Firestore] Error updating HousekeeperInternalNote:', error);
+            throw error;
+        }
+    },
+
     // ---- TIME OFF ----
     async getTimeOffDates(userId, startDateString, endDateString) {
         console.log(`[Firestore] Getting time off dates for ${userId} between ${startDateString} and ${endDateString}`);
