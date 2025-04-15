@@ -402,20 +402,17 @@ function openClientDetailsModal(clientId, client) {
                 </div>
                 <!-- <<< END NEW >>> -->
                 <!-- Housekeeper Internal Notes -->
-                <div class="flex items-center gap-x-2">
-                    <svg class="h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
-                    </svg>
-                    <span>${escapeHtml(client.HousekeeperInternalNote || 'No internal notes')}</span>
+                <div class="pt-2">
+                    <h3 class="font-medium text-gray-900 text-sm">HousekeeperInternalNote</h3>
+                    <p class="mt-1 text-black text-sm">${escapeHtml(client.HousekeeperInternalNote || 'N/A')}</p>
                 </div>
-                <div class="mt-6">
-                    <h3 class="font-medium text-gray-900">Special Instructions</h3>
-                    <p class="mt-2 text-black">${client.specialInstructions || 'No special instructions'}</p>
-                </div>
+                <!-- Homeowner Instructions (if available) -->
+                ${client.HomeownerInstructions ? `
                 <div class="pt-2">
                     <h3 class="font-medium text-gray-900 text-sm">Homeowner Instructions</h3>
                     <p class="mt-1 text-black text-sm">${escapeHtml(client.HomeownerInstructions)}</p>
                 </div>
+                ` : ''}
                 <!-- <<< NEW: Linked Status & Timestamps >>> -->
                  <div class="pt-4 mt-4 border-t border-gray-200 text-xs text-gray-500 space-y-1">
                     <p><strong>Status:</strong> ${client.isLinked ? `<span class="font-medium text-blue-700"><i class="fas fa-link"></i> Linked</span> (ID: ${escapeHtml(client.linkedHomeownerId)})` : '<span class="font-medium text-yellow-700"><i class="fas fa-unlink"></i> Not Linked</span>'}</p>
@@ -426,11 +423,14 @@ function openClientDetailsModal(clientId, client) {
                 <!-- <<< END NEW >>> -->
             </div>
 
-            <div class="p-4 border-t border-gray-200 bg-gray-50">
-                <button onclick="switchToEditMode()" class="w-full bg-primary text-white px-4 py-3 rounded-lg hover:bg-primary-dark mb-2">
+            <!-- <<< MODIFIED: Added ID to footer >>> -->
+            <div id="modal-footer-view" class="p-4 border-t border-gray-200 bg-gray-50">
+                <!-- <<< MODIFIED: Removed onclick, added ID >>> -->
+                <button id="edit-client-button" class="w-full bg-primary text-white px-4 py-3 rounded-lg hover:bg-primary-dark mb-2">
                     Edit Client
                 </button>
-                <button onclick="closeClientDetailsModal()" class="w-full bg-white text-black px-4 py-3 rounded-lg border border-gray-300 hover:bg-gray-50">
+                <!-- <<< MODIFIED: Added ID >>> -->
+                <button id="close-details-modal-button" class="w-full bg-white text-black px-4 py-3 rounded-lg border border-gray-300 hover:bg-gray-50">
                     Close
                 </button>
             </div>
@@ -450,12 +450,29 @@ function openClientDetailsModal(clientId, client) {
         backdrop.style.opacity = '1';
     }, 10);
     
-    // <<< NEW: Add event listener programmatically >>>
-    const closeButton = modal.querySelector('#view-modal-close-button'); // Use unique ID
-    if (closeButton) {
-        closeButton.addEventListener('click', closeClientDetailsModal);
+    // Attach listener for the main close button (X)
+    const closeXButton = modal.querySelector('#view-modal-close-button'); 
+    if (closeXButton) {
+        closeXButton.addEventListener('click', closeClientDetailsModal);
     } else {
-        console.error('Could not find close button in client details modal');
+        console.error('Could not find close button (X) in client details modal');
+    }
+    
+    // <<< NEW: Attach listener for Edit Client button >>>
+    const editButton = modal.querySelector('#edit-client-button');
+    if (editButton) {
+        editButton.addEventListener('click', switchToEditMode); // Assuming switchToEditMode is defined in this scope
+    } else {
+        console.error('Could not find Edit Client button in modal');
+    }
+    // <<< END NEW >>>
+
+    // <<< NEW: Attach listener for Footer Close button >>>
+    const closeFooterButton = modal.querySelector('#close-details-modal-button');
+    if (closeFooterButton) {
+        closeFooterButton.addEventListener('click', closeClientDetailsModal);
+    } else {
+        console.error('Could not find Close button in modal footer');
     }
     // <<< END NEW >>>
 
@@ -591,21 +608,31 @@ function cleanupBackdrops() {
 function switchToEditMode() {
     const modal = document.getElementById('client-details-modal');
     if (!modal) return;
-    
+
     const clientId = modal.dataset.clientId;
     const clientData = JSON.parse(modal.dataset.clientData);
-    
-    // Update bottom sheet content with edit form - improved for mobile
-    const modalContent = modal.querySelector('.bg-white');
-    modalContent.innerHTML = `
-        <div class="p-4 space-y-4">
+
+    // Hide the original view footer
+    const viewFooter = modal.querySelector('#modal-footer-view');
+    if (viewFooter) viewFooter.classList.add('hidden');
+
+    // Get the main content area (assuming the structure added by openClientDetailsModal)
+    const modalContentArea = modal.querySelector('.p-4.space-y-4.overflow-y-auto');
+    if (!modalContentArea) {
+        console.error("Could not find modal content area to replace for editing.");
+        return;
+    }
+
+    // Replace content area with edit form
+    modalContentArea.innerHTML = `
+        <form id="client-edit-form" class="space-y-4">
             <div>
                 <label for="editFirstName" class="block text-sm font-medium text-gray-700">First Name</label>
-                <input type="text" id="editFirstName" value="${escapeHtml(clientData.firstName || '')}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                <input type="text" id="editFirstName" value="${escapeHtml(clientData.firstName || '')}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" required>
             </div>
             <div>
                 <label for="editLastName" class="block text-sm font-medium text-gray-700">Last Name</label>
-                <input type="text" id="editLastName" value="${escapeHtml(clientData.lastName || '')}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                <input type="text" id="editLastName" value="${escapeHtml(clientData.lastName || '')}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" required>
             </div>
             <div>
                 <label for="editEmail" class="block text-sm font-medium text-gray-700">Email</label>
@@ -615,41 +642,58 @@ function switchToEditMode() {
                 <label for="editPhone" class="block text-sm font-medium text-gray-700">Phone</label>
                 <input type="tel" id="editPhone" value="${escapeHtml(clientData.phone || '')}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
             </div>
-            
-            <!-- <<< UPDATED: Single Address Textarea >>> -->
             <div>
                 <label for="editAddress" class="block text-sm font-medium text-gray-700">Address</label>
                 <textarea id="editAddress" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">${escapeHtml(clientData.address || '')}</textarea>
             </div>
-            <!-- <<< END UPDATED >>> -->
-
-            <!-- <<< UPDATED: Label and Field Name >>> -->
             <div>
                 <label for="editHousekeeperInternalNote" class="block text-sm font-medium text-gray-700">Housekeeper Notes / Access Info</label>
                 <textarea id="editHousekeeperInternalNote" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">${escapeHtml(clientData.HousekeeperInternalNote || '')}</textarea>
             </div>
-            <!-- <<< END UPDATED >>> -->
+            <!-- Note: HomeownerInstructions are not editable by housekeeper -->
 
-            <div>
-                <label for="editNotes" class="block text-sm font-medium text-gray-700">Notes (Special Instructions)</label>
-                <textarea id="editNotes" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">${escapeHtml(clientData.notes || '')}</textarea>
+            <!-- Action Buttons for Edit Mode -->
+            <div class="pt-4 border-t border-gray-200 flex justify-end space-x-3">
+                <button type="button" id="cancel-edit-button" class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Cancel
+                </button>
+                <button type="submit" id="save-edit-button" class="inline-flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary">
+                    Save Changes
+                </button>
             </div>
-        </div>
+             <!-- Status Message Area -->
+             <div id="edit-status-message" class="mt-2 text-sm text-center"></div>
+        </form>
     `;
+
+    // Add event listeners for the new buttons and form
+    const editForm = modalContentArea.querySelector('#client-edit-form');
+    const cancelButton = modalContentArea.querySelector('#cancel-edit-button');
     
-    // Initialize the state/province field based on the current country
-    setTimeout(() => {
-        updateStateProvinceField();
-    }, 0);
+    if (editForm) {
+        editForm.addEventListener('submit', (e) => {
+            e.preventDefault(); // Prevent default form submission
+            saveClientDetails(); // Call the save function
+        });
+    }
+    if (cancelButton) {
+        cancelButton.addEventListener('click', cancelEdit); // Call the cancel function
+    }
     
-    // Re-add the drag functionality
-    setupBottomSheetDrag(modal);
+    // No need to re-setup drag here, happens on open
 }
 
 // Function to cancel edit and return to view mode
 function cancelEdit() {
     const modal = document.getElementById('client-details-modal');
+    if (!modal || !modal.dataset.clientId || !modal.dataset.clientData) {
+        console.error("Cannot cancel edit, modal or client data missing.");
+        closeClientDetailsModal(); // Fallback to just closing
+        return;
+    }
     const clientData = JSON.parse(modal.dataset.clientData);
+    // Re-render the view mode by calling open again
+    // This will also automatically show the correct footer
     openClientDetailsModal(modal.dataset.clientId, clientData);
 }
 

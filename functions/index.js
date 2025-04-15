@@ -8,6 +8,7 @@
  */
 
 const { HttpsError, onCall } = require("firebase-functions/v2/https");
+const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const functions = require("firebase-functions");
@@ -769,71 +770,69 @@ exports.cancelBooking = functions.https.onRequest((req, res) => {
 });
 
 /**
- * Cloud Function: syncHomeownerProfileToClient
+ * Cloud Function: syncHomeownerProfileToClient (v2 Syntax)
  * Triggered when a homeowner_profile document is updated.
  * Copies relevant field changes (name, address, phone, instructions) to the corresponding
  * client document under the linked housekeeper, if one exists.
  */
-exports.syncHomeownerProfileToClient = functions.firestore
-    .document('homeowner_profiles/{homeownerUid}')
-    .onUpdate(async (change, context) => {
-        const homeownerUid = context.params.homeownerUid;
-        const beforeData = change.before.data();
-        const afterData = change.after.data();
+exports.syncHomeownerProfileToClient = onDocumentUpdated('homeowner_profiles/{homeownerUid}', async (event) => {
+    const homeownerUid = event.params.homeownerUid;
+    const beforeData = event.data?.before.data();
+    const afterData = event.data?.after.data();
 
-        logger.info(`Homeowner profile updated for ${homeownerUid}. Checking for sync to client record.`);
+    // Ensure data exists (important for safety)
+    if (!beforeData || !afterData) {
+        logger.warn(`Missing before or after data for homeowner profile update: ${homeownerUid}. Cannot sync.`);
+        return null;
+    }
 
-        // Check if housekeeper is linked in the updated data
-        const linkedHousekeeperId = afterData?.linkedHousekeeperId;
-        if (!linkedHousekeeperId) {
-            logger.info(`Homeowner ${homeownerUid} is not linked to a housekeeper. No client record to sync.`);
-            return null;
-        }
+    logger.info(`Homeowner profile updated for ${homeownerUid}. Checking for sync to client record (v2).`);
 
-        // Fields to potentially synchronize
-        const fieldsToSync = [
-            'firstName',
-            'lastName',
-            'address',
-            'phone',
-            'HomeownerInstructions'
-            // Add other fields here if needed in the future (e.g., 'email')
-        ];
+    // Check if housekeeper is linked in the updated data
+    const linkedHousekeeperId = afterData?.linkedHousekeeperId;
+    if (!linkedHousekeeperId) {
+        logger.info(`Homeowner ${homeownerUid} is not linked to a housekeeper. No client record to sync.`);
+        return null;
+    }
 
-        const updateData = {};
-        let changed = false;
+    // Fields to potentially synchronize
+    const fieldsToSync = [
+        'firstName',
+        'lastName',
+        'address',
+        'phone',
+        'HomeownerInstructions'
+    ];
 
-        fieldsToSync.forEach(field => {
-            // Check if field exists in the new data and has changed from the old data
-            if (afterData.hasOwnProperty(field) && beforeData?.[field] !== afterData[field]) {
-                updateData[field] = afterData[field];
-                changed = true;
-                logger.info(`Detected change in field '${field}' for homeowner ${homeownerUid}.`);
-            }
-        });
+    const updateData = {};
+    let changed = false;
 
-        // If no relevant fields changed, do nothing
-        if (!changed) {
-            logger.info(`No relevant fields changed for homeowner ${homeownerUid}. Sync not needed.`);
-            return null;
-        }
-
-        // Add an updatedAt timestamp to the client update
-        updateData.updatedAt = admin.firestore.FieldValue.serverTimestamp();
-
-        // Path to the corresponding client document under the housekeeper
-        const clientDocPath = `users/${linkedHousekeeperId}/clients/${homeownerUid}`;
-        const clientDocRef = db.doc(clientDocPath);
-
-        try {
-            logger.info(`Attempting to sync profile changes for ${homeownerUid} to client record at ${clientDocPath}`, { updateData });
-            await clientDocRef.update(updateData);
-            logger.info(`Successfully synced profile changes for homeowner ${homeownerUid} to client record.`);
-            return null;
-        } catch (error) {
-            logger.error(`Error syncing homeowner profile ${homeownerUid} to client record ${clientDocPath}:`, error);
-            // Returning null even on error to prevent retries for this specific update failure
-            // Consider adding more specific error handling if needed
-            return null;
+    fieldsToSync.forEach(field => {
+        // Check if field exists in the new data and has changed from the old data
+        // Use optional chaining on beforeData for safety
+        if (afterData.hasOwnProperty(field) && beforeData?.[field] !== afterData[field]) {
+            updateData[field] = afterData[field];
+            changed = true;
+            logger.info(`Detected change in field '${field}' for homeowner ${homeownerUid}.`);
         }
     });
+
+    if (!changed) {
+        logger.info(`No relevant fields changed for homeowner ${homeownerUid}. Sync not needed.`);
+        return null;
+    }
+
+    updateData.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+    const clientDocPath = `users/${linkedHousekeeperId}/clients/${homeownerUid}`;
+    const clientDocRef = db.doc(clientDocPath);
+
+    try {
+        logger.info(`Attempting to sync profile changes for ${homeownerUid} to client record at ${clientDocPath}`, { updateData });
+        await clientDocRef.update(updateData);
+        logger.info(`Successfully synced profile changes for homeowner ${homeownerUid} to client record.`);
+        return null;
+    } catch (error) {
+        logger.error(`Error syncing homeowner profile ${homeownerUid} to client record ${clientDocPath}:`, error);
+        return null;
+    }
+});

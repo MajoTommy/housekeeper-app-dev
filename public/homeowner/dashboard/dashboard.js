@@ -495,7 +495,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 profileFirstNameInput.value = profileData.firstName || '';
                 profileLastNameInput.value = profileData.lastName || '';
                 profilePhoneInput.value = profileData.phone || '';
-                profileSpecialInstructionsInput.value = profileData.specialInstructions || '';
+                profileSpecialInstructionsInput.value = profileData.HomeownerInstructions || '';
                 profileEditStatus.textContent = ''; // Clear loading message
             } else {
                  profileEditStatus.textContent = 'Could not load profile data.';
@@ -510,8 +510,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // Open the modal
         if (profileEditModal && profileEditModalBackdrop) {
             profileEditModalBackdrop.classList.remove('hidden');
-            profileEditModalBackdrop.classList.add('opacity-100');
-            profileEditModal.classList.remove('translate-y-full');
+            profileEditModal.classList.remove('hidden');
+            
+            // Use requestAnimationFrame for smoother transition start
+            requestAnimationFrame(() => {
+                 profileEditModalBackdrop.classList.add('opacity-100');
+                 profileEditModal.classList.remove('translate-y-full');
+            });
         }
     };
 
@@ -712,13 +717,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const editLocationButton = document.getElementById('editLocationButton');
         const logoutButton = document.getElementById('logoutButton'); 
         const unlinkButton = document.getElementById('unlinkButton'); // Get unlink button
+        const profileEditForm = document.getElementById('profileEditForm'); // <<< Ensure form ID is correct
+        const closeProfileEditModalButton = document.getElementById('closeProfileEditModal');
+        const cancelProfileEditButton = document.getElementById('cancelProfileEditButton');
+        const profileEditModalBackdrop = document.getElementById('profileEditModalBackdrop');
+        const locationEditForm = document.getElementById('locationEditForm'); // <<< Ensure form ID is correct
+        const closeLocationEditModalButton = document.getElementById('closeLocationEditModal');
+        const cancelLocationEditButton = document.getElementById('cancelLocationEditButton');
+        const locationEditModalBackdrop = document.getElementById('locationEditModalBackdrop');
 
         // Profile Edit
         editProfileButton?.addEventListener('click', () => openProfileEditModal(userId));
         closeProfileEditModalButton?.addEventListener('click', closeProfileEditModal);
         cancelProfileEditButton?.addEventListener('click', closeProfileEditModal);
         profileEditModalBackdrop?.addEventListener('click', closeProfileEditModal);
-        profileEditForm?.addEventListener('submit', (e) => handleProfileSave(e, userId));
+        // Attach the new save handler
+        profileEditForm?.addEventListener('submit', (e) => handleProfileSave(e, userId)); // Use correct userId
 
         // Location Edit
         editLocationButton?.addEventListener('click', () => openLocationEditModal(userId));
@@ -824,5 +838,90 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("Waiting for auth state...");
         showLoading();
     }
+
+    // --- Function to handle profile save ---
+    const handleProfileSave = async (event, userId) => {
+        event.preventDefault(); // Prevent default form submission
+        console.log('Handling profile save for user:', userId);
+
+        // <<< MOVED: Declare all DOM element variables upfront >>>
+        const profileEditStatus = document.getElementById('profileEditStatus');
+        const saveProfileButton = document.getElementById('saveProfileButton');
+        const firstNameInput = document.getElementById('profileFirstName');
+        const lastNameInput = document.getElementById('profileLastName');
+        const phoneInput = document.getElementById('profilePhone');
+        const instructionsInput = document.getElementById('profileSpecialInstructions');
+        // <<< END MOVED >>>
+
+        if (!userId) {
+            console.error("User ID missing in handleProfileSave");
+            // <<< UPDATED: Use variable declared above >>>
+            if (profileEditStatus) {
+                profileEditStatus.textContent = 'Error: Not logged in.';
+                profileEditStatus.className = 'text-red-500';
+            }
+            return;
+        }
+
+        // Get values from elements
+        const firstName = firstNameInput?.value.trim();
+        const lastName = lastNameInput?.value.trim();
+        const phone = phoneInput?.value.trim();
+        const instructions = instructionsInput?.value.trim();
+
+        if (profileEditStatus) profileEditStatus.textContent = ''; // Clear previous status
+        if (!firstName || !lastName) {
+            if (profileEditStatus) {
+                profileEditStatus.textContent = 'First and Last Name are required.';
+                profileEditStatus.className = 'text-red-500';
+            }
+            return;
+        }
+
+        const updateData = {
+            firstName: firstName,
+            lastName: lastName,
+            phone: phone,
+            HomeownerInstructions: instructions, // Include instructions
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        console.log('Attempting to save profile data:', updateData);
+
+        // Disable button, show saving indicator
+        if (saveProfileButton) saveProfileButton.disabled = true;
+        if (profileEditStatus) {
+            profileEditStatus.textContent = 'Saving...';
+            profileEditStatus.className = 'text-blue-500';
+        }
+
+        try {
+            // Assuming firestoreService has an updateHomeownerProfile method
+            await firestoreService.updateHomeownerProfile(userId, updateData);
+
+            // Now this access should be fine
+            if (profileEditStatus) {
+                profileEditStatus.textContent = 'Profile saved successfully!';
+                profileEditStatus.className = 'text-green-500';
+            }
+            console.log('Profile saved successfully for user:', userId);
+
+            // Optionally update dashboard display if needed immediately
+            // await loadDashboardData(firebase.auth().currentUser); 
+            
+            // Close modal after a short delay
+            setTimeout(() => {
+                closeProfileEditModal();
+            }, 1500);
+
+        } catch (error) {
+            console.error("Error saving profile:", error);
+            if (profileEditStatus) {
+                profileEditStatus.textContent = 'Error saving profile: ' + error.message;
+                profileEditStatus.className = 'text-red-500';
+            }
+            if (saveProfileButton) saveProfileButton.disabled = false; // Re-enable button on error
+        }
+    };
 
 }); 
