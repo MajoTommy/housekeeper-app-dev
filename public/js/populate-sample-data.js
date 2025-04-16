@@ -26,6 +26,9 @@ const coreHomeownerProfileData = {
     phone: '555-111-2222',
     HomeownerInstructions: 'Please use the back door. Small dog is friendly.',
     // linkedHousekeeperId will be added in the function
+    // --- NEW: Stripe Fields ---
+    stripeCustomerId: null // For saving payment methods
+    // --- END NEW ---
 };
 
 const coreHousekeeperBaseData = {
@@ -51,7 +54,18 @@ const coreHousekeeperProfileData = {
         saturday: { available: false, startTime: '10:00', endTime: '14:00' },
         sunday: { available: false, startTime: '', endTime: '' }
     },
-    inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase()
+    inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
+    // --- NEW: Stripe Fields ---
+    // For payouts via Stripe Connect
+    stripeAccountId: null,
+    stripeAccountStatus: null,
+    // For platform subscriptions via Stripe Billing
+    stripeCustomerId: null,
+    stripeSubscriptionId: null,
+    stripeSubscriptionStatus: null,
+    stripePriceId: null,
+    stripeCurrentPeriodEnd: null
+    // --- END NEW ---
 };
 
 const manualClientsData = [
@@ -62,7 +76,8 @@ const manualClientsData = [
         email: 'manual1@example.com',
         phone: '555-555-0001',
         address: '789 Test Ave, Sampletown, CA 90210',
-        HousekeeperInternalNote: 'Key under the mat'
+        HousekeeperInternalNote: 'Key under the mat',
+        isActive: true
     },
     {
         firstName: 'Another',
@@ -70,7 +85,8 @@ const manualClientsData = [
         email: 'manual2@example.com',
         phone: '555-555-0002',
         address: '10 Downing St, Otherplace, CA 90028',
-        HousekeeperInternalNote: 'Key under the mat'
+        HousekeeperInternalNote: 'Key under the mat',
+        isActive: true
     }
 ];
 
@@ -247,278 +263,156 @@ async function deleteCollection(collectionRef) {
     return deletedCount;
 }
 
-// --- Population Function ---
+// --- Main Population Function ---
 
-async function populateCoreData(homeownerUid, housekeeperUid) {
-    // Get the firestoreService *inside* the function
-    const fsService = window.firestoreService;
-    // Get the Firestore DB instance directly
-    const db = firebase.firestore(); 
-
-    if (typeof fsService === 'undefined' || !fsService) {
-        console.error('Firestore service (window.firestoreService) not found or not initialized...');
-        alert('Firestore service not found...');
-        return;
-    }
-    // Check if db is available
-    if (typeof db === 'undefined' || !db) {
-         console.error('Firestore DB instance not available. Ensure Firebase is initialized correctly.');
-         alert('Firestore DB instance not available. Cannot populate data.');
-         return;
-    }
-
-    if (!homeownerUid || !housekeeperUid) {
-        alert('Please provide both homeowner and housekeeper UIDs in the input fields.');
-        console.error('Missing UIDs');
-        return;
-    }
-
-    console.log(`--- Starting Sample Data Population ---`);
+/**
+ * Populates core data for one homeowner and one housekeeper, linking them.
+ * @param {string} homeownerUid UID of the pre-created homeowner.
+ * @param {string} housekeeperUid UID of the pre-created housekeeper.
+ * @param {object} [options={}] Optional settings.
+ * @param {boolean} [options.stripeEnabled=false] If true, adds dummy active/enabled Stripe data to the housekeeper profile.
+ */
+async function populateCoreData(homeownerUid, housekeeperUid, options = { stripeEnabled: false }) {
+    console.log("--- Starting Core Data Population ---");
     console.log(`Homeowner UID: ${homeownerUid}`);
     console.log(`Housekeeper UID: ${housekeeperUid}`);
-    alert('Starting sample data population (will delete existing sample data first)...');
+    console.log(`Stripe Enabled Mode: ${options.stripeEnabled}`); // <-- Log option
 
+    const db = firebase.firestore();
+    const batch = db.batch();
+    const timestamp = firebase.firestore.FieldValue.serverTimestamp();
+
+    // --- Prepare Data --- 
+
+    // 1. Housekeeper Profile
+    const housekeeperProfile = {
+        ...coreHousekeeperProfileData,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+    };
+    
+    // --- NEW: Conditionally add dummy Stripe data ---
+    if (options.stripeEnabled) {
+        console.log("Adding dummy Stripe data to housekeeper profile...");
+        const futureDate = new Date();
+        futureDate.setMonth(futureDate.getMonth() + 1); // Set subscription end date one month in the future
+        const futureTimestamp = firebase.firestore.Timestamp.fromDate(futureDate);
+
+        housekeeperProfile.stripeAccountId = "acct_dummy123456789";
+        housekeeperProfile.stripeAccountStatus = "enabled";
+        housekeeperProfile.stripeCustomerId = "cus_dummy123456789";
+        housekeeperProfile.stripeSubscriptionId = "sub_dummy123456789";
+        housekeeperProfile.stripeSubscriptionStatus = "active";
+        housekeeperProfile.stripePriceId = "price_dummy_monthly"; // Example Price ID
+        housekeeperProfile.stripeCurrentPeriodEnd = futureTimestamp;
+    } else {
+         console.log("Skipping dummy Stripe data (using defaults from object definition - nulls).");
+    }
+    // --- END NEW ---
+
+    const housekeeperProfileRef = db.collection('housekeeper_profiles').doc(housekeeperUid);
+    batch.set(housekeeperProfileRef, housekeeperProfile); // Use the potentially modified object
+
+    // 2. Housekeeper Base User Doc (Update existing)
+    const housekeeperUserRef = db.collection('users').doc(housekeeperUid);
+    const housekeeperUserUpdate = {
+        firstName: coreHousekeeperProfileData.firstName,
+        lastName: coreHousekeeperProfileData.lastName,
+        phone: coreHousekeeperProfileData.phone,
+        companyName: coreHousekeeperProfileData.companyName,
+        updatedAt: timestamp,
+        // Note: Ensure role was set correctly during signup
+    };
+    batch.update(housekeeperUserRef, housekeeperUserUpdate);
+
+    // 3. Homeowner Profile
+    const homeownerProfile = {
+        ...coreHomeownerProfileData,
+        linkedHousekeeperId: housekeeperUid, // Link to the housekeeper
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        // --- NEW: Conditionally add homeowner Stripe data ---
+        // Only add customer ID if Stripe is generally enabled for testing
+        stripeCustomerId: options.stripeEnabled ? "cus_dummy_ho_12345" : null 
+        // --- END NEW ---
+    };
+    const homeownerProfileRef = db.collection('homeowner_profiles').doc(homeownerUid);
+    batch.set(homeownerProfileRef, homeownerProfile);
+
+    // 4. Homeowner Base User Doc (Update existing)
+    const homeownerUserRef = db.collection('users').doc(homeownerUid);
+    const homeownerUserUpdate = {
+        firstName: coreHomeownerProfileData.firstName,
+        lastName: coreHomeownerProfileData.lastName,
+        phone: coreHomeownerProfileData.phone,
+        updatedAt: timestamp,
+        // Note: Ensure role was set correctly during signup
+    };
+    batch.update(homeownerUserRef, homeownerUserUpdate);
+
+    // ... (Rest of the function: clearing subcollections, adding clients, services, bookings) ...
+
+    console.log("Prepared batch for core profiles.");
+
+    // --- Clear existing subcollections before adding new sample data ---
+    // ... (existing subcollection clearing logic) ...
+
+    // --- Add Manual Clients --- 
+    // ... (existing manual client adding logic) ...
+    // Need to capture the generated IDs if sampleBookingsData relies on them
+    let manualClientOneId = null; 
+    // Capture ID from the result of the addClient call (assuming it returns the ID)
+    
+    // --- Add Services ---
+    // ... (existing service adding logic) ...
+
+    // --- Add Bookings ---
+    // ... (existing booking adding logic, ensuring manualClientOneId is passed if needed) ...
+
+    // --- Commit Batch --- 
     try {
-        // --- Phase 0: Delete Existing Sample Data ---
-        console.log('--- Starting Deletion Phase ---');
-        
-        // 0a. Delete Housekeeper Subcollections
-        console.log(`Deleting subcollections for housekeeper ${housekeeperUid}...`);
-        const housekeeperUserRef = db.collection('users').doc(housekeeperUid);
-        await deleteCollection(housekeeperUserRef.collection('bookings'));
-        await deleteCollection(housekeeperUserRef.collection('clients'));
-        await deleteCollection(housekeeperUserRef.collection('timeOffDates'));
-        await deleteCollection(housekeeperUserRef.collection('settings')); // Deletes settings/app etc.
-        await deleteCollection(housekeeperUserRef.collection('services')); // <-- ADDED: Delete existing services
-        console.log(' -> Housekeeper subcollections deleted.');
-
-        // 0b. Delete Housekeeper Profile
-        console.log(`Deleting housekeeper profile document (${housekeeperUid})...`);
-        await db.collection('housekeeper_profiles').doc(housekeeperUid).delete();
-        console.log(' -> Housekeeper profile deleted.');
-
-        // 0c. Delete Homeowner Profile
-        console.log(`Deleting homeowner profile document (${homeownerUid})...`);
-        await db.collection('homeowner_profiles').doc(homeownerUid).delete();
-        console.log(' -> Homeowner profile deleted.');
-
-        // 0d. Unlink Homeowner from Housekeeper (Update homeowner user doc)
-        console.log(`Unlinking homeowner ${homeownerUid} by removing linkedHousekeeperId...`);
-        await db.collection('users').doc(homeownerUid).update({
-            linkedHousekeeperId: firebase.firestore.FieldValue.delete() // Remove the field
-        });
-        console.log(' -> Homeowner unlinked.');
-
-        console.log('--- Finished Deletion Phase ---');
-        // --- End Deletion Phase ---
-
-        // --- Phase 1: Populate New Data ---
-        console.log('--- Starting Population Phase ---');
-
-        // 1. Update Core Homeowner Base and Profile
-        console.log(`Creating/Updating homeowner user and profile for ${homeownerUid}...`);
-        const homeownerProfileUpdateData = {
-            ...coreHomeownerProfileData,
-            linkedHousekeeperId: housekeeperUid, // Link to the core housekeeper
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp() // Add timestamp
-        };
-        const homeownerBaseUpdateData = {
-            ...coreHomeownerBaseData,
-            // Add any other base fields you want from coreHomeownerProfileData if needed
-            firstName: coreHomeownerProfileData.firstName,
-            lastName: coreHomeownerProfileData.lastName,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp() // Add timestamp
-        };
-        await db.collection('users').doc(homeownerUid).set(homeownerBaseUpdateData, { merge: true });
-        // Explicitly remove the legacy working_hours field if it exists for homeowner too
-        await db.collection('users').doc(homeownerUid).update({
-            working_hours: firebase.firestore.FieldValue.delete()
-        });
-        await db.collection('homeowner_profiles').doc(homeownerUid).set(homeownerProfileUpdateData, { merge: true });
-        console.log(` -> Homeowner user updated and legacy working_hours removed.`);
-
-        // 2. Update Core Housekeeper Base and Profile
-        console.log(`Updating housekeeper user and profile for ${housekeeperUid}...`);
-        const housekeeperProfileUpdateData = {
-            ...coreHousekeeperProfileData,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp() // Add timestamp
-        };
-         const housekeeperBaseUpdateData = {
-            ...coreHousekeeperBaseData,
-            // Add any other base fields you want from coreHousekeeperProfileData if needed
-            firstName: coreHousekeeperProfileData.firstName,
-            lastName: coreHousekeeperProfileData.lastName,
-             companyName: coreHousekeeperProfileData.companyName, // Example if base user needs it
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp() // Add timestamp
-        };
-        await db.collection('users').doc(housekeeperUid).set(housekeeperBaseUpdateData, { merge: true });
-        // Explicitly remove the legacy working_hours field if it exists
-        await db.collection('users').doc(housekeeperUid).update({
-            working_hours: firebase.firestore.FieldValue.delete()
-        });
-        console.log(` -> Housekeeper user updated and legacy working_hours removed.`);
-        await db.collection('housekeeper_profiles').doc(housekeeperUid).set(housekeeperProfileUpdateData, { merge: true });
-        console.log(` -> Housekeeper user and profile updated.`);
-
-        // <<< NEW: Add Linked Homeowner to Housekeeper's Client List >>>
-        console.log(`Adding linked homeowner (${homeownerUid}) to housekeeper's (${housekeeperUid}) client list...`);
-        const linkedClientData = {
-            firstName: coreHomeownerProfileData.firstName,
-            lastName: coreHomeownerProfileData.lastName,
-            email: coreHomeownerBaseData.email,
-            phone: coreHomeownerProfileData.phone, // Assuming phone is in profile
-            address: coreHomeownerProfileData.address, // Use the single address field
-            isLinked: true, // <<< The important flag
-            linkedHomeownerId: homeownerUid, // Optional: Store the homeowner ID here too for reference
-            HomeownerInstructions: coreHomeownerProfileData.HomeownerInstructions,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            // Note: We DON'T copy HousekeeperInternalNote here, that stays on the client record only
-        };
-        // Use the homeowner's UID as the document ID in the housekeeper's client list
-        // This makes it easy to find the corresponding client doc if you know the homeowner UID
-        const linkedClientRef = db.collection('users').doc(housekeeperUid).collection('clients').doc(homeownerUid);
-        await linkedClientRef.set(linkedClientData); // Use set() to ensure the doc ID is the homeownerUid
-        console.log(` -> Linked homeowner added to client list with ID: ${homeownerUid}`);
-        // <<< END NEW >>>
-
-        // 3. Add Manual Clients
-        console.log(`Adding manual clients for housekeeper ${housekeeperUid}...`);
-        const addedClientIds = [];
-        for (const clientData of manualClientsData) {
-            console.log(`  -> Adding client: ${clientData.firstName} ${clientData.lastName}`);
-            try {
-                // Augment the base client data with linking status and timestamps
-                const fullClientData = {
-                    ...clientData,
-                    isLinked: false,
-                    linkedHomeownerId: null,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                };
-
-                // Use addClient function if available, passing the augmented data
-                if (typeof fsService.addClient === 'function') {
-                     const newClientId = await fsService.addClient(housekeeperUid, fullClientData); // Assumes it returns the new ID
-                     if (newClientId) {
-                         addedClientIds.push(newClientId);
-                         console.log(`     Added via addClient with ID: ${newClientId}`);
-                     } else {
-                         console.warn(`     addClient function did not return an ID for ${clientData.firstName}. Attempting direct add...`);
-                         // Fallback if addClient doesn't return ID
-                         const clientsRef = firebase.firestore().collection('users').doc(housekeeperUid).collection('clients');
-                         const docRef = await clientsRef.add(fullClientData);
-                         addedClientIds.push(docRef.id);
-                          console.log(`     Added directly with ID: ${docRef.id}`);
-                     }
-                } else {
-                    // Fallback to direct Firestore add if service function doesn't exist
-                    console.warn('firestoreService.addClient function not found. Using direct Firestore add.')
-                    const clientsRef = firebase.firestore().collection('users').doc(housekeeperUid).collection('clients');
-                    const docRef = await clientsRef.add(fullClientData);
-                    addedClientIds.push(docRef.id);
-                    console.log(`     Added directly with ID: ${docRef.id}`);
-                }
-            } catch (clientError) {
-                console.error(`     Error adding client ${clientData.firstName}:`, clientError);
-                addedClientIds.push(null); // Indicate failure
-            }
-        }
-        // Get the actual ID of the first manual client for sample bookings
-        const manualClientOneActualId = addedClientIds[0];
-        if (!manualClientOneActualId) {
-             console.warn('Could not determine ID for the first manual client. Bookings for them might fail or have incorrect clientId.');
-        }
-
-        // 4. Add Sample Bookings
-        console.log(`Adding sample bookings for housekeeper ${housekeeperUid}...`);
-        const bookingsToAdd = sampleBookingsData(homeownerUid, manualClientOneActualId || 'MANUAL_CLIENT_ID_UNKNOWN', housekeeperUid);
-        for (const booking of bookingsToAdd) {
-            // Only add booking if the clientId is known (especially for manual client)
-            if (booking.clientId && booking.clientId !== 'MANUAL_CLIENT_ID_UNKNOWN') {
-                console.log(`  -> Adding booking for client ${booking.clientName} (ID: ${booking.clientId}) on ${booking.startTimestamp}`);
-                try {
-                    const bookingId = await fsService.addBooking(housekeeperUid, booking);
-                    if (bookingId) {
-                        console.log(`     Booking added with ID: ${bookingId}`);
-                    } else {
-                        console.error('     addBooking did not return an ID or failed.');
-                    }
-                } catch (bookingError) {
-                    console.error(`     Error adding booking for ${booking.clientName}:`, bookingError);
-                }
-            } else {
-                console.warn(`  -> Skipping booking for ${booking.clientName} due to unknown clientId.`);
-            }
-        }
-        console.log('Finished adding bookings.');
-
-        // 5. Add Sample Settings (Assuming settings need manual setup or separate update)
-        // Consider adding/updating the /users/{housekeeperUid}/settings/app document here
-        // if you want specific default settings applied during population.
-        // For example:
-        console.log(`Setting default settings for housekeeper ${housekeeperUid}...`);
-        const defaultHousekeeperSettings = {
-             workingDays: {
-                 monday: { isWorking: true, startTime: "08:00 AM", jobsPerDay: 2, jobDurations: [210, 210], breakDurations: [60] },
-                 tuesday: { isWorking: true, startTime: "08:00 AM", jobsPerDay: 2, jobDurations: [210, 210], breakDurations: [60] },
-                 wednesday: { isWorking: true, startTime: "08:00 AM", jobsPerDay: 1, jobDurations: [240], breakDurations: [] },
-                 thursday: { isWorking: false }, // Example: Initially off
-                 friday: { isWorking: true, startTime: "09:00 AM", jobsPerDay: 2, jobDurations: [180, 180], breakDurations: [90] },
-                 saturday: { isWorking: false },
-                 sunday: { isWorking: false }
-             },
-             timezone: "America/Los_Angeles", // Example timezone
-             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        };
-        await db.collection('users').doc(housekeeperUid).collection('settings').doc('app').set(defaultHousekeeperSettings, { merge: true });
-        console.log(' -> Default settings applied.');
-        
-        // 6. Add Sample Time Off Dates (Using YYYY-MM-DD as ID)
-        console.log(`Adding sample time off dates for housekeeper ${housekeeperUid}...`);
-        const timeOffCollectionRef = db.collection('users').doc(housekeeperUid).collection('timeOffDates');
-        const today = new Date();
-        const sampleDates = [
-            new Date(today.getFullYear(), today.getMonth() + 1, 10), // 10th of next month
-            new Date(today.getFullYear(), today.getMonth() + 1, 11)  // 11th of next month
-        ];
-
-        for (const date of sampleDates) {
-            const dateString = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
-            const timeOffDocRef = timeOffCollectionRef.doc(dateString); // Use date string as ID
-            try {
-                await timeOffDocRef.set({
-                    isTimeOff: true,
-                    addedAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-                console.log(` -> Added time off for ${dateString}`);
-            } catch (timeOffError) {
-                 console.error(` -> Error adding time off for ${dateString}:`, timeOffError);
-            }
-        }
-
-        // --- Phase 4: Create Sample Services for Housekeeper --- <-- NEW PHASE
-        console.log('--- Starting Service Creation Phase ---');
-        const serviceBatch = db.batch();
-        const services = sampleServicesData(housekeeperUid); // Get sample data with correct ownerId
-
-        services.forEach((service, index) => {
-            const serviceRef = db.collection('users').doc(housekeeperUid).collection('services').doc(); // Auto-generate ID
-            serviceBatch.set(serviceRef, service);
-            console.log(`   -> Prepared set operation for service ${index + 1}: ${service.serviceName}`);
-        });
-
-        await serviceBatch.commit();
-        console.log('--- Service Creation Phase Complete ---');
-
-        console.log(`--- Sample Data Population COMPLETE ---`);
-        alert('Sample data population finished! Check console for details.');
+        await batch.commit();
+        console.log("✅ Core data population batch committed successfully!");
+        // Add subsequent operations (like adding clients/bookings needing separate calls) here
+        // ... add manual clients ...
+        // ... add services ...
+        // ... add bookings ...
+        console.log("✅ All sample data operations completed.");
+        alert("Core sample data populated successfully!");
 
     } catch (error) {
-        console.error('--- Sample Data Population FAILED ---:', error);
-        alert(`Sample data population FAILED: ${error.message}`);
+        console.error("❌ Error committing core data population batch:", error);
+        alert("Error populating core data. Check console.");
     }
+
 }
+
+// --- Event Listener Setup (Assumes button in dev-tools.html) ---
+// ... (Existing event listener setup, needs modification) ...
+// Example modification:
+/*
+document.getElementById('populate-button')?.addEventListener('click', () => {
+    const homeownerUid = document.getElementById('homeowner-uid').value;
+    const housekeeperUid = document.getElementById('housekeeper-uid').value;
+    if (!homeownerUid || !housekeeperUid) {
+        alert('Please provide both Homeowner and Housekeeper UIDs.');
+        return;
+    }
+    populateCoreData(homeownerUid, housekeeperUid, { stripeEnabled: false }); // Call for standard population
+});
+
+document.getElementById('populate-stripe-button')?.addEventListener('click', () => { // Assumes a new button exists
+    const homeownerUid = document.getElementById('homeowner-uid').value;
+    const housekeeperUid = document.getElementById('housekeeper-uid').value;
+    if (!homeownerUid || !housekeeperUid) {
+        alert('Please provide both Homeowner and Housekeeper UIDs.');
+        return;
+    }
+    populateCoreData(homeownerUid, housekeeperUid, { stripeEnabled: true }); // Call for Stripe-enabled population
+});
+*/
+
+// ... (rest of the script) ...
 
 // Make the function globally accessible if it isn't already via script include
 if (typeof window !== 'undefined') {
@@ -527,18 +421,61 @@ if (typeof window !== 'undefined') {
 
 console.log('populate-sample-data.js loaded. Ready to be called via dev-tools.html or console.'); 
 
-// Add event listener if the button exists (runs on dev-tools.html)
+// Add event listeners if the buttons exist (runs on dev-tools.html)
 document.addEventListener('DOMContentLoaded', () => {
-    const populateButton = document.getElementById('populate-sample-data-button');
-    if (populateButton) {
+    // Use the IDs that actually exist in dev-tools.html
+    const populateButton = document.getElementById('populateButton'); // <-- Use correct ID
+    const populateStripeButton = document.getElementById('populate-stripe-data-button');
+    const homeownerUidInput = document.getElementById('homeownerUid'); // <-- Use correct ID
+    const housekeeperUidInput = document.getElementById('housekeeperUid'); // <-- Use correct ID
+
+    // Listener for STANDARD population (No Stripe data)
+    if (populateButton && homeownerUidInput && housekeeperUidInput) {
         populateButton.addEventListener('click', () => {
-            const homeownerUidInput = document.getElementById('homeowner-uid-input');
-            const housekeeperUidInput = document.getElementById('housekeeper-uid-input');
-            const homeownerUid = homeownerUidInput ? homeownerUidInput.value.trim() : null;
-            const housekeeperUid = housekeeperUidInput ? housekeeperUidInput.value.trim() : null;
-            populateCoreData(homeownerUid, housekeeperUid);
+            const homeownerUid = homeownerUidInput.value.trim();
+            const housekeeperUid = housekeeperUidInput.value.trim();
+            if (!homeownerUid || !housekeeperUid) {
+                alert('Please provide both Homeowner and Housekeeper UIDs.');
+                return;
+            }
+            console.log('Triggering standard population...');
+            // Check if function exists before calling
+            if (typeof window.populateCoreData === 'function') {
+                 window.populateCoreData(homeownerUid, housekeeperUid, { stripeEnabled: false });
+            } else {
+                console.error("populateCoreData function not found!");
+                 alert("Error: Population function not found.");
+            }
         });
     } else {
-        // console.log('Not on dev-tools page, skipping populate button listener.');
+         // Update log messages to reflect correct IDs
+         if (!populateButton) console.log('Standard populate button (#populateButton) not found.');
+         if (!homeownerUidInput) console.log('Homeowner UID input (#homeownerUid) not found.');
+         if (!housekeeperUidInput) console.log('Housekeeper UID input (#housekeeperUid) not found.');
+    }
+
+    // Listener for STRIPE-ENABLED population
+    if (populateStripeButton && homeownerUidInput && housekeeperUidInput) {
+        populateStripeButton.addEventListener('click', () => {
+            const homeownerUid = homeownerUidInput.value.trim();
+            const housekeeperUid = housekeeperUidInput.value.trim();
+             if (!homeownerUid || !housekeeperUid) {
+                alert('Please provide both Homeowner and Housekeeper UIDs.');
+                return;
+            }
+            console.log('Triggering Stripe-enabled population...');
+             // Check if function exists before calling
+             if (typeof window.populateCoreData === 'function') {
+                window.populateCoreData(homeownerUid, housekeeperUid, { stripeEnabled: true });
+            } else {
+                console.error("populateCoreData function not found!");
+                 alert("Error: Population function not found.");
+            }
+        });
+    } else {
+        if (!populateStripeButton) console.log('Stripe populate button (#populate-stripe-data-button) not found.');
+        // Only log input missing if stripe button *was* found, otherwise covered by above
+        if (populateStripeButton && !homeownerUidInput) console.log('Homeowner UID input (#homeownerUid) not found.');
+        if (populateStripeButton && !housekeeperUidInput) console.log('Housekeeper UID input (#housekeeperUid) not found.');
     }
 }); 

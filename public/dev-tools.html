@@ -45,6 +45,12 @@
             Populate Core Sample Data
         </button>
         
+        <!-- NEW Button for Stripe Data -->
+        <button id="populate-stripe-data-button" class="w-full mt-3 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+            Populate Stripe-Enabled Data
+        </button>
+        <!-- END NEW Button -->
+
         <p class="text-xs text-gray-500 mt-4 text-center">
             Check the browser console for progress and detailed messages.
         </p>
@@ -133,46 +139,6 @@
             } else if (!window.firestoreService) {
                  console.warn('Firebase initialized, but Firestore Service could not be initialized or found on window object.');
             }
-        }
-
-        // Add event listener to the button (Only runs if content is shown)
-        if (populateButton && homeownerUidInput && housekeeperUidInput) {
-            populateButton.addEventListener('click', () => {
-                const homeownerUid = homeownerUidInput.value.trim();
-                const housekeeperUid = housekeeperUidInput.value.trim();
-
-                if (!homeownerUid || !housekeeperUid) {
-                    alert('Please enter both Homeowner and Housekeeper UIDs.');
-                    return;
-                }
-
-                // Check if the function exists before calling
-                if (typeof window.populateCoreData === 'function') {
-                    // Disable button temporarily to prevent double clicks
-                    populateButton.disabled = true;
-                    populateButton.textContent = 'Populating...';
-                    
-                    window.populateCoreData(homeownerUid, housekeeperUid)
-                        .then(() => {
-                            console.log('populateCoreData function finished.');
-                        })
-                        .catch((error) => {
-                            console.error('Error running populateCoreData:', error);
-                            alert('An error occurred during population. Check console.')
-                        })
-                        .finally(() => {
-                            // Re-enable button
-                            populateButton.disabled = false;
-                            populateButton.textContent = 'Populate Core Sample Data';
-                        });
-                } else {
-                    alert('Error: populateCoreData function not found. Was the script loaded correctly?');
-                    console.error('populateCoreData function is not defined on the window object.');
-                }
-            });
-        } else {
-            // This might log if elements are initially hidden, which is expected.
-            // console.error('Could not find required elements (button or inputs) on the dev-tools page initially.'); 
         }
     </script>
 

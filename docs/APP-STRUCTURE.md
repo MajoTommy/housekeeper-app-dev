@@ -16,7 +16,8 @@ The Housekeeping App has two main user interfaces based on user roles:
 - **Backend Platform:** Firebase
   - **Database:** Firestore (NoSQL, document-based)
   - **Authentication:** Firebase Authentication (Email/Password)
-- **Frontend:** Vanilla JavaScript (direct DOM manipulation, no major framework like React/Vue/Angular)
+  - **Payments:** Stripe (Connect for payouts, Billing for subscriptions)
+- **Frontend:** Vanilla JavaScript (direct DOM manipulation, no major framework), Stripe.js (for Checkout)
 - **Styling:** Tailwind CSS (v3 via CDN - *confirm version if different*)
 - **Development Server:** Assumed local server (e.g., live-server, http-server) serving the `public` directory.
 - **Mapping/Places:** Google Maps Platform (Places API for Autocomplete)
@@ -41,16 +42,14 @@ Each role has a consistent footer navigation menu:
 - `public/signup.html` - New user registration with role selection.
 - `public/forgot-password.html` - Password recovery.
 - `public/404.html` - Custom 404 page.
-- `public/dev-tools.html` - Developer utility page (not for production).
+- `public/dev-tools.html` - Developer utility page (not for production). Used to trigger sample data population.
 - `public/common/js/` - Directory for JavaScript modules shared between roles.
     - `firebase-config.js`: Initializes Firebase SDKs.
     - `firestore-service.js`: Centralized functions for Firestore interactions (CRUD operations for users, profiles, clients, bookings, settings, time-off).
     - `auth.js`: Handles user login, logout, signup, password reset logic.
     - `auth-router.js`: Manages role-based redirects after authentication state changes.
     - `date-utils.js`: Utility functions for date/time formatting and manipulation.
-    - `sample-data.js`: **DEPRECATED / REMOVE?** Contains old logic/button for populating data (replaced by `/js/populate-sample-data.js` and `/dev-tools.html`).
-- `public/js/`
-    - `populate-sample-data.js`: Script containing logic and sample data structures used by `dev-tools.html` to populate Firestore for testing.
+    - `sample-data.js`: **DEPRECATED/REMOVE?**
 
 ### Housekeeper Section (`public/housekeeper/`)
 - `public/housekeeper/schedule/`
@@ -58,7 +57,7 @@ Each role has a consistent footer navigation menu:
     - `schedule.js`: UI logic for displaying schedule, handling booking modal (including client and service selection, one-time booking confirmation).
 - `public/housekeeper/clients/`
     - `clients.html`: Client list and management view.
-    - `clients.js`: UI logic for displaying clients, search, add/edit modals.
+    - `clients.js`: UI logic for displaying clients (filtering active/archived via toggle), search, add/edit modals, archive/unarchive logic.
 - `public/housekeeper/settings/`
     - `index.html`: Main settings navigation page (card layout).
     - `profile.html`: Displays housekeeper profile, invite code; includes edit modal.
@@ -67,8 +66,8 @@ Each role has a consistent footer navigation menu:
     - `work-schedule.js`: Logic for managing work schedule UI and saving settings.
     - `time-off.html`: UI for viewing/managing single-day time off via calendar.
     - `time-off.js`: Logic for time-off calendar interaction and saving.
-    - `account.html`: UI for setting timezone, auto-send receipts etc.
-    - `account.js`: Logic for account settings page.
+    - `account.html`: UI for setting timezone. **NEW:** UI for managing platform subscription (via Stripe Billing) and payout account status/setup (via Stripe Connect).
+    - `account.js`: Logic for account settings page. **NEW:** Handles fetching Stripe status, displaying UI states, initializing Stripe.js, and calling Cloud Functions to interact with Stripe Billing Portal, Connect Onboarding/Dashboard, and Checkout.
     - `services-pricing.html`: UI for viewing/managing base and add-on services.
     - `services-pricing.js`: Logic for loading, displaying, adding, editing, and deleting services.
 
@@ -115,7 +114,7 @@ Each role has a consistent footer navigation menu:
 - `public/images/` - App images/icons.
 
 ## Developer Tools
-- `public/dev-tools.html`: Standalone page to trigger data population using `populate-sample-data.js`.
+- `public/dev-tools.html`: Developer utility page (not for production). Used to trigger sample data population.
 
 ## Core Features
 
@@ -128,7 +127,9 @@ Each role has a consistent footer navigation menu:
 
 #### Clients (`/housekeeper/clients`)
 - View/search client list.
+- Toggle view between Active and Archived clients.
 - Add/Edit clients (modal workflow).
+- Archive/Unarchive clients via detail modal (conditionally shown button). Archiving also blocks the linked homeowner.
 
 #### Settings (`/housekeeper/settings`)
 - Main navigation via cards.
@@ -137,6 +138,9 @@ Each role has a consistent footer navigation menu:
 - **Time Off (`.../time-off`):** Toggle individual days off on a calendar. Saves via footer button.
 - **Account & App (`.../account`):** Set timezone, other app preferences. Saves via footer button.
 - **Services & Pricing (`.../services-pricing`):** Add, view, edit, activate/deactivate, and delete base and add-on services with prices.
+- Potentially others for triggers (e.g., updating denormalized data).
+- `archiveClientAndBlockHomeowner`: Sets client `isActive=false` and adds homeowner to housekeeper's blocklist (HTTPS Callable).
+- `unarchiveClientAndUnblockHomeowner`: Sets client `isActive=true` and removes homeowner from housekeeper's blocklist (HTTPS Callable).
 
 ### Homeowner Features
 
@@ -159,8 +163,17 @@ Each role has a consistent footer navigation menu:
 ## Cloud Functions (`/functions`)
 - `getAvailableSlots`: Calculates availability (HTTPS Callable).
 - `requestBooking`: Handles booking requests (HTTPS Callable).
-- `cancelBooking`: Handles booking cancellations (HTTPS Callable - needs authentication).
+- `cancelBooking`: Handles booking cancellations (HTTPS Callable).
 - Potentially others for triggers (e.g., updating denormalized data).
+- `archiveClientAndBlockHomeowner`: Sets client `isActive=false` and adds homeowner to housekeeper's blocklist (HTTPS Callable).
+- `unarchiveClientAndUnblockHomeowner`: Sets client `isActive=true` and removes homeowner from housekeeper's blocklist (HTTPS Callable).
+- **Stripe Functions (HTTPS Callable V2 Syntax):**
+    - `createSubscriptionCheckoutSession`: Creates a Stripe Customer (if needed) and a Stripe Checkout session for initiating a new subscription.
+    - `createBillingPortalSession`: Creates a Stripe Billing Portal session for managing an existing subscription.
+    - `createConnectOnboardingLink`: Creates a Stripe Connect onboarding link for setting up a payout account.
+    - `createExpressDashboardLink`: Creates a link to the Stripe Express Dashboard for managing an existing payout account.
+- **Stripe Webhook Handler (`stripeWebhookHandler` - Planned):** A standard HTTP function (not callable) needed to receive events from Stripe (e.g., subscription updates, account updates) and update Firestore accordingly (requires webhook secret).
+- Potential Trigger Functions (e.g., `syncHomeownerProfileToClient`).
 
 ## Testing and Deployment
 - Use Firebase Local Emulator Suite.

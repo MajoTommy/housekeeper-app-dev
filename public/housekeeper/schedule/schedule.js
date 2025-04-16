@@ -1344,16 +1344,19 @@ async function openBookingDetailModal(bookingId) {
              </div>`;
         }
 
-        // HousekeeperInternalNote (Editable Textarea)
+        // HousekeeperInternalNote (Read-only Paragraph)
         const housekeeperInternalNote = clientDetailsFromList?.HousekeeperInternalNote || '';
-        detailHtml += `<div class="mt-4"> // Added top margin
-                <label for="detail-modal-housekeeper-note" class="block text-sm font-medium text-gray-600">Housekeeper Notes / Access Info:</label>
-                <textarea id="detail-modal-housekeeper-note" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">${escapeHtml(housekeeperInternalNote)}</textarea>
-            </div>`;
+        // Only display if there is a note
+        if (housekeeperInternalNote) {
+             detailHtml += `<div class="mt-4">
+                 <p class="block text-sm font-medium text-gray-600">Housekeeper Notes / Access Info:</p>
+                 <p class="mt-1 text-sm whitespace-pre-wrap bg-gray-100 p-2 rounded border border-gray-200">${escapeHtml(housekeeperInternalNote)}</p>
+             </div>`;
+        }
 
-        // BookingNote (Editable Textarea)
+        // BookingNote (Editable Textarea) - Unchanged
         const bookingNote = bookingData.BookingNote || '';
-        detailHtml += `<div class="mt-4"> // Added top margin
+        detailHtml += `<div class="mt-4"> 
                 <label for="detail-modal-booking-note" class="block text-sm font-medium text-gray-600">Booking Note:</label>
                 <textarea id="detail-modal-booking-note" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">${escapeHtml(bookingNote)}</textarea>
             </div>`;
@@ -1365,9 +1368,9 @@ async function openBookingDetailModal(bookingId) {
 
         // <<< Store data needed for saving in the modal's dataset >>>
         modal.dataset.bookingId = bookingId;
-        modal.dataset.clientId = bookingData.clientId || null;
-        modal.dataset.originalBookingNote = bookingNote; // Store original
-        modal.dataset.originalHousekeeperNote = housekeeperInternalNote; // Store original
+        modal.dataset.clientId = bookingData.clientId || null; // Keep clientId if needed elsewhere, but not for saving housekeeper note
+        modal.dataset.originalBookingNote = bookingNote; // Store original BookingNote
+        // modal.dataset.originalHousekeeperNote = housekeeperInternalNote; // REMOVED - No longer needed
         modal.dataset.housekeeperId = user.uid; // Store current user ID
 
         // Set up modal buttons based on booking status
@@ -1468,13 +1471,12 @@ async function handleSaveDetailsClick() {
 
     // Retrieve stored data and current values
     const bookingId = modal.dataset.bookingId;
-    const clientId = modal.dataset.clientId;
     const housekeeperId = modal.dataset.housekeeperId;
     const originalBookingNote = modal.dataset.originalBookingNote;
-    const originalHousekeeperNote = modal.dataset.originalHousekeeperNote;
+    // const originalHousekeeperNote = modal.dataset.originalHousekeeperNote; // REMOVED
 
     const currentBookingNote = document.getElementById('detail-modal-booking-note').value.trim();
-    const currentHousekeeperNote = document.getElementById('detail-modal-housekeeper-note').value.trim();
+    // const currentHousekeeperNote = document.getElementById('detail-modal-housekeeper-note').value.trim(); // REMOVED - Textarea no longer exists
 
     if (!bookingId || !housekeeperId) {
         showErrorMessage('Could not save notes: Missing necessary booking or user information.');
@@ -1482,34 +1484,35 @@ async function handleSaveDetailsClick() {
     }
 
     let bookingNoteChanged = currentBookingNote !== originalBookingNote;
-    let housekeeperNoteChanged = clientId && (currentHousekeeperNote !== originalHousekeeperNote); // Only check if clientId exists
+    // let housekeeperNoteChanged = clientId && (currentHousekeeperNote !== originalHousekeeperNote); // REMOVED
 
-    if (!bookingNoteChanged && !housekeeperNoteChanged) {
-        showSuccessMessage('No changes detected in notes.'); // Or just close modal silently
+    // Only proceed if BookingNote changed
+    if (!bookingNoteChanged) {
+        showSuccessMessage('No changes detected in booking note.'); // Or just close modal silently
         closeBookingDetailModal();
         return;
     }
 
-    showLoading('Saving notes...');
+    showLoading('Saving booking note...'); // Update loading message
     let success = true;
     let errors = [];
 
     try {
         // Update BookingNote if changed
-        if (bookingNoteChanged) {
-            console.log('[Save Details] Updating BookingNote...');
-            await firestoreService.updateBookingNote(housekeeperId, bookingId, currentBookingNote);
-            // Update original value in dataset to prevent re-saving if user edits again without closing
-            modal.dataset.originalBookingNote = currentBookingNote;
-        }
+        // No longer need the outer 'if (bookingNoteChanged)' as we return early if it's not changed
+        console.log('[Save Details] Updating BookingNote...');
+        await firestoreService.updateBookingNote(housekeeperId, bookingId, currentBookingNote);
+        // Update original value in dataset to prevent re-saving if user edits again without closing
+        modal.dataset.originalBookingNote = currentBookingNote;
+        
 
         // Update HousekeeperInternalNote if changed and clientId exists
-        if (housekeeperNoteChanged) {
-             console.log('[Save Details] Updating HousekeeperInternalNote...');
-             await firestoreService.updateHousekeeperInternalNote(housekeeperId, clientId, currentHousekeeperNote);
-             // Update original value in dataset
-             modal.dataset.originalHousekeeperNote = currentHousekeeperNote;
-        }
+        // if (housekeeperNoteChanged) { // REMOVED THIS BLOCK
+        //      console.log('[Save Details] Updating HousekeeperInternalNote...');
+        //      await firestoreService.updateHousekeeperInternalNote(housekeeperId, clientId, currentHousekeeperNote);
+        //      // Update original value in dataset
+        //      modal.dataset.originalHousekeeperNote = currentHousekeeperNote;
+        // }
         
     } catch (error) {
         console.error('[Save Details] Error saving notes:', error);
@@ -1518,12 +1521,12 @@ async function handleSaveDetailsClick() {
     } finally {
         hideLoading();
         if (success) {
-            showSuccessMessage('Notes saved successfully!');
+            showSuccessMessage('Booking note saved successfully!'); // Update success message
             closeBookingDetailModal(); // Close modal on successful save
             // Optional: Re-fetch schedule if notes display might change in the main view (unlikely)
             // fetchAndRenderSchedule(currentWeekStart, housekeeperId);
         } else {
-            showErrorMessage(`Error saving notes: ${errors.join(', ')}`);
+            showErrorMessage(`Error saving note: ${errors.join(', ')}`); // Update error message
             // Keep modal open for user to retry or copy text
         }
     }
@@ -1558,10 +1561,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (user) {
             console.log('Auth state changed, user logged in. Loading schedule...');
             loadUserSchedule(); 
-            if (!bookingHandlersInitialized) {
+    if (!bookingHandlersInitialized) {
                  setupBookingModalListeners(); 
-                 bookingHandlersInitialized = true;
-            }
+        bookingHandlersInitialized = true;
+    }
         } else {
             console.log('No user logged in, redirecting...');
             // Assuming auth-router handles redirection, or uncomment below if needed

@@ -33,6 +33,24 @@ try {
 }
 const db = admin.firestore();
 
+// --- NEW: Initialize Stripe ---
+const stripePackage = require("stripe"); // Use different name to avoid conflict
+let stripe;
+try {
+    // Ensure secret key is configured via Firebase CLI: 
+    // firebase functions:config:set stripe.secret="sk_test_..."
+    const stripeSecret = functions.config().stripe.secret;
+    if (!stripeSecret) {
+        throw new Error("Stripe secret key not configured in Firebase functions config (stripe.secret)");
+    }
+    stripe = stripePackage(stripeSecret);
+    logger.info("Stripe SDK initialized successfully.");
+} catch (error) {
+    logger.error("FATAL: Failed to initialize Stripe SDK:", error.message);
+    // Consider how to handle this robustly in production - may prevent function execution
+}
+// --- END NEW ---
+
 // Create and deploy your first functions
 // https://firebase.google.com/docs/functions/get-started
 
@@ -120,9 +138,35 @@ exports.getAvailableSlots = onCall(async (request) => {
     }
 
     try {
-        // 2. Fetch Settings
-        const settingsPath = `users/${housekeeperId}/settings/app`;
-        const settingsDoc = await db.doc(settingsPath).get();
+        // --- NEW: Identify Requester (Homeowner) ---
+        const requestingHomeownerId = request.auth ? request.auth.uid : null;
+        logger.info(`Slot request initiated by homeowner: ${requestingHomeownerId || 'Anonymous/Unauthenticated'}`);
+        // --- END NEW ---
+
+        // 2. Fetch Housekeeper Profile (for blocklist) and Settings
+        const housekeeperProfileRef = db.collection('users').doc(housekeeperId);
+        const settingsPath = housekeeperProfileRef.collection('settings').doc('app'); // Corrected path
+
+        const [housekeeperProfileDoc, settingsDoc] = await Promise.all([
+            housekeeperProfileRef.get(),
+            settingsPath.get() // <<< CORRECTED: Call .get() directly on the DocumentReference
+        ]);
+        
+        // --- NEW: Check Blocklist --- 
+        if (requestingHomeownerId && housekeeperProfileDoc.exists) {
+            const housekeeperData = housekeeperProfileDoc.data();
+            const blockedHomeowners = housekeeperData.blockedHomeowners || [];
+            if (blockedHomeowners.includes(requestingHomeownerId)) {
+                logger.info(`Access denied: Homeowner ${requestingHomeownerId} is blocked by housekeeper ${housekeeperId}. Returning empty schedule.`);
+                return { schedule: {} }; // Return empty schedule if blocked
+            }
+        } else if (!housekeeperProfileDoc.exists) {
+            logger.warn(`Housekeeper profile ${housekeeperId} not found. Cannot check blocklist.`);
+            // Decide behavior: proceed or throw error? Proceeding for now.
+        }
+        // --- END NEW ---
+
+        // Continue fetching settings (already fetched in Promise.all)
         let settings = DEFAULT_SETTINGS;
         if (settingsDoc.exists) {
             const fetchedSettings = settingsDoc.data();
@@ -191,7 +235,7 @@ exports.getAvailableSlots = onCall(async (request) => {
         bookingsSnapshot.forEach((doc) => {
             const booking = doc.data();
             const bookingId = doc.id;
-
+            
             // Check for existence and validity of timestamps
             if (!booking.startTimestamp || typeof booking.startTimestamp.toDate !== 'function' || 
                 !booking.endTimestamp || typeof booking.endTimestamp.toDate !== 'function') {
@@ -204,7 +248,7 @@ exports.getAvailableSlots = onCall(async (request) => {
             
             if(startMillis >= endMillis) {
                  logger.warn("Skipping booking: Start timestamp is not before end timestamp.", { bookingId });
-                 return;
+                return;
             }
 
             // Get UTC date string key (YYYY-MM-DD)
@@ -599,7 +643,7 @@ exports.requestBooking = onCall(async (request) => {
             // .where("status", "!=", "cancelled") 
             .limit(1) // We only need to know if at least one exists
             .get();
-        
+
         // Note: Firestore doesn't allow the exact OR condition needed for full overlap in one query.
         // The query above covers most overlaps. A booking starting exactly at the new end or ending exactly at the new start isn't strictly an overlap.
         // If exact edge cases are critical, more complex checks might be needed.
@@ -608,7 +652,7 @@ exports.requestBooking = onCall(async (request) => {
 
         if (!conflictSnapshot1.empty) {
             const conflictingDoc = conflictSnapshot1.docs[0];
-            logger.warn("Booking conflict detected", {
+                    logger.warn("Booking conflict detected", {
                 requestedSlot: `${startTimestamp.toDate().toISOString()} - ${endTimestamp.toDate().toISOString()}`,
                 existingBookingId: conflictingDoc.id,
                 existingSlot: `${conflictingDoc.data().startTimestamp.toDate().toISOString()} - ${conflictingDoc.data().endTimestamp.toDate().toISOString()}`
@@ -705,7 +749,7 @@ exports.cancelBooking = functions.https.onRequest((req, res) => {
     // Assuming the Firebase Functions client SDK still wraps it in req.body.data
     const { bookingId, housekeeperId, reason } = req.body.data || {}; 
 
-    if (!bookingId) {
+  if (!bookingId) {
       logger.warn('cancelBooking rejected: Missing bookingId in request body data.');
       return res.status(400).send({ error: { message: "Invalid argument: Missing 'bookingId'.", status: "INVALID_ARGUMENT" } });
     }
@@ -718,19 +762,19 @@ exports.cancelBooking = functions.https.onRequest((req, res) => {
     const bookingPath = `users/${housekeeperId}/bookings/${bookingId}`;
     const bookingRef = admin.firestore().doc(bookingPath);
 
-    try {
-      const bookingDoc = await bookingRef.get();
+  try {
+    const bookingDoc = await bookingRef.get();
 
       // 3a. Booking Existence Check
-      if (!bookingDoc.exists) {
+    if (!bookingDoc.exists) {
         logger.warn(`Booking not found at path: ${bookingPath}`);
         return res.status(404).send({ error: { message: `Booking not found.`, status: "NOT_FOUND" } });
-      }
+    }
 
-      const bookingData = bookingDoc.data();
+    const bookingData = bookingDoc.data();
 
       // 3b. Authorization Check (Homeowner ID must match caller)
-      if (bookingData.homeownerId !== userId) {
+    if (bookingData.homeownerId !== userId) {
           logger.error("Permission denied to cancel booking.", {
               callerUid: userId,
               bookingHomeownerId: bookingData.homeownerId,
@@ -755,7 +799,7 @@ exports.cancelBooking = functions.https.onRequest((req, res) => {
       // onCall functions expect { data: ... }, so we mimic that structure for the client
       return res.status(200).send({ data: { success: true, message: "Booking cancelled and removed successfully." } });
 
-    } catch (error) {
+  } catch (error) {
       logger.error("Internal error cancelling/deleting booking:", {
           bookingId: bookingId,
           housekeeperId: housekeeperId,
@@ -836,3 +880,531 @@ exports.syncHomeownerProfileToClient = onDocumentUpdated('homeowner_profiles/{ho
         return null;
     }
 });
+
+// --- NEW: Archive Client and Block Homeowner --- 
+exports.archiveClientAndBlockHomeowner = onCall(async (request) => {
+    logger.info("[archiveClient] Function called", { auth: request.auth, data: request.data });
+
+    // 1. Authentication Check
+    if (!request.auth) {
+        logger.error("[archiveClient] Authentication required.");
+        throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
+    }
+    const housekeeperId = request.auth.uid;
+
+    // 2. Input Validation
+    const { homeownerIdToBlock } = request.data;
+    if (!homeownerIdToBlock || typeof homeownerIdToBlock !== "string") {
+        logger.error("[archiveClient] Invalid input: homeownerIdToBlock missing or invalid.", { input: homeownerIdToBlock });
+        throw new HttpsError("invalid-argument", "Required data missing or invalid (homeownerIdToBlock).");
+    }
+    logger.info(`[archiveClient] Attempting to archive/block client ${homeownerIdToBlock} for housekeeper ${housekeeperId}`);
+
+    // 3. Server-Side Check for Future Bookings
+    try {
+        const bookingsRef = db.collection('users').doc(housekeeperId).collection('bookings');
+        const nowTimestamp = admin.firestore.Timestamp.now();
+
+        logger.info(`[archiveClient] Checking future bookings for client ${homeownerIdToBlock} after ${nowTimestamp.toDate().toISOString()}`);
+        const futureBookingsSnapshot = await bookingsRef
+            .where('clientId', '==', homeownerIdToBlock) // Assuming clientId IS homeownerId
+            .where('status', 'in', ['pending', 'confirmed'])
+            .where('startTimestamp', '>', nowTimestamp)
+            .limit(1)
+            .get();
+
+        if (!futureBookingsSnapshot.empty) {
+            logger.warn(`[archiveClient] Found future bookings for client ${homeownerIdToBlock}. Archiving cancelled.`);
+            throw new HttpsError("failed-precondition", "Client has upcoming bookings. Please cancel or complete them before archiving.");
+        }
+        logger.info(`[archiveClient] No future bookings found for client ${homeownerIdToBlock}. Proceeding with archive/block.`);
+
+    } catch (error) {
+        // Re-throw HttpsError, otherwise log and throw internal error
+        if (error instanceof HttpsError) {
+      throw error;
+    }
+        logger.error("[archiveClient] Error checking future bookings:", error);
+        throw new HttpsError("internal", "Failed to check future bookings. Please try again.", { originalError: error.message });
+    }
+
+    // 4. Firestore Transaction to Archive Client and Update Blocklist
+    const clientRef = db.collection('users').doc(housekeeperId).collection('clients').doc(homeownerIdToBlock);
+    const housekeeperProfileRef = db.collection('users').doc(housekeeperId); // Assuming profile is the main user doc
+
+    try {
+        await db.runTransaction(async (transaction) => {
+            // Read housekeeper profile first (optional, but good practice if needing conditional logic based on profile)
+            // const housekeeperDoc = await transaction.get(housekeeperProfileRef);
+            // if (!housekeeperDoc.exists) {
+            //     throw new Error("Housekeeper profile not found.");
+            // }
+            
+            // Update Client: Set isActive to false and add archived timestamp
+            transaction.update(clientRef, {
+                isActive: false,
+                archivedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            logger.info(`[archiveClient] Transaction: Marked client ${homeownerIdToBlock} as inactive.`);
+
+            // Update Housekeeper Profile: Add homeownerId to blockedHomeowners array
+            transaction.update(housekeeperProfileRef, {
+                blockedHomeowners: admin.firestore.FieldValue.arrayUnion(homeownerIdToBlock)
+            });
+            logger.info(`[archiveClient] Transaction: Added ${homeownerIdToBlock} to housekeeper ${housekeeperId}'s blocklist.`);
+        });
+
+        logger.info(`[archiveClient] Successfully archived client ${homeownerIdToBlock} and updated blocklist for housekeeper ${housekeeperId}.`);
+        return { success: true, message: "Client archived and blocked successfully." };
+
+    } catch (error) {
+        logger.error("[archiveClient] Transaction failed:", error);
+        // Check if clientRef simply didn't exist - this shouldn't happen if called from UI
+        if (error.message?.includes("No document to update")) {
+             logger.error(`[archiveClient] Client document ${homeownerIdToBlock} likely doesn't exist under housekeeper ${housekeeperId}.`);
+             throw new HttpsError("not-found", "The specified client document could not be found.");
+        }
+        throw new HttpsError("internal", "Failed to archive client or update blocklist. Please try again.", { originalError: error.message });
+    }
+});
+
+// --- NEW: Unarchive Client and Unblock Homeowner --- 
+exports.unarchiveClientAndUnblockHomeowner = onCall(async (request) => {
+    logger.info("[unarchiveClient] Function called", { auth: request.auth, data: request.data });
+
+    // 1. Authentication Check
+    if (!request.auth) {
+        logger.error("[unarchiveClient] Authentication required.");
+        throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
+    }
+    const housekeeperId = request.auth.uid;
+
+    // 2. Input Validation
+    const { homeownerIdToUnblock } = request.data;
+    if (!homeownerIdToUnblock || typeof homeownerIdToUnblock !== "string") {
+        logger.error("[unarchiveClient] Invalid input: homeownerIdToUnblock missing or invalid.", { input: homeownerIdToUnblock });
+        throw new HttpsError("invalid-argument", "Required data missing or invalid (homeownerIdToUnblock).");
+    }
+    logger.info(`[unarchiveClient] Attempting to unarchive/unblock client ${homeownerIdToUnblock} for housekeeper ${housekeeperId}`);
+
+    // 3. Firestore Transaction to Unarchive Client and Update Blocklist
+    const clientRef = db.collection('users').doc(housekeeperId).collection('clients').doc(homeownerIdToUnblock);
+    const housekeeperProfileRef = db.collection('users').doc(housekeeperId);
+
+    try {
+        await db.runTransaction(async (transaction) => {
+            // Update Client: Set isActive to true and remove archived timestamp (optional)
+            transaction.update(clientRef, {
+                isActive: true,
+                archivedAt: admin.firestore.FieldValue.delete() // Remove the archived timestamp if it exists
+            });
+            logger.info(`[unarchiveClient] Transaction: Marked client ${homeownerIdToUnblock} as active.`);
+
+            // Update Housekeeper Profile: Remove homeownerId from blockedHomeowners array
+            transaction.update(housekeeperProfileRef, {
+                blockedHomeowners: admin.firestore.FieldValue.arrayRemove(homeownerIdToUnblock)
+            });
+            logger.info(`[unarchiveClient] Transaction: Removed ${homeownerIdToUnblock} from housekeeper ${housekeeperId}'s blocklist.`);
+        });
+
+        logger.info(`[unarchiveClient] Successfully unarchived client ${homeownerIdToUnblock} and updated blocklist for housekeeper ${housekeeperId}.`);
+        return { success: true, message: "Client unarchived successfully." };
+
+    } catch (error) {
+        logger.error("[unarchiveClient] Transaction failed:", error);
+        if (error.message?.includes("No document to update")) {
+             logger.error(`[unarchiveClient] Client document ${homeownerIdToUnblock} likely doesn't exist under housekeeper ${housekeeperId}.`);
+             throw new HttpsError("not-found", "The specified client document could not be found.");
+        }
+        throw new HttpsError("internal", "Failed to unarchive client or update blocklist. Please try again.", { originalError: error.message });
+    }
+});
+// --- END NEW --- 
+
+// ========= NEW STRIPE CALLABLE FUNCTIONS =========
+
+// --- Callable Function: createBillingPortalSession (V2) ---
+exports.createBillingPortalSession = onCall(async (request) => {
+    // 1. Check Authentication
+    if (!request.auth) {
+        throw new HttpsError(
+            "unauthenticated",
+            "The function must be called while authenticated."
+        );
+    }
+    const housekeeperUid = request.auth.uid;
+    logger.info(`(V2) Creating billing portal session for housekeeper: ${housekeeperUid}`);
+
+    // Safety check for Stripe SDK init
+    if (!stripe) {
+         logger.error("Stripe SDK not initialized. Cannot create portal session.");
+         throw new HttpsError("internal", "Stripe configuration error.");
+    }
+
+    try {
+        // 2. Get Housekeeper's Stripe Customer ID from Firestore
+        const profileRef = db.collection("housekeeper_profiles").doc(housekeeperUid);
+        const profileSnap = await profileRef.get();
+
+        if (!profileSnap.exists) {
+            throw new HttpsError("not-found", `Housekeeper profile not found for UID: ${housekeeperUid}`);
+        }
+        const profileData = profileSnap.data();
+        const stripeCustomerId = profileData.stripeCustomerId;
+
+        if (!stripeCustomerId) {
+            logger.error(`Housekeeper ${housekeeperUid} does not have a stripeCustomerId.`);
+            throw new HttpsError(
+                "failed-precondition",
+                "Subscription not set up for this user."
+            );
+        }
+
+        // 3. Define the return URL
+        const returnUrl = "https://housekeeper-app-dev.web.app/housekeeper/settings/account.html"; // PRODUCTION URL
+
+        // 4. Create Stripe Billing Portal Session
+        const session = await stripe.billingPortal.sessions.create({
+            customer: stripeCustomerId,
+            return_url: returnUrl,
+        });
+
+        logger.info(`Successfully created billing portal session for ${stripeCustomerId}`);
+        // 5. Return the Session URL
+        return { url: session.url };
+
+    } catch (error) {
+        logger.error(`Error creating Stripe billing portal session for ${housekeeperUid}:`, error);
+        if (error instanceof HttpsError) { // Use HttpsError from v2 import
+            throw error; 
+        }
+        throw new HttpsError("internal", "Could not create billing session.", error.message);
+    }
+});
+
+
+// --- Callable Function: createConnectOnboardingLink (V2) ---
+exports.createConnectOnboardingLink = onCall(async (request) => {
+    // 1. Check Authentication
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "User must be authenticated.");
+    }
+    const housekeeperUid = request.auth.uid;
+    logger.info(`(V2) Creating Connect onboarding link for housekeeper: ${housekeeperUid}`);
+
+    // Check if Stripe is initialized 
+    if (!stripe) {
+         logger.error("Stripe SDK not initialized. Cannot create onboarding link.");
+         throw new HttpsError("internal", "Stripe configuration error.");
+    }
+
+    try {
+        // 2. Get/Create Stripe Connect Account ID
+        const profileRef = db.collection("housekeeper_profiles").doc(housekeeperUid);
+        const profileSnap = await profileRef.get();
+        if (!profileSnap.exists) {
+            throw new HttpsError("not-found", `Housekeeper profile not found for UID: ${housekeeperUid}`);
+        }
+        const profileData = profileSnap.data() || {};
+        let stripeAccountId = profileData.stripeAccountId;
+
+        // If account doesn't exist yet, create one
+        if (!stripeAccountId) {
+            logger.info(`No Stripe account found for ${housekeeperUid}, creating one...`);
+            const userEmail = request.auth.token.email || profileData.email; 
+            if (!userEmail) {
+                 logger.error(`Cannot create Stripe account for ${housekeeperUid} without an email address.`);
+                 throw new HttpsError("failed-precondition", "User email is required to create Stripe account.");
+            }
+
+            const account = await stripe.accounts.create({
+                type: "express",
+                email: userEmail,
+                capabilities: {
+                    card_payments: { requested: true },
+                    transfers: { requested: true },
+                },
+            });
+            stripeAccountId = account.id;
+            await profileRef.set({ 
+                stripeAccountId: stripeAccountId,
+                stripeAccountStatus: 'pending',
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+             }, { merge: true });
+            logger.info(`Created and saved Stripe Express account ${stripeAccountId} for ${housekeeperUid}`);
+        } else {
+             logger.info(`Using existing Stripe account ${stripeAccountId} for ${housekeeperUid}`);
+        }
+
+        // 3. Define Refresh and Return URLs
+        const refreshUrl = `https://housekeeper-app-dev.web.app/housekeeper/settings/account.html`; // PRODUCTION URL
+        const returnUrl = `https://housekeeper-app-dev.web.app/housekeeper/settings/account.html`; // PRODUCTION URL
+
+        // 4. Create Account Link (Onboarding Session)
+        const accountLink = await stripe.accountLinks.create({
+            account: stripeAccountId,
+            refresh_url: refreshUrl,
+            return_url: returnUrl,
+            type: "account_onboarding",
+            collect: "eventually", 
+        });
+
+        logger.info(`Successfully created onboarding link for ${stripeAccountId}`);
+        // 5. Return the Onboarding URL
+        return { url: accountLink.url };
+
+    } catch (error) {
+        logger.error(`Error creating Stripe Connect onboarding link for ${housekeeperUid}:`, error);
+         if (error instanceof HttpsError) {
+            throw error;
+        }
+        throw new HttpsError("internal", "Could not create onboarding link.", error.message);
+    }
+});
+
+
+// --- Callable Function: createExpressDashboardLink (V2) ---
+exports.createExpressDashboardLink = onCall(async (request) => {
+    // 1. Check Authentication
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "User must be authenticated.");
+    }
+    const housekeeperUid = request.auth.uid;
+    logger.info(`(V2) Creating Express Dashboard link for housekeeper: ${housekeeperUid}`);
+
+    // Check if Stripe is initialized
+    if (!stripe) {
+         logger.error("Stripe SDK not initialized. Cannot create dashboard link.");
+         throw new HttpsError("internal", "Stripe configuration error.");
+    }
+
+    try {
+        // 2. Get Housekeeper's Stripe Account ID
+        const profileRef = db.collection("housekeeper_profiles").doc(housekeeperUid);
+        const profileSnap = await profileRef.get();
+
+        if (!profileSnap.exists) {
+            throw new HttpsError("not-found", `Housekeeper profile not found for UID: ${housekeeperUid}`);
+        }
+        const profileData = profileSnap.data();
+        const stripeAccountId = profileData.stripeAccountId;
+        // const stripeAccountStatus = profileData.stripeAccountStatus; // Keep if needed for checks
+
+        if (!stripeAccountId) {
+             logger.error(`Housekeeper ${housekeeperUid} does not have a stripeAccountId.`);
+            throw new HttpsError(
+                "failed-precondition",
+                "Payouts not set up for this user."
+            );
+        }
+
+        // Optional Check: Ensure account is enabled
+        // if (stripeAccountStatus !== 'enabled') { ... }
+
+        // 3. Create Login Link for Express Dashboard
+        const loginLink = await stripe.accounts.createLoginLink(stripeAccountId, {
+             redirect_url: 'https://housekeeper-app-dev.web.app/housekeeper/settings/account.html' // PRODUCTION URL
+        });
+
+        logger.info(`Successfully created Express dashboard link for ${stripeAccountId}`);
+        // 4. Return the Dashboard URL
+        return { url: loginLink.url };
+
+    } catch (error) {
+        logger.error(`Error creating Stripe Express dashboard link for ${housekeeperUid}:`, error);
+        if (error instanceof HttpsError) {
+            throw error;
+        }
+        throw new HttpsError("internal", "Could not create dashboard link.", error.message);
+    }
+});
+
+// --- Callable Function: createSubscriptionCheckoutSession (V2) ---
+exports.createSubscriptionCheckoutSession = onCall(async (request) => {
+    // 1. Check Authentication
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "User must be authenticated.");
+    }
+    const housekeeperUid = request.auth.uid;
+    const priceId = request.data.priceId; // Get priceId from request.data
+
+    if (!priceId) {
+         throw new HttpsError("invalid-argument", "The function must be called with a 'priceId'.");
+    }
+    logger.info(`(V2) Creating subscription checkout session for housekeeper: ${housekeeperUid}, priceId: ${priceId}`);
+
+    // Safety check for Stripe SDK init
+    if (!stripe) {
+         logger.error("Stripe SDK not initialized. Cannot create checkout session.");
+         throw new HttpsError("internal", "Stripe configuration error.");
+    }
+
+    try {
+        // 2. Get/Create Stripe Customer ID
+        const profileRef = db.collection("housekeeper_profiles").doc(housekeeperUid);
+        const profileSnap = await profileRef.get();
+
+        if (!profileSnap.exists) {
+            throw new HttpsError("not-found", `Housekeeper profile not found for UID: ${housekeeperUid}`);
+        }
+        const profileData = profileSnap.data() || {};
+        let stripeCustomerId = profileData.stripeCustomerId;
+
+        // If customer ID doesn't exist, create a new Stripe Customer
+        if (!stripeCustomerId) {
+            logger.info(`No Stripe Customer ID found for ${housekeeperUid}, creating one...`);
+            const userEmail = request.auth.token.email || profileData.email;
+            const userName = `${profileData.firstName || ''} ${profileData.lastName || ''}`.trim();
+            if (!userEmail) {
+                 logger.error(`Cannot create Stripe customer for ${housekeeperUid} without an email address.`);
+                 throw new HttpsError("failed-precondition", "User email is required to create Stripe customer.");
+            }
+
+            const customer = await stripe.customers.create({
+                email: userEmail,
+                name: userName || undefined,
+                metadata: {
+                    firebaseUID: housekeeperUid,
+                },
+            });
+            stripeCustomerId = customer.id;
+            logger.info(`Created Stripe Customer ${stripeCustomerId} for ${housekeeperUid}`);
+
+            // Save the new customer ID back to the profile
+            await profileRef.set({ 
+                stripeCustomerId: stripeCustomerId,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+             }, { merge: true });
+            logger.info(`Saved Stripe Customer ID ${stripeCustomerId} to profile ${housekeeperUid}`);
+        } else {
+             logger.info(`Using existing Stripe Customer ID ${stripeCustomerId} for ${housekeeperUid}`);
+        }
+
+        // 3. Define Success and Cancel URLs (Using deployed app URL)
+        const successUrl = `https://housekeeper-app-dev.web.app/housekeeper/settings/account.html?subscription_success=true`;
+        const cancelUrl = `https://housekeeper-app-dev.web.app/housekeeper/settings/account.html?subscription_cancelled=true`;
+
+        // 4. Create Stripe Checkout Session for Subscription
+        const session = await stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            mode: 'subscription',
+            customer: stripeCustomerId,
+            line_items: [
+                {
+                    price: priceId,
+                    quantity: 1,
+                },
+            ],
+            success_url: successUrl,
+            cancel_url: cancelUrl,
+        });
+
+        logger.info(`Successfully created Checkout Session ${session.id} for ${stripeCustomerId}`);
+        // 5. Return the Session ID
+        return { sessionId: session.id };
+
+    } catch (error) {
+        logger.error(`Error creating Stripe Checkout session for ${housekeeperUid}:`, error);
+         if (error instanceof HttpsError) {
+            throw error;
+        }
+        throw new HttpsError("internal", "Could not create checkout session.", error.message);
+    }
+});
+
+// ========= END NEW STRIPE CALLABLE FUNCTIONS =========
+
+// --- Potentially Needed: Stripe Webhook Handler (Skeleton) ---
+// You will likely need a separate HTTP function (v1 functions.https.onRequest)
+// to handle webhooks from Stripe and ensure Firestore data stays in sync.
+// This requires signature verification using a webhook secret.
+/*
+const STRIPE_WEBHOOK_SECRET = functions.config().stripe.webhook_secret; // Configure this!
+
+exports.stripeWebhookHandler = functions.https.onRequest(async (req, res) => {
+    // Use cors middleware if needed, though webhooks shouldn't typically trigger preflight
+    // cors(req, res, async () => { ... });
+
+    if (!STRIPE_WEBHOOK_SECRET) {
+        logger.error("Stripe webhook secret is not configured.");
+        return res.status(500).send("Webhook configuration error.");
+    }
+
+    const stripeSignature = req.headers['stripe-signature'];
+    let event;
+
+    try {
+        event = stripe.webhooks.constructEvent(req.rawBody, stripeSignature, STRIPE_WEBHOOK_SECRET);
+    } catch (err) {
+        logger.error('Webhook signature verification failed.', err.message);
+        return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    // Handle the event
+    logger.info(`Received Stripe webhook event: ${event.type}`);
+    const dataObject = event.data.object;
+
+    try {
+        switch (event.type) {
+            case 'customer.subscription.updated':
+            case 'customer.subscription.deleted':
+            case 'customer.subscription.created':
+                const subscription = dataObject;
+                const customerId = subscription.customer;
+                const status = subscription.status;
+                const priceId = subscription.items.data[0]?.price.id;
+                const currentPeriodEnd = subscription.current_period_end ? admin.firestore.Timestamp.fromMillis(subscription.current_period_end * 1000) : null;
+                // Find user by stripeCustomerId
+                const userQuery = await db.collection('housekeeper_profiles').where('stripeCustomerId', '==', customerId).limit(1).get();
+                if (!userQuery.empty) {
+                    const userDoc = userQuery.docs[0];
+                    logger.info(`Updating subscription status for ${userDoc.id} to ${status}`);
+                    await userDoc.ref.update({
+                        stripeSubscriptionStatus: status,
+                        stripePriceId: priceId,
+                        stripeSubscriptionId: subscription.id,
+                        stripeCurrentPeriodEnd: currentPeriodEnd,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                }
+                break;
+            case 'account.updated':
+                const account = dataObject;
+                const accountId = account.id;
+                const chargesEnabled = account.charges_enabled;
+                const payoutsEnabled = account.payouts_enabled;
+                const detailsSubmitted = account.details_submitted;
+                let accountStatus = 'pending'; // Default
+                if (detailsSubmitted && chargesEnabled && payoutsEnabled) {
+                    accountStatus = 'enabled';
+                } else if (!detailsSubmitted) {
+                     accountStatus = 'pending';
+                } else {
+                    accountStatus = 'restricted'; // If details submitted but something is not enabled
+                }
+                // Find user by stripeAccountId
+                const accountUserQuery = await db.collection('housekeeper_profiles').where('stripeAccountId', '==', accountId).limit(1).get();
+                if (!accountUserQuery.empty) {
+                    const userDoc = accountUserQuery.docs[0];
+                     logger.info(`Updating account status for ${userDoc.id} (${accountId}) to ${accountStatus}`);
+                    await userDoc.ref.update({
+                        stripeAccountStatus: accountStatus,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                }
+                break;
+            // ... handle other necessary event types (e.g., invoice.payment_failed)
+            default:
+                logger.info(`Unhandled webhook event type ${event.type}`);
+        }
+        // Return a response to acknowledge receipt of the event
+        res.json({received: true});
+
+    } catch (error) {
+         logger.error("Error processing webhook event:", { eventType: event.type, error: error.message });
+         res.status(500).send("Internal Server Error processing webhook.");
+    }
+});
+*/
+
+// ========= END STRIPE WEBHOOK HANDLER (Skeleton) =========

@@ -55,6 +55,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-functions-compat.js"></script>
     
     <!-- Firebase Config -->
     <script src="../../common/js/firebase-config.js"></script>
@@ -108,6 +109,18 @@
             </div>
         </div>
 
+        <!-- NEW: View Archived Toggle -->
+        <div class="mt-4 flex items-center justify-end">
+            <label for="toggle-archived-clients" class="flex items-center cursor-pointer">
+                <span class="mr-3 text-sm font-medium text-gray-700">Show Archived</span>
+                <div class="relative">
+                    <input type="checkbox" id="toggle-archived-clients" class="sr-only peer">
+                    <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-primary peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                </div>
+            </label>
+        </div>
+        <!-- END NEW: View Archived Toggle -->
+
         <!-- Client List -->
         <div id="client-list" class="mt-4 space-y-4">
             <!-- Client list will be populated by JavaScript -->
@@ -158,6 +171,83 @@
     </div>
 
     <!-- Bottom Sheet Backdrop (will be created dynamically) -->
+
+    <!-- NEW: Generic Action Confirmation Modal -->
+    <div id="action-confirm-modal" class="fixed inset-0 z-[60] flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-lg shadow-xl max-w-sm w-full mx-auto">
+            <!-- Modal Header -->
+            <div class="flex justify-between items-center p-4 border-b border-gray-200">
+                <h2 id="action-confirm-title" class="text-lg font-semibold text-gray-800">Confirm Action</h2>
+                <button id="close-action-confirm-btn-x" class="text-gray-400 hover:text-gray-600">&times;</button>
+            </div>
+            <!-- Modal Body -->
+            <div class="p-4">
+                <p id="action-confirm-message" class="text-sm text-gray-700">Are you sure you want to proceed?</p>
+                <input type="hidden" id="action-confirm-client-id" value="">
+                 <p id="action-confirm-error" class="text-red-500 text-sm mt-2 hidden"></p>
+            </div>
+            <!-- Modal Footer -->
+            <div class="flex justify-end items-center p-4 border-t border-gray-200 bg-gray-50 rounded-b-lg space-x-3">
+                 <span id="action-confirm-indicator" class="text-sm text-gray-500 italic mr-auto"></span>
+                <button type="button" id="cancel-action-confirm-btn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300">Cancel</button>
+                <button type="button" id="confirm-action-btn" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50">Confirm</button> <!-- Default style, will be adjusted by JS -->
+            </div>
+        </div>
+    </div>
+    <!-- Backdrop for Action Confirmation Modal -->
+    <div id="action-confirm-backdrop" class="fixed inset-0 bg-black bg-opacity-50 z-[55] hidden"></div> 
+    <!-- END: Generic Action Confirmation Modal -->
+
+    <!-- NEW: Invite Client Modal -->
+    <div id="invite-client-modal" class="fixed inset-x-0 bottom-0 z-[60] transform transition-transform duration-300 ease-in-out translate-y-full">
+        <div class="bg-white w-full rounded-t-xl shadow-xl max-h-[90vh] flex flex-col">
+            <!-- Header -->
+            <div class="flex justify-between items-center p-4 border-b border-gray-200">
+                <h2 id="invite-modal-title" class="text-xl font-bold text-gray-900">Invite Client</h2>
+                <button id="close-invite-modal-btn" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <!-- Content -->
+            <div class="p-4 overflow-y-auto flex-grow space-y-4">
+                <p class="text-sm text-gray-600">Share the following invite code and instructions with your client:</p>
+                
+                <!-- Invite Code -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Your Invite Code:</label>
+                    <div class="flex items-center justify-between bg-gray-100 p-3 rounded-md">
+                        <span id="invite-code-display" class="text-2xl font-mono font-bold text-primary tracking-widest">LOADING...</span>
+                        <button id="copy-invite-code-btn" class="ml-4 p-2 text-gray-500 hover:text-primary" title="Copy Code">
+                            <i class="far fa-copy"></i> <span class="copy-feedback ml-1 text-xs"></span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Instructions -->
+                <div>
+                     <label class="block text-sm font-medium text-gray-700 mb-1">Instructions for Client:</label>
+                     <div class="bg-gray-50 border border-gray-200 rounded-md p-3 space-y-2">
+                        <p id="invite-instructions-text" class="text-sm text-gray-700">
+                            1. Log in to the Housekeeper App (as a Homeowner).
+                            2. Go to your Dashboard.
+                            3. Find the 'Link Housekeeper' section.
+                            4. Enter the invite code provided above.
+                        </p>
+                        <button id="copy-invite-instructions-btn" class="text-sm font-medium text-primary hover:text-primary-dark focus:outline-none">
+                             <i class="far fa-copy mr-1"></i> Copy Instructions <span class="copy-feedback ml-1 text-xs"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <!-- Footer Actions -->
+             <div class="flex justify-end items-center p-4 border-t border-gray-200 bg-gray-50 rounded-b-xl">
+                <button type="button" id="close-invite-modal-footer-btn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300">Close</button>
+            </div>
+        </div>
+    </div>
+    <!-- Backdrop for Invite Modal -->
+    <div id="invite-modal-backdrop" class="fixed inset-0 bg-black bg-opacity-50 z-[55] hidden"></div>
+    <!-- END: Invite Client Modal -->
 
     <!-- Mobile Footer Navigation -->
     <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30">

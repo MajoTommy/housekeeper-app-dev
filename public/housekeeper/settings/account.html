@@ -11,6 +11,11 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+    <!-- Add Firebase Functions Compat SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-functions-compat.js"></script>
+    
+    <!-- NEW: Add Stripe.js V3 -->
+    <script src="https://js.stripe.com/v3/"></script>
     
     <!-- Firebase Config -->
     <script src="../../common/js/firebase-config.js"></script>
@@ -61,18 +66,54 @@
             </select>
         </div>
 
-        <!-- Payment Settings -->
-        <div class="bg-white rounded-lg p-4 shadow-sm">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">Payment Settings</h3>
-            
-            <div class="flex items-center justify-between py-2">
-                <span class="text-gray-700">Auto-send Receipts</span>
-                <label for="auto-send-receipts" class="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" id="auto-send-receipts" class="sr-only peer">
-                    <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                 </label>
+        <!-- NEW: Subscription & Billing Section -->
+        <div class="bg-white rounded-lg p-4 shadow-sm mt-4">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Subscription & Billing</h3>
+            <div id="subscription-loading" class="text-center p-4 text-gray-500">
+                <i class="fas fa-spinner fa-spin mr-2"></i> Loading subscription details...
+            </div>
+            <div id="subscription-details" class="hidden space-y-3">
+                <p><strong>Status:</strong> <span id="subscription-status" class="font-medium text-gray-700">--</span></p>
+                <p><strong>Plan:</strong> <span id="subscription-plan" class="font-medium text-gray-700">--</span></p>
+                <p><strong>Renews/Ends:</strong> <span id="subscription-period-end" class="font-medium text-gray-700">--</span></p>
+                <div class="mt-4">
+                    <button id="manage-subscription-button" class="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <i class="fas fa-credit-card mr-2"></i> Manage Subscription
+                    </button>
+                </div>
+            </div>
+             <div id="subscription-inactive" class="hidden text-center p-4 border border-yellow-300 bg-yellow-50 rounded space-y-3">
+                <p class="text-yellow-700 font-medium">No active subscription found.</p>
+                <!-- NEW: Subscribe Button -->
+                <button id="subscribe-button" class="w-full inline-flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary">
+                    <i class="fas fa-rocket mr-2"></i> Subscribe Now
+                </button>
+                <!-- END NEW -->
             </div>
         </div>
+        <!-- END: Subscription & Billing Section -->
+
+        <!-- NEW: Payouts Section -->
+        <div class="bg-white rounded-lg p-4 shadow-sm mt-4">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Payouts</h3>
+             <div id="payouts-loading" class="text-center p-4 text-gray-500">
+                <i class="fas fa-spinner fa-spin mr-2"></i> Loading payout details...
+            </div>
+            <div id="payouts-details" class="hidden space-y-3">
+                 <p><strong>Payout Account Status:</strong> <span id="payout-account-status" class="font-medium text-gray-700">--</span></p>
+                 <!-- Optional: Display balance -->
+                 <!-- <p><strong>Available Balance:</strong> <span id="payout-balance" class="font-medium text-gray-700">--</span></p> -->
+                 <div class="mt-4">
+                     <button id="manage-payouts-button" class="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <i class="fas fa-university mr-2"></i> Set Up / Manage Payouts
+                    </button>
+                 </div>
+            </div>
+            <div id="payouts-error" class="hidden text-center p-4 border border-red-300 bg-red-50 rounded">
+                <p class="text-red-700">Could not load payout information.</p>
+            </div>
+        </div>
+        <!-- END: Payouts Section -->
 
         <!-- Save Button Footer -->
         <div class="fixed bottom-[70px] inset-x-0 bg-white p-4 border-t border-gray-200 shadow-lg z-20">

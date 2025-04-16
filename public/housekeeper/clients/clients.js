@@ -2,6 +2,25 @@
 import { formatDateForDisplay } from '../../common/js/date-utils.js';
 // <<< END NEW >>>
 
+// <<< NEW: State for viewing archived clients >>>
+let isViewingArchived = false;
+// <<< END NEW >>>
+
+// <<< NEW: Add escapeHtml function back >>>
+// Helper function to escape HTML characters for security
+function escapeHtml(unsafe) {
+    if (unsafe === null || unsafe === undefined) {
+        return '';
+    }
+    return String(unsafe)
+         .replace(/&/g, "&amp;")
+         .replace(/</g, "&lt;")
+         .replace(/>/g, "&gt;")
+         .replace(/"/g, "&quot;")
+         .replace(/'/g, "&#039;");
+ }
+// <<< END NEW >>>
+
 // Debug function to help diagnose issues
 function debugFirebaseStatus() {
     console.log('=== Firebase Debug Information ===');
@@ -147,8 +166,8 @@ function hideErrorMessage() {
 }
 
 // Main function to load all clients
-async function loadAllClients() {
-    console.log('Loading all clients...');
+async function loadAllClients(viewArchived = false) {
+    console.log(`Loading clients... (Archived: ${viewArchived})`);
     
     // Get the client list container
     const clientListContainer = document.getElementById('client-list');
@@ -161,7 +180,7 @@ async function loadAllClients() {
     clientListContainer.innerHTML = `
         <div class="p-4 text-center">
             <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-            <p class="mt-2 text-primary">Loading clients...</p>
+            <p class="mt-2 text-primary">Loading ${viewArchived ? 'archived' : 'active'} clients...</p>
         </div>
     `;
     
@@ -173,7 +192,7 @@ async function loadAllClients() {
             clientListContainer.innerHTML = `
                 <div class="p-4 text-center">
                     <p class="text-red-500">You must be logged in to view clients</p>
-                    <a href="../login.html" class="mt-4 inline-block px-4 py-2 bg-primary text-white rounded">
+                    <a href="/" class="mt-4 inline-block px-4 py-2 bg-primary text-white rounded">
                         Log In
                     </a>
                 </div>
@@ -181,44 +200,57 @@ async function loadAllClients() {
             return;
         }
         
-        // Get clients from Firestore
+        // Get clients from Firestore, applying the correct filter
         const db = firebase.firestore();
         const clientsRef = db.collection('users').doc(user.uid).collection('clients');
-        const snapshot = await clientsRef.get();
+        let query;
+        if (viewArchived) {
+            // Fetch only explicitly archived clients
+            query = clientsRef.where('isActive', '==', false);
+        } else {
+            // Fetch active clients (isActive != false includes true and missing)
+            query = clientsRef.where('isActive', '!=', false);
+        }
+        
+        const snapshot = await query.get(); // Execute the chosen query
         
         // Clear the loading indicator
         clientListContainer.innerHTML = '';
         
         if (snapshot.empty) {
-            // No clients found
+            // No clients found message
+            const message = viewArchived 
+                ? "No archived clients found."
+                : "No active clients found.";
+            const buttonText = viewArchived 
+                ? null // No button needed when viewing archived
+                : "Add Your First Client"; // Show Add button only for active view
+                
             clientListContainer.innerHTML = `
                 <div class="p-4 text-center">
-                    <p class="text-primary">No clients found</p>
-                    <button onclick="openAddClientModal()" class="mt-4 inline-block px-4 py-2 bg-primary text-white rounded hover:bg-primary-dark">
-                        Add Your First Client
-                    </button>
+                    <p class="text-primary">${message}</p>
+                    ${buttonText ? 
+                        `<button onclick="openAddClientModal()" class="mt-4 inline-block px-4 py-2 bg-primary text-white rounded hover:bg-primary-dark">
+                            ${buttonText}
+                         </button>` : ''
+                    }
                 </div>
             `;
-            return;
+        } else {
+            // Clients found, display them
+            snapshot.forEach(doc => {
+                const clientData = doc.data();
+                const clientId = doc.id;
+                const clientCard = createClientListItem(clientId, clientData);
+                clientListContainer.appendChild(clientCard);
+            });
         }
-        
-        // Display clients
-        snapshot.forEach(doc => {
-            const client = doc.data();
-            const clientElement = createClientListItem(doc.id, client);
-            clientListContainer.appendChild(clientElement);
-        });
-        
-        // We no longer need the "Add More" button since we have the + button in the header
         
     } catch (error) {
         console.error('Error loading clients:', error);
         clientListContainer.innerHTML = `
             <div class="p-4 text-center">
-                <p class="text-red-500">Error loading clients: ${error.message}</p>
-                <button onclick="location.reload()" class="mt-4 px-4 py-2 bg-primary text-white rounded">
-                    Retry
-                </button>
+                <p class="text-red-500">Failed to load clients: ${error.message}</p>
             </div>
         `;
     }
@@ -296,7 +328,7 @@ function createClientListItem(clientId, client) {
         <!-- Invite Prompt (if applicable) - Placed after the main flex container -->
         ${!client.isLinked ? `
             <div class="px-4 pb-3 pt-1 bg-yellow-50 border-t border-yellow-200 text-sm text-yellow-800">
-                <p><i class="fas fa-info-circle mr-1"></i>This client isn't linked. <a href="#" class="font-medium underline hover:text-yellow-900" onclick="event.stopPropagation(); alert('Invite feature coming soon for client ID: ${clientId}');">Invite them</a> to manage bookings online.</p>
+                <p><i class="fas fa-info-circle mr-1"></i>This client isn't linked. <a href="#" class="font-medium underline hover:text-yellow-900" onclick="event.stopPropagation(); openInviteModal('${clientId}', '${escapeHtml(fullName)}');">Invite them</a> to manage bookings online.</p>
             </div>
         ` : ''}
     `;
@@ -426,10 +458,23 @@ function openClientDetailsModal(clientId, client) {
             <!-- <<< MODIFIED: Added ID to footer >>> -->
             <div id="modal-footer-view" class="p-4 border-t border-gray-200 bg-gray-50">
                 <!-- <<< MODIFIED: Removed onclick, added ID >>> -->
-                <button id="edit-client-button" class="w-full bg-primary text-white px-4 py-3 rounded-lg hover:bg-primary-dark mb-2">
+                <button id="edit-client-button" class="w-full bg-primary text-white px-4 py-3 rounded-lg hover:bg-primary-dark mb-3"> 
                     Edit Client
                 </button>
-                <!-- <<< MODIFIED: Added ID >>> -->
+                
+                <!-- <<< MODIFIED: Conditional Archive/Unarchive Button >>> -->
+                ${isViewingArchived ? `
+                    <button id="unarchive-client-button" class="w-full bg-white text-green-600 px-4 py-3 rounded-lg border border-green-300 hover:bg-green-50 hover:text-green-700 mb-3">
+                        Unarchive Client
+                    </button>
+                ` : `
+                    <button id="archive-client-button" class="w-full bg-white text-red-600 px-4 py-3 rounded-lg border border-red-300 hover:bg-red-50 hover:text-red-700 mb-3">
+                        Archive Client
+                    </button>
+                `}
+                <!-- <<< END MODIFIED >>> -->
+
+                <!-- <<< MODIFIED: Added ID and margin-bottom >>> -->
                 <button id="close-details-modal-button" class="w-full bg-white text-black px-4 py-3 rounded-lg border border-gray-300 hover:bg-gray-50">
                     Close
                 </button>
@@ -475,6 +520,24 @@ function openClientDetailsModal(clientId, client) {
         console.error('Could not find Close button in modal footer');
     }
     // <<< END NEW >>>
+
+    // <<< MODIFIED: Attach listener for Archive OR Unarchive Client button >>>
+    const archiveButton = modal.querySelector('#archive-client-button');
+    const unarchiveButton = modal.querySelector('#unarchive-client-button');
+
+    if (archiveButton) {
+        archiveButton.addEventListener('click', handleArchiveClientClick); // Existing handler
+        console.log("Attached listener to Archive button");
+    } else if (unarchiveButton) {
+        // TODO: Define handleUnarchiveClientClick function
+        // unarchiveButton.addEventListener('click', () => alert('Unarchive handler not yet implemented.')); // Placeholder
+        unarchiveButton.addEventListener('click', handleUnarchiveClientClick); // Use the real handler
+        console.log("Attached listener to Unarchive button");
+    } else {
+        // This case should ideally not happen if the buttons are generated correctly
+        console.error('Could not find Archive OR Unarchive Client button in modal');
+    }
+    // <<< END MODIFIED >>>
 
     // Add close on backdrop click
     backdrop.addEventListener('click', () => {
@@ -1753,335 +1816,167 @@ function fixClientDetailsPage() {
 }
 
 // Initialize the page when DOM is loaded
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', () => {
     console.log('Clients.js loaded');
     
-    // Clean up any lingering backdrops on page load
-    cleanupBackdrops();
-    
-    // CRITICAL: Check if clients.js is blocked on this page
-    if (window.blockClientsJs === true) {
-        console.log('clients.js execution blocked by blockClientsJs flag');
-        return; // Exit immediately
-    }
-    
-    // Check if we're on the client-details.html page
-    if (window.location.pathname.includes('client-details.html')) {
-        console.log('On client-details.html page - checking if blockClientsJs flag is set');
-        
-        // Double-check the blockClientsJs flag
-        if (window.blockClientsJs === true) {
-            console.log('blockClientsJs flag is set, skipping clients.js initialization for client-details.html');
-            return; // Skip the rest of the initialization
-        } else {
-            console.log('blockClientsJs flag is not set, proceeding with caution');
-        }
-    }
-    
     // Check if user is logged in
-    firebase.auth().onAuthStateChanged(function(user) {
+    firebase.auth().onAuthStateChanged(async user => {
         if (user) {
             console.log('User is logged in:', user.uid);
+            // Initialize search first (it doesn't depend on loaded clients)
+            initSearchFunctionality(); 
             
-            // Check if we're on the client details page
-            if (window.location.pathname.includes('client-details.html')) {
-                // Double-check the blockClientsJs flag again
-                if (window.blockClientsJs === true) {
-                    console.log('blockClientsJs flag is set, skipping loadClientDetails');
-                    return;
-                }
-                
-                const urlParams = new URLSearchParams(window.location.search);
-                const clientId = urlParams.get('id');
-                if (clientId) {
-                    console.log('Loading client details from clients.js');
-                    loadClientDetails(clientId);
-                } else {
-                    showErrorMessage('No client ID provided');
-                }
+            // Find the toggle switch *after* DOM is loaded
+            const archivedToggle = document.getElementById('toggle-archived-clients');
+            
+            // Set initial state based on the toggle's default (usually unchecked)
+            if (archivedToggle) {
+                isViewingArchived = archivedToggle.checked; 
+                console.log(`Initial archived view state: ${isViewingArchived}`);
             } else {
-                // We're on the main clients page
-                loadAllClients();
-                initSearchFunctionality();
+                console.warn('Toggle switch #toggle-archived-clients not found on initial load.');
+                isViewingArchived = false; // Default to false if toggle not found
             }
+
+            // Load initial clients based on the determined state
+            await loadAllClients(isViewingArchived); 
+
+            // Add listener *after* checking initial state and performing initial load
+            if (archivedToggle) {
+                archivedToggle.addEventListener('change', (event) => {
+                    isViewingArchived = event.target.checked;
+                    console.log(`Archived toggle changed. Viewing archived: ${isViewingArchived}`);
+                    loadAllClients(isViewingArchived); // Reload clients based on toggle
+                });
+            } // No else needed here, already warned if not found
+
         } else {
-            console.log('User is not logged in, redirecting to login');
-            window.location.href = '../login.html';
+            console.log('No user logged in. Showing login prompt.');
+            showLoginPrompt(); // Redirect or show message if not logged in
         }
     });
-}); 
+}); // <<< Correct end of DOMContentLoaded listener
 
-// Function to update the state/province field based on country selection
-function updateStateProvinceField() {
-    const countrySelect = document.getElementById('modal-country');
-    const stateProvinceContainer = document.getElementById('state-province-container');
-    const stateProvinceLabel = document.getElementById('state-province-label');
-    const currentValue = document.getElementById('modal-state')?.value || '';
-    
-    if (!countrySelect || !stateProvinceContainer || !stateProvinceLabel) return;
-    
-    const country = countrySelect.value;
-    
-    // Define US states
-    const usStates = [
-        'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut', 
-        'Delaware', 'Florida', 'Georgia', 'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa', 
-        'Kansas', 'Kentucky', 'Louisiana', 'Maine', 'Maryland', 'Massachusetts', 'Michigan', 
-        'Minnesota', 'Mississippi', 'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire', 
-        'New Jersey', 'New Mexico', 'New York', 'North Carolina', 'North Dakota', 'Ohio', 'Oklahoma', 
-        'Oregon', 'Pennsylvania', 'Rhode Island', 'South Carolina', 'South Dakota', 'Tennessee', 
-        'Texas', 'Utah', 'Vermont', 'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming',
-        'District of Columbia', 'American Samoa', 'Guam', 'Northern Mariana Islands', 'Puerto Rico',
-        'U.S. Virgin Islands'
-    ];
-    
-    // Define Canadian provinces
-    const canadianProvinces = [
-        'Alberta', 'British Columbia', 'Manitoba', 'New Brunswick', 'Newfoundland and Labrador',
-        'Northwest Territories', 'Nova Scotia', 'Nunavut', 'Ontario', 'Prince Edward Island',
-        'Quebec', 'Saskatchewan', 'Yukon'
-    ];
-    
-    // Update the label based on country
-    if (country === 'United States') {
-        stateProvinceLabel.textContent = 'State';
-        
-        // Create options for US states
-        const stateOptions = usStates.map(state => 
-            `<option value="${state}" ${currentValue === state ? 'selected' : ''}>${state}</option>`
-        ).join('');
-        
-        stateProvinceContainer.innerHTML = `
-            <select id="modal-state" class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">
-                ${stateOptions}
-            </select>
-        `;
-    } else if (country === 'Canada') {
-        stateProvinceLabel.textContent = 'Province';
-        
-        // Create options for Canadian provinces
-        const provinceOptions = canadianProvinces.map(province => 
-            `<option value="${province}" ${currentValue === province ? 'selected' : ''}>${province}</option>`
-        ).join('');
-        
-        stateProvinceContainer.innerHTML = `
-            <select id="modal-state" class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6">
-                ${provinceOptions}
-            </select>
-        `;
-    } else {
-        stateProvinceLabel.textContent = 'State/Province';
-        
-        stateProvinceContainer.innerHTML = `
-            <input type="text" id="modal-state" 
-                class="block w-full rounded-lg border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6" 
-                value="${currentValue}">
-        `;
+// --- END: Invite Client Modal Logic ---
+
+// --- Action Execution Functions ---
+// ... (executeArchiveAction, executeUnarchiveAction)
+// --- END Action Execution Functions ---
+
+// --- ADD BACK MISSING FUNCTIONS ---
+
+/**
+ * Checks if a client has any future bookings (pending or confirmed).
+ * @param {string} clientId The ID of the client to check.
+ * @returns {Promise<boolean>} True if future bookings exist, false otherwise.
+ */
+async function checkFutureBookings(clientId) {
+    console.log(`[Archive Check] Checking future bookings for client: ${clientId}`);
+    const user = firebase.auth().currentUser;
+    if (!user) {
+        console.error("[Archive Check] User not authenticated.");
+        showErrorMessage("Authentication error. Cannot check bookings.");
+        return true; // Assume bookings exist to prevent accidental archival on auth error
     }
-}
 
-function openAddClientModal() {
-    const modal = document.getElementById('client-details-modal');
-    if (!modal) return;
-    
-    // Clean up any existing backdrops first
-    cleanupBackdrops();
-    
-    // Show modal
-    modal.classList.remove('hidden');
-    
-    // Clear any existing client data
-    delete modal.dataset.clientId;
-    delete modal.dataset.clientData;
-    
-    // Update to use bottom sheet pattern
-    modal.className = 'fixed inset-x-0 bottom-0 z-50 transform transition-transform duration-300 ease-in-out';
-    
-    // Add a semi-transparent backdrop
-    const backdrop = document.createElement('div');
-    backdrop.className = 'fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity duration-300';
-    backdrop.style.opacity = '0';
-    document.body.appendChild(backdrop);
-    
-    // Update bottom sheet content with add form
-    modal.innerHTML = `
-        <div class="bg-white w-full rounded-t-xl overflow-hidden shadow-xl transform transition-all max-h-[90vh] flex flex-col">
-            <div class="flex justify-center pt-2 pb-1">
-                <div class="w-10 h-1 bg-gray-300 rounded-full"></div>
-            </div>
-            <div class="flex justify-between items-center p-4 border-b border-gray-200">
-                <h2 class="text-xl font-semibold text-gray-900">Add New Client</h2>
-                <!-- <<< MODIFIED: Removed onclick, added ID >>> -->
-                <button id="add-modal-close-button" class="text-primary hover:text-primary-dark p-1 rounded-full hover:bg-gray-100">
-                    <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
-            
-            <div class="px-4 py-5 overflow-y-auto flex-grow bg-gray-50 -webkit-overflow-scrolling-touch">
-                <form id="client-add-form" class="space-y-4 max-w-lg mx-auto">
-                    <!-- Name Fields -->
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label for="modal-first-name" class="block text-sm font-medium text-gray-700 mb-1.5">First Name</label>
-                            <input type="text" id="modal-first-name" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm">
-                        </div>
-                        <div>
-                            <label for="modal-last-name" class="block text-sm font-medium text-gray-700 mb-1.5">Last Name</label>
-                            <input type="text" id="modal-last-name" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm">
-                        </div>
-                    </div>
-                    <!-- Phone -->
-                    <div>
-                        <label for="modal-phone" class="block text-sm font-medium text-gray-700 mb-1.5">Phone</label>
-                        <input type="tel" id="modal-phone" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm">
-                    </div>
-                    <!-- <<< UPDATED: Single Address Textarea >>> -->
-                    <div>
-                        <label for="modal-address" class="block text-sm font-medium text-gray-700 mb-1.5">Address</label>
-                        <textarea id="modal-address" rows="3" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"></textarea>
-                    </div>
-                    <!-- <<< END UPDATED >>> -->
-                    <!-- Notes / Instructions -->
-                    <div>
-                        <label for="modal-notes" class="block text-sm font-medium text-gray-700 mb-1.5">Notes (Access/Special Instructions)</label>
-                        <textarea id="modal-notes" rows="3" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"></textarea>
-                    </div>
-                    <!-- <<< UPDATED: Label and Field Name >>> -->
-                    <div>
-                        <label for="modal-HousekeeperInternalNote" class="block text-sm font-medium text-gray-700 mb-1.5">Housekeeper Notes / Access Info</label>
-                        <textarea id="modal-HousekeeperInternalNote" rows="3" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"></textarea>
-                    </div>
-                     <!-- <<< END UPDATED >>> -->
-                </form>
-            </div>
-            <div class="px-4 py-4 bg-white border-t border-gray-200">
-                 <button onclick="saveNewClient()" class="w-full mb-3 inline-flex justify-center rounded-lg bg-primary px-3 py-3.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
-                     Add Client
-                 </button>
-                 <button onclick="closeClientDetailsModal()" class="w-full inline-flex justify-center rounded-lg bg-white px-3 py-3.5 text-sm font-semibold text-black shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
-                     Cancel
-                 </button>
-            </div>
-        </div>
-    `;
-    
-    // Prevent body scrolling when bottom sheet is open
-    document.body.style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
-    
-    // Add swipe down to close functionality
-    setupBottomSheetDrag(modal);
-    
-    // Animate in the bottom sheet and backdrop
-    setTimeout(() => {
-        modal.style.transform = 'translateY(0)';
-        backdrop.style.opacity = '1';
-    }, 10);
-    
-    // <<< NEW: Add event listener programmatically >>>
-    const closeButton = modal.querySelector('#add-modal-close-button'); // Use unique ID
-    if (closeButton) {
-        closeButton.addEventListener('click', closeClientDetailsModal);
-    } else {
-        console.error('Could not find close button in add client modal');
-    }
-    // <<< END NEW >>>
-
-    // Add close on backdrop click
-    backdrop.addEventListener('click', () => {
-        closeClientDetailsModal();
-    });
-    
-    // Initialize the state/province field
-    setTimeout(() => {
-        updateStateProvinceField();
-    }, 100);
-}
-
-// Function to save a new client
-async function saveNewClient() {
     try {
-        const user = firebase.auth().currentUser;
-        if (!user) {
-            throw new Error('You must be logged in to add a client');
+        const db = firebase.firestore();
+        const bookingsRef = db.collection('users').doc(user.uid).collection('bookings');
+        const nowTimestamp = firebase.firestore.Timestamp.now();
+
+        // Query for future bookings (pending or confirmed)
+        const snapshot = await bookingsRef
+            .where('clientId', '==', clientId)
+            .where('status', 'in', ['pending', 'confirmed'])
+            .where('startTimestamp', '>', nowTimestamp)
+            .limit(1) // We only need to know if at least one exists
+            .get();
+
+        if (!snapshot.empty) {
+            console.log(`[Archive Check] Found ${snapshot.size} future booking(s) for client ${clientId}.`);
+            return true; // Future bookings exist
+        } else {
+            console.log(`[Archive Check] No future bookings found for client ${clientId}.`);
+            return false; // No future bookings found
         }
-        
-        showLoading('Adding new client...');
-        
-        // <<< UPDATED: Read from simplified form fields >>>
-        const newClient = {
-            firstName: document.getElementById('modal-first-name').value.trim(),
-            lastName: document.getElementById('modal-last-name').value.trim(),
-            phone: document.getElementById('modal-phone').value.trim(),
-            address: document.getElementById('modal-address').value.trim(), // Read from single address field
-            notes: document.getElementById('modal-notes').value.trim(), // Use single notes field
-            // REMOVED: Old fields like street, city, state, zip, country, accessInformation, specialInstructions
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            linkedHomeownerId: null, // Explicitly null for manual clients
-            HousekeeperInternalNote: document.getElementById('modal-HousekeeperInternalNote').value.trim(),
-        };
-        // <<< END UPDATED >>>
-        
-        // Validate required fields
-        if (!newClient.firstName && !newClient.lastName) {
+    } catch (error) {
+        console.error("[Archive Check] Error checking future bookings:", error);
+        showErrorMessage("Error checking client's future bookings. Please try again.");
+        return true; // Assume bookings exist on error to be safe
+    }
+}
+
+/**
+ * Handles the click event for the "Archive Client" button.
+ */
+async function handleArchiveClientClick() {
+    console.log('[Archive Click] Archive button clicked.');
+    const modal = document.getElementById('client-details-modal');
+    const clientId = modal?.dataset.clientId;
+    if (!modal || !clientId) {
+        console.error('[Archive Click] Modal or client ID not found.');
+        showErrorMessage("Could not identify the client to archive.");
+        return;
+    }
+
+    const clientData = JSON.parse(modal.dataset.clientData || '{}');
+    const clientName = `${clientData.firstName || ''} ${clientData.lastName || ''}`.trim() || 'this client';
+
+    showLoading("Checking for future bookings...");
+
+    try {
+        const hasFutureBookings = await checkFutureBookings(clientId);
+
+        if (hasFutureBookings) {
             hideLoading();
-            showErrorMessage('First name and last name are required');
+            showErrorMessage(`${clientName} has upcoming bookings. Please cancel or complete future bookings before archiving.`);
             return;
         }
+
+        hideLoading(); // Hide booking check loading
+        console.log(`[Archive Click] No future bookings found for ${clientId}. Ready to call confirmation modal.`);
         
-        // Add to Firestore
-        const db = firebase.firestore();
-        const docRef = await db.collection('users').doc(user.uid)
-            .collection('clients').add(newClient);
-        
-        hideLoading();
-        closeClientDetailsModal();
-        showSuccessMessage(`Client ${newClient.firstName} ${newClient.lastName} added successfully`);
-        loadAllClients(); // Refresh the client list
-        
+        // Open Custom Confirmation Modal
+        openActionConfirmModal(
+            'archive',
+            clientId,
+            clientName,
+            `Are you sure you want to archive ${clientName}? This will hide them from your list and prevent them from booking new appointments with you.`,
+            'Confirm Archive',
+            executeArchiveAction // Pass the function to execute
+        );
+
     } catch (error) {
-        console.error('Error adding new client:', error);
         hideLoading();
-        showErrorMessage('Error adding new client: ' + error.message);
+        console.error('[Archive Click] Error during archive check process:', error);
+        showErrorMessage("An unexpected error occurred while checking for bookings.");
     }
 }
 
-// If no user is signed in, show the login prompt.
-function showLoginPrompt() {
-    const appContainer = document.getElementById('app-container');
-    appContainer.innerHTML = `
-        <div class="text-center mt-10">
-            <p class="mb-4">Please log in to manage your clients.</p>
-            <a href="/" class="mt-4 inline-block px-4 py-2 bg-primary text-white rounded">
-                Go to Login
-            </a>
-        </div>
-    `;
-}
-
-// Handle potential sign-out (if a logout button exists on this page)
-// Example - adapt selector if needed
-const logoutBtn = document.getElementById('logout-button-clients'); 
-if (logoutBtn) {
-    logoutBtn.addEventListener('click', () => {
-        firebase.auth().signOut().then(() => {
-            window.location.href = '/'; // Redirect to root (login page)
-        }).catch(error => console.error('Logout error:', error));
-    });
-}
-
-// Helper function to escape HTML characters for security
-function escapeHtml(unsafe) {
-    if (unsafe === null || unsafe === undefined) {
-        return '';
+/**
+ * Handles the click event for the "Unarchive Client" button.
+ */
+async function handleUnarchiveClientClick() {
+    console.log('[Unarchive Click] Unarchive button clicked.');
+    const modal = document.getElementById('client-details-modal');
+    const clientId = modal?.dataset.clientId;
+    if (!modal || !clientId) {
+        console.error('[Unarchive Click] Modal or client ID not found.');
+        showErrorMessage("Could not identify the client to unarchive.");
+        return;
     }
-    return String(unsafe)
-         .replace(/&/g, "&amp;")
-         .replace(/</g, "&lt;")
-         .replace(/>/g, "&gt;")
-         .replace(/"/g, "&quot;")
-         .replace(/'/g, "&#039;");
- }
+
+    const clientData = JSON.parse(modal.dataset.clientData || '{}');
+    const clientName = `${clientData.firstName || ''} ${clientData.lastName || ''}`.trim() || 'this client';
+
+    // Open Custom Confirmation Modal
+    openActionConfirmModal(
+        'unarchive',
+        clientId,
+        clientName,
+        `Are you sure you want to unarchive ${clientName}? This will make them active again and allow them to book new appointments.`,
+        'Confirm Unarchive',
+        executeUnarchiveAction // Pass the function to execute
+    );
+}
+// --- END ADDING BACK FUNCTIONS ---

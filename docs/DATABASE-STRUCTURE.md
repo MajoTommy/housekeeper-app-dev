@@ -24,7 +24,10 @@ Contains basic profile information common to all users, primarily sourced from F
   "companyName": "Core Cleaning Co.", // Set during profile edit (housekeeper only)
   "createdAt": Timestamp, // Set on creation
   "updatedAt": Timestamp, // Set on updates
-  "lastLogin": Timestamp // (Optional) Set by Auth triggers/functions
+  "lastLogin": Timestamp, // (Optional) Set by Auth triggers/functions
+  // --- NEW: Only relevant for role: housekeeper ---
+  "blockedHomeowners": ["homeownerId1", "homeownerId2"] // (Array<String>, Optional) List of homeowner UIDs blocked by this housekeeper
+  // --- END NEW ---
 }
 ```
 *Note: Fields like `hourly_rate`, `service_area`, `working_hours` are deprecated here; use profile/settings subcollections.* 
@@ -34,7 +37,7 @@ Contains basic profile information common to all users, primarily sourced from F
 #### If `role` is "housekeeper":
 
 -   `/clients`: Stores information about clients managed *by this housekeeper*.
-    -   `/clients/{clientId}`:
+    -   `/clients/{clientId}`: Document ID is the same as the `linkedHomeownerId` if `isLinked` is true.
         ```json
         {
           "firstName": "Client",
@@ -46,6 +49,12 @@ Contains basic profile information common to all users, primarily sourced from F
           "state": "CA",
           "zip": "90210",
           "notes": "Notes specific to the client",
+          // --- NEW/Explicit Fields ---
+          "isLinked": true, // (Boolean) Indicates if this client record corresponds to an active homeowner user account
+          "linkedHomeownerId": "{homeownerUserId}", // (String) The UID of the linked homeowner (same as doc ID if linked)
+          "isActive": true, // (Boolean) Whether the client is considered active by the housekeeper
+          "archivedAt": Timestamp, // (Timestamp, Optional) When the client was archived
+          // --- END NEW/Explicit Fields ---
           "createdAt": Timestamp,
           "updatedAt": Timestamp
         }
@@ -65,7 +74,7 @@ Contains basic profile information common to all users, primarily sourced from F
           "endTimestampMillis": Number, // UTC milliseconds since epoch
           "durationMinutes": Number, // Duration of booking
           
-          "status": "pending" | "confirmed" | "cancelled_by_homeowner" | "cancelled_by_housekeeper" | "completed",
+          "status": "pending" | "confirmed" | "rejected" | "cancelled_by_homeowner" | "cancelled_by_housekeeper" | "completed",
           "frequency": "one-time", // Currently only one-time bookings are created via UI
           "notes": "Booking specific notes", // Optional
 
@@ -87,6 +96,11 @@ Contains basic profile information common to all users, primarily sourced from F
           "cancelledAt": Timestamp, // Optional
           "cancelledBy": "homeowner" | "housekeeper", // Optional
           "cancellationReason": "Reason..." // Optional
+
+          // --- NEW: Stripe Payment Fields (Booking) ---
+          "stripePaymentIntentId": "pi_...", // (String, Optional) The ID of the Stripe PaymentIntent associated with this booking's charge.
+          "paymentStatus": "pending_payment" | "processing" | "succeeded" | "failed" | "requires_action" | "canceled", // (String, Optional) Tracks the booking payment status, aligned with PaymentIntent statuses.
+          // --- END: Stripe Payment Fields ---
         }
         ```
 -   `/settings`: Stores application-specific settings for the housekeeper.
@@ -163,6 +177,19 @@ Stores extended profile information specific to housekeepers.
   "createdAt": Timestamp,
   "updatedAt": Timestamp
   // Note: workingDays structure is now stored in /users/{userId}/settings/app
+
+  // --- NEW: Stripe Integration Fields (Housekeeper) ---
+  // For receiving payouts via Stripe Connect
+  "stripeAccountId": "acct_...", // (String, Optional) The ID of the housekeeper's connected Stripe account (required for payouts).
+  "stripeAccountStatus": "enabled" | "pending" | "restricted", // (String, Optional) Tracks the onboarding status of their connected account.
+
+  // For paying platform subscription fees via Stripe Billing
+  "stripeCustomerId": "cus_...", // (String, Optional) The ID of the Stripe Customer object associated with this housekeeper on *your platform* account (for billing subscriptions).
+  "stripeSubscriptionId": "sub_...", // (String, Optional) The ID of their active platform subscription.
+  "stripeSubscriptionStatus": "active" | "trialing" | "past_due" | "canceled", // (String, Optional) Status of their platform subscription.
+  "stripePriceId": "price_...", // (String, Optional) The Stripe Price ID they are subscribed to.
+  "stripeCurrentPeriodEnd": Timestamp, // (Timestamp, Optional) When the current subscription period ends.
+  // --- END: Stripe Integration Fields ---
 }
 ```
 
@@ -184,6 +211,11 @@ Stores extended profile information specific to homeowners.
   "preferredContactMethod": "email", // Optional
   "createdAt": Timestamp,
   "updatedAt": Timestamp
+
+  // --- NEW: Stripe Integration Fields (Homeowner) ---
+  // For making payments via Stripe
+  "stripeCustomerId": "cus_...", // (String, Optional) The ID of the Stripe Customer object associated with this homeowner on *your platform* account (for saving payment methods).
+  // --- END: Stripe Integration Fields ---
 }
 ```
 
@@ -301,20 +333,20 @@ Stores booking/appointment records for a specific housekeeper.
   "endTimestampMillis": 1744655400000, // (Number) UTC milliseconds since epoch for end time.
   
   // Booking Details
-  "status": "pending" | "confirmed" | "cancelled_by_homeowner" | "cancelled_by_housekeeper" | "completed" | "rejected", // (String) Current status.
-  "frequency": "one-time" | "weekly" | "bi-weekly" | "monthly", // (String, Optional)
-  "notes": "First cleaning for Corey.", // (String, Optional) Notes from the booker.
-  "serviceType": "Standard Cleaning", // (String, Optional) Type of service requested.
+  "status": "pending" | "confirmed" | "rejected" | "cancelled_by_homeowner" | "cancelled_by_housekeeper" | "completed",
+  "frequency": "one-time" | "weekly" | "bi-weekly" | "monthly",
+  "notes": "First cleaning for Corey.",
+  "serviceType": "Standard Cleaning",
 
   // Auditing Timestamps
-  "createdAt": Timestamp, // (Timestamp) When the booking was created.
-  "updatedAt": Timestamp, // (Timestamp) When the booking was last updated.
-  "confirmedAt": Timestamp, // (Timestamp, Optional) When confirmed by housekeeper.
-  "cancelledAt": Timestamp, // (Timestamp, Optional) When cancelled.
+  "createdAt": Timestamp,
+  "updatedAt": Timestamp,
+  "confirmedAt": Timestamp,
+  "cancelledAt": Timestamp,
   
   // Cancellation Details (Optional)
-  "cancelledBy": "homeowner" | "housekeeper", // (String, Optional)
-  "cancellationReason": "Reason provided..." // (String, Optional)
+  "cancelledBy": "homeowner" | "housekeeper",
+  "cancellationReason": "Reason provided..."
 }
 ```
 
@@ -324,29 +356,21 @@ Extended information specific to housekeepers. Populated/updated by `populate-sa
 
 ```javascript
 {
-  firstName: "Casey", // (String)
-  lastName: "Keeper", // (String)
-  companyName: "Core Cleaning Co.", // (String, Optional)
-  phone: "555-333-4444", // (String)
-  address: "202 Clean St", // (String, Optional)
-  city: "Workville", // (String, Optional)
-  state: "CA", // (String, Optional)
-  zip: "90212", // (String, Optional)
-  serviceZipCodes: ["90210", "90211", "90212"], // (Array of Strings)
-  workingDays: { // (Map) Structure defining availability (may be complex, see settings section too)
+  firstName: "Casey",
+  lastName: "Keeper",
+  companyName: "Core Cleaning Co.",
+  phone: "555-333-4444",
+  address: "202 Clean St",
+  city: "Workville",
+  state: "CA",
+  zip: "90212",
+  serviceZipCodes: ["90210", "90211", "90212"],
+  workingDays: {
       monday: { available: true, startTime: "09:00", endTime: "17:00" },
-      // ... other days
   },
-  inviteCode: "COREKEEPER-XYZ", // (String) Generated 6-char code
-  // DEPRECATED FIELDS? (Compare with example below)
-  // businessName: "John's Cleaning Service",
-  // serviceAreas: ["Downtown", "Suburbs"],
-  // servicesOffered: ["Regular Cleaning", "Deep Cleaning"],
-  // pricing: { hourlyRate: 30, minimumHours: 2 },
-  // bio: "Experienced cleaner with 5 years in the industry",
-  // profilePicture: "https://example.com/profile.jpg",
-  createdAt: Timestamp, // (Optional) Set on creation
-  updatedAt: Timestamp // Set on updates
+  inviteCode: "COREKEEPER-XYZ",
+  createdAt: Timestamp,
+  updatedAt: Timestamp
 }
 ```
 
@@ -356,22 +380,17 @@ Extended information specific to homeowners. Populated/updated by `populate-samp
 
 ```javascript
 {
-  firstName: "Corey", // (String)
-  lastName: "Homeowner", // (String)
-  address: "101 Home Sweet Ln", // (String)
-  city: "Homestead", // (String)
-  state: "CA", // (String)
-  zip: "90211", // (String)
-  phone: "555-111-2222", // (String)
-  specialInstructions: "Please use the back door.", // (String, Optional)
-  linkedHousekeeperId: "housekeeper_user_id", // (String, Optional) Set via invite code linking
-  // DEPRECATED FIELDS? (Compare with example below)
-  // preferredContactMethod: "email" | "phone" | "text",
-  // paymentMethods: ["credit_card", "paypal"],
-  // defaultInstructions: "Please use eco-friendly products",
-  // communicationPreferences: { sendReminders: true, reminderHours: 24 },
-  createdAt: Timestamp, // (Optional) Set on creation
-  updatedAt: Timestamp // Set on updates
+  firstName: "Corey",
+  lastName: "Homeowner",
+  address: "101 Home Sweet Ln",
+  city: "Homestead",
+  state: "CA",
+  zip: "90211",
+  phone: "555-111-2222",
+  specialInstructions: "Please use the back door.",
+  linkedHousekeeperId: "housekeeper_user_id",
+  createdAt: Timestamp,
+  updatedAt: Timestamp
 }
 ```
 
@@ -388,14 +407,14 @@ Properties owned by homeowners that need cleaning services.
     state: "CA",
     zip: "90210"
   },
-  size: 2000, // square feet
+  size: 2000,
   bedrooms: 3,
   bathrooms: 2,
   specialInstructions: "Please focus on kitchen and bathrooms",
   accessInformation: "Key under the mat. Alarm code: 1234",
   photos: ["https://example.com/property1.jpg"],
-  ownerId: "homeowner_user_id", // Reference to user
-  preferredHousekeeperId: "housekeeper_user_id", // Optional preferred cleaner
+  ownerId: "homeowner_user_id",
+  preferredHousekeeperId: "housekeeper_user_id",
   createdAt: Timestamp,
   updatedAt: Timestamp
 }
@@ -407,8 +426,6 @@ Stores application configuration for the housekeeper. This is the single source 
 
 ```javascript
 {
-  // Represents the housekeeper's working schedule and preferences.
-  // This object is normalized by firestore-service.js upon read/write.
   workingDays: {
     monday: {
       isWorking: true,
@@ -425,11 +442,9 @@ Stores application configuration for the housekeeper. This is the single source 
     saturday: { isWorking: false, /* ... other fields ... */ },
     sunday: { isWorking: false, /* ... other fields ... */ }
   },
-  // Simplified structure for quick lookup, generated by firestore-service.js
   workingDaysCompat: {
-    "0": false, // Sunday
-    "1": true,  // Monday
-    // ... etc for 2-6
+    "0": false,
+    "1": true,
   },
   autoSendReceipts: false,
   updatedAt: Timestamp
@@ -447,7 +462,7 @@ Settings specific to homeowners.
     reminderAlerts: true,
     specialOffers: false
   },
-  defaultPropertyId: "property_id", // Default property for bookings
+  defaultPropertyId: "property_id",
   paymentSettings: {
     autoCharge: true,
     preferredMethod: "credit_card"

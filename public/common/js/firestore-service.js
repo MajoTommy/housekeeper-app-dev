@@ -132,7 +132,7 @@ const firestoreService = {
             
             // Ensure we have an update timestamp
             const dataToUpdate = {
-                ...profileData, 
+                ...profileData,
                 // Make sure profileData includes HomeownerInstructions if it was edited
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             };
@@ -815,8 +815,8 @@ const firestoreService = {
         }
     },
 
-      // NEW: Get ALL bookings for a specific housekeeper within a date range
-      async getBookingsForHousekeeperInRange(housekeeperId, startDate, endDate) {
+    // NEW: Get ALL bookings for a specific housekeeper within a date range
+    async getBookingsForHousekeeperInRange(housekeeperId, startDate, endDate) {
         console.log(`[Firestore] Getting bookings for housekeeper ${housekeeperId} from ${startDate.toISOString()} to ${endDate.toISOString()}`);
         if (!housekeeperId || !startDate || !endDate) {
             console.error('[Firestore] getBookingsForHousekeeperInRange requires housekeeperId, startDate, and endDate.');
@@ -825,7 +825,7 @@ const firestoreService = {
 
         try {
             const bookingsRef = db.collection('users').doc(housekeeperId).collection('bookings');
-
+            
             // Convert JS Dates to Firestore Timestamps for querying
             const startTimestamp = firebase.firestore.Timestamp.fromDate(startDate);
             // Use the provided end date directly (assuming it's already end of day or we query <=)
@@ -850,7 +850,7 @@ const firestoreService = {
                 }
                  if (data.updatedAt && data.updatedAt.toDate) {
                      data.jsUpdatedAt = data.updatedAt.toDate();
-                 }
+                }
                 bookings.push({ id: doc.id, ...data });
             });
 
@@ -868,30 +868,30 @@ const firestoreService = {
         }
     },
     
-        // Get upcoming bookings for a specific homeowner linked to a specific housekeeper
-        async getUpcomingHomeownerBookings(homeownerId, housekeeperId, limit = null) {
-            console.log(`[Firestore] Getting upcoming bookings for homeowner ${homeownerId} linked to housekeeper ${housekeeperId}`);
-            if (!homeownerId || !housekeeperId) {
-                console.error('[Firestore] getUpcomingHomeownerBookings requires homeownerId and housekeeperId.');
-                return [];
-            }
-            try {
+    // Get upcoming bookings for a specific homeowner linked to a specific housekeeper
+    async getUpcomingHomeownerBookings(homeownerId, housekeeperId, limit = null) {
+        console.log(`[Firestore] Getting upcoming bookings for homeowner ${homeownerId} linked to housekeeper ${housekeeperId}`);
+        if (!homeownerId || !housekeeperId) {
+            console.error('[Firestore] getUpcomingHomeownerBookings requires homeownerId and housekeeperId.');
+            return [];
+        }
+        try {
                 // --- UPDATED Query ---
                 const nowTimestamp = firebase.firestore.Timestamp.now();
-                let query = db.collection('users').doc(housekeeperId).collection('bookings')
-                    .where('clientId', '==', homeownerId)
+            let query = db.collection('users').doc(housekeeperId).collection('bookings')
+                .where('clientId', '==', homeownerId)
                     .where('startTimestamp', '>=', nowTimestamp) // Bookings starting now or later
                     .orderBy('startTimestamp'); // Order by start time
                 // --- END UPDATED Query ---
-    
-                if (limit && typeof limit === 'number' && limit > 0) {
-                    query = query.limit(limit); // Apply limit if provided
-                }
-    
-                const snapshot = await query.get();
-    
-                const bookings = [];
-                snapshot.forEach(doc => {
+                
+            if (limit && typeof limit === 'number' && limit > 0) {
+                query = query.limit(limit); // Apply limit if provided
+            }
+
+            const snapshot = await query.get();
+
+            const bookings = [];
+            snapshot.forEach(doc => {
                     // Convert Timestamps if needed by caller (example for createdAt)
                      const data = doc.data();
                      if (data.createdAt && data.createdAt.toDate) {
@@ -902,20 +902,20 @@ const firestoreService = {
                      }
                      // Return start/end timestamps as they are
                     bookings.push({ id: doc.id, ...data });
-                });
-                console.log(`[Firestore] Found ${bookings.length} upcoming bookings.`);
-                return bookings;
-            } catch (error) {
-                console.error('[Firestore] Error getting upcoming homeowner bookings:', error);
-                // Check if it's an index error and provide guidance
-                if (error.code === 'failed-precondition') {
+            });
+            console.log(`[Firestore] Found ${bookings.length} upcoming bookings.`);
+            return bookings;
+        } catch (error) {
+            console.error('[Firestore] Error getting upcoming homeowner bookings:', error);
+            // Check if it's an index error and provide guidance
+            if (error.code === 'failed-precondition') {
                      console.warn('Firestore requires a composite index for this query (clientId, startTimestamp). Please create it using the link provided in the error message in the browser console.');
-                }
-                return [];
             }
-        },
+            return [];
+        }
+    },
     
-       // NEW: Function to get past homeowner bookings
+    // NEW: Function to get past homeowner bookings
        async getPastHomeownerBookings(homeownerId, housekeeperId, limit = 5, startDate = null) {
         console.log(`[Firestore] Getting past bookings for homeowner ${homeownerId} linked to housekeeper ${housekeeperId}`);
         if (!homeownerId || !housekeeperId) {
@@ -940,7 +940,7 @@ const firestoreService = {
                  // If no start date, just order by most recent first
                  query = query.orderBy('startTimestamp', 'desc'); 
             }
-
+                
             if (limit && typeof limit === 'number' && limit > 0) {
                 query = query.limit(limit);
             }
