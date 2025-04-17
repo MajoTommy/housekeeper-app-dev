@@ -8242,7 +8242,7 @@ Use the **second Secret Key** (the one ending in `...0oljAVJad`) for your Cloud 
 **So, run this command in your terminal:**
 
 ```bash
-firebase functions:config:set stripe.secret="sk_test_51IwWFsA4dTeEbcXnq6OLqXX4f2gP7VGauLT2RengJ2u0o1LfMuat2ir724q6An58cqffLZGN9IFAvBNUGFFXiMkK00oljAVJad"
+firebase functions:config:set stripe.secret="
 ```
 
 **(Make sure you copy the full key correctly).**
