@@ -79,16 +79,17 @@ document.addEventListener('DOMContentLoaded', async function() {
         } else {
             // User is not logged in
             const currentPath = window.location.pathname;
+            const currentUrl = window.location.href; // Get the full URL
             console.log('No user logged in, current path:', currentPath);
             
-            // Base URL for redirects
-            let baseUrl = '';
-            if (currentPath.includes('/public/')) {
-                baseUrl = currentPath.split('/public/')[0] + '/public/';
-            } else {
-                baseUrl = '/';  // Default to root
+            // --- ADDED CHECK for Stripe Redirect --- 
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('subscription_success') || urlParams.has('subscription_cancelled')) {
+                console.log('Auth Router: Detected Stripe redirect parameter. Allowing page to load for handling.');
+                return; // Do not redirect, let the specific page script handle it
             }
-
+            // --- END ADDED CHECK --- 
+            
             // --- NEW: Redirect from index/root to login if not logged in ---
             if (currentPath.endsWith('/index.html') || currentPath === '/' || currentPath.endsWith('/')) {
                 // Allow exceptions for specific files accessible when logged out

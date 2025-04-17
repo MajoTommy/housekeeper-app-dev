@@ -34,6 +34,8 @@ try {
 const db = admin.firestore();
 
 // --- NEW: Initialize Stripe ---
+// Comment out top-level initialization
+/*
 const stripePackage = require("stripe"); // Use different name to avoid conflict
 let stripe;
 try {
@@ -49,6 +51,10 @@ try {
     logger.error("FATAL: Failed to initialize Stripe SDK:", error.message);
     // Consider how to handle this robustly in production - may prevent function execution
 }
+*/
+// Declare stripe globally but initialize lazily
+const stripePackage = require("stripe");
+let stripe = null; 
 // --- END NEW ---
 
 // Create and deploy your first functions
@@ -1024,7 +1030,7 @@ exports.unarchiveClientAndUnblockHomeowner = onCall(async (request) => {
 // ========= NEW STRIPE CALLABLE FUNCTIONS =========
 
 // --- Callable Function: createBillingPortalSession (V2) ---
-exports.createBillingPortalSession = onCall(async (request) => {
+exports.createBillingPortalSession = onCall({ cors: true }, async (request) => {
     // 1. Check Authentication
     if (!request.auth) {
         throw new HttpsError(
@@ -1084,7 +1090,7 @@ exports.createBillingPortalSession = onCall(async (request) => {
 
 
 // --- Callable Function: createConnectOnboardingLink (V2) ---
-exports.createConnectOnboardingLink = onCall(async (request) => {
+exports.createConnectOnboardingLink = onCall({ cors: true }, async (request) => {
     // 1. Check Authentication
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "User must be authenticated.");
@@ -1164,7 +1170,7 @@ exports.createConnectOnboardingLink = onCall(async (request) => {
 
 
 // --- Callable Function: createExpressDashboardLink (V2) ---
-exports.createExpressDashboardLink = onCall(async (request) => {
+exports.createExpressDashboardLink = onCall({ cors: true }, async (request) => {
     // 1. Check Authentication
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "User must be authenticated.");
@@ -1220,96 +1226,135 @@ exports.createExpressDashboardLink = onCall(async (request) => {
 });
 
 // --- Callable Function: createSubscriptionCheckoutSession (V2) ---
-exports.createSubscriptionCheckoutSession = onCall(async (request) => {
-    // 1. Check Authentication
-    if (!request.auth) {
-        throw new HttpsError("unauthenticated", "User must be authenticated.");
-    }
-    const housekeeperUid = request.auth.uid;
-    const priceId = request.data.priceId; // Get priceId from request.data
-
-    if (!priceId) {
-         throw new HttpsError("invalid-argument", "The function must be called with a 'priceId'.");
-    }
-    logger.info(`(V2) Creating subscription checkout session for housekeeper: ${housekeeperUid}, priceId: ${priceId}`);
-
-    // Safety check for Stripe SDK init
-    if (!stripe) {
-         logger.error("Stripe SDK not initialized. Cannot create checkout session.");
-         throw new HttpsError("internal", "Stripe configuration error.");
-    }
-
-    try {
-        // 2. Get/Create Stripe Customer ID
-        const profileRef = db.collection("housekeeper_profiles").doc(housekeeperUid);
-        const profileSnap = await profileRef.get();
-
-        if (!profileSnap.exists) {
-            throw new HttpsError("not-found", `Housekeeper profile not found for UID: ${housekeeperUid}`);
-        }
-        const profileData = profileSnap.data() || {};
-        let stripeCustomerId = profileData.stripeCustomerId;
-
-        // If customer ID doesn't exist, create a new Stripe Customer
-        if (!stripeCustomerId) {
-            logger.info(`No Stripe Customer ID found for ${housekeeperUid}, creating one...`);
-            const userEmail = request.auth.token.email || profileData.email;
-            const userName = `${profileData.firstName || ''} ${profileData.lastName || ''}`.trim();
-            if (!userEmail) {
-                 logger.error(`Cannot create Stripe customer for ${housekeeperUid} without an email address.`);
-                 throw new HttpsError("failed-precondition", "User email is required to create Stripe customer.");
+exports.createSubscriptionCheckoutSession = onCall({ cors: true }, async (request) => {
+    // Wrap the main logic in the cors handler
+    return new Promise((resolve, reject) => {
+        cors(request.rawRequest, request.rawRequest.res, async (err) => {
+            if (err) {
+                logger.error("CORS error:", err);
+                return reject(new HttpsError("internal", "CORS error", err));
             }
 
-            const customer = await stripe.customers.create({
-                email: userEmail,
-                name: userName || undefined,
-                metadata: {
-                    firebaseUID: housekeeperUid,
-                },
-            });
-            stripeCustomerId = customer.id;
-            logger.info(`Created Stripe Customer ${stripeCustomerId} for ${housekeeperUid}`);
+            // --- LAZY INITIALIZATION OF STRIPE --- 
+            if (!stripe) {
+                try {
+                    // --- REMOVE OLD LOGGING & CONFIG CALL ---
+                    // logger.info("Attempting lazy Stripe initialization...");
+                    // const functionsConfig = functions.config(); // REMOVE THIS
+                    // logger.info("functions.config() output:", JSON.stringify(functionsConfig, null, 2)); // REMOVE THIS
+                    
+                    // --- USE process.env ---
+                    logger.info("Attempting lazy Stripe initialization using environment variable..."); // Updated log
+                    const stripeSecret = process.env.STRIPE_SECRET_KEY; // READ FROM ENV
+                    
+                    // --- ADDED LOGGING --- 
+                    logger.info("Value of process.env.STRIPE_SECRET_KEY:", stripeSecret ? `Exists (type: ${typeof stripeSecret}, length: ${stripeSecret.length})` : `MISSING or Falsy (Value: ${stripeSecret})`);
+                    // --- END ADDED LOGGING --- 
 
-            // Save the new customer ID back to the profile
-            await profileRef.set({ 
-                stripeCustomerId: stripeCustomerId,
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-             }, { merge: true });
-            logger.info(`Saved Stripe Customer ID ${stripeCustomerId} to profile ${housekeeperUid}`);
-        } else {
-             logger.info(`Using existing Stripe Customer ID ${stripeCustomerId} for ${housekeeperUid}`);
-        }
+                    if (!stripeSecret) {
+                        // --- UPDATE ERROR MESSAGE ---
+                        throw new Error("Stripe secret key not configured via environment variables (STRIPE_SECRET_KEY).");
+                    }
+                    stripe = stripePackage(stripeSecret);
+                    // logger.info("Stripe SDK object created:", !!stripe); // REMOVE THIS
+                    logger.info("Stripe SDK lazily initialized successfully.");
+                } catch (initError) {
+                    logger.error("FATAL: Failed to lazily initialize Stripe SDK:", initError.message);
+                    // Update error message slightly
+                    return reject(new HttpsError("internal", "Server configuration error regarding Stripe.", initError.message)); 
+                }
+            }
+            // --- END LAZY INITIALIZATION ---
 
-        // 3. Define Success and Cancel URLs (Using deployed app URL)
-        const successUrl = `https://housekeeper-app-dev.web.app/housekeeper/settings/account.html?subscription_success=true`;
-        const cancelUrl = `https://housekeeper-app-dev.web.app/housekeeper/settings/account.html?subscription_cancelled=true`;
-
-        // 4. Create Stripe Checkout Session for Subscription
-        const session = await stripe.checkout.sessions.create({
-            payment_method_types: ['card'],
-            mode: 'subscription',
-            customer: stripeCustomerId,
-            line_items: [
-                {
-                    price: priceId,
-                    quantity: 1,
-                },
-            ],
-            success_url: successUrl,
-            cancel_url: cancelUrl,
-        });
-
-        logger.info(`Successfully created Checkout Session ${session.id} for ${stripeCustomerId}`);
-        // 5. Return the Session ID
-        return { sessionId: session.id };
-
-    } catch (error) {
-        logger.error(`Error creating Stripe Checkout session for ${housekeeperUid}:`, error);
-         if (error instanceof HttpsError) {
-            throw error;
-        }
-        throw new HttpsError("internal", "Could not create checkout session.", error.message);
-    }
+            // 1. Check Authentication (Now inside cors handler)
+            if (!request.auth) {
+                return reject(new HttpsError(
+                    "unauthenticated", 
+                    "User must be authenticated."
+                ));
+            }
+            const housekeeperUid = request.auth.uid;
+            const priceId = request.data.priceId; // Get priceId from request.data
+        
+            if (!priceId) {
+                 return reject(new HttpsError("invalid-argument", "The function must be called with a 'priceId'."));
+            }
+            logger.info(`(V2) Creating subscription checkout session for housekeeper: ${housekeeperUid}, priceId: ${priceId}`);
+        
+            try {
+                // 2. Get/Create Stripe Customer ID
+                const profileRef = db.collection("housekeeper_profiles").doc(housekeeperUid);
+                const profileSnap = await profileRef.get();
+        
+                if (!profileSnap.exists) {
+                    throw new HttpsError("not-found", `Housekeeper profile not found for UID: ${housekeeperUid}`);
+                }
+                const profileData = profileSnap.data() || {};
+                let stripeCustomerId = profileData.stripeCustomerId;
+        
+                // If customer ID doesn't exist, create a new Stripe Customer
+                if (!stripeCustomerId) {
+                    logger.info(`No Stripe Customer ID found for ${housekeeperUid}, creating one...`);
+                    const userEmail = request.auth.token.email || profileData.email;
+                    const userName = `${profileData.firstName || ''} ${profileData.lastName || ''}`.trim();
+                    if (!userEmail) {
+                         logger.error(`Cannot create Stripe customer for ${housekeeperUid} without an email address.`);
+                         throw new HttpsError("failed-precondition", "User email is required to create Stripe customer.");
+                    }
+        
+                    const customer = await stripe.customers.create({
+                        email: userEmail,
+                        name: userName || undefined,
+                        metadata: {
+                            firebaseUID: housekeeperUid,
+                        },
+                    });
+                    stripeCustomerId = customer.id;
+                    logger.info(`Created Stripe Customer ${stripeCustomerId} for ${housekeeperUid}`);
+        
+                    // Save the new customer ID back to the profile
+                    await profileRef.set({ 
+                        stripeCustomerId: stripeCustomerId,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                     }, { merge: true });
+                    logger.info(`Saved Stripe Customer ID ${stripeCustomerId} to profile ${housekeeperUid}`);
+                } else {
+                     logger.info(`Using existing Stripe Customer ID ${stripeCustomerId} for ${housekeeperUid}`);
+                }
+        
+                // 3. Define Success and Cancel URLs (Using deployed app URL)
+                const successUrl = `https://housekeeper-app-dev.web.app/housekeeper/settings/account.html?subscription_success=true`;
+                const cancelUrl = `https://housekeeper-app-dev.web.app/housekeeper/settings/account.html?subscription_cancelled=true`;
+        
+                // 4. Create Stripe Checkout Session for Subscription
+                const session = await stripe.checkout.sessions.create({
+                    payment_method_types: ['card'],
+                    mode: 'subscription',
+                    customer: stripeCustomerId,
+                    line_items: [
+                        {
+                            price: priceId,
+                            quantity: 1,
+                        },
+                    ],
+                    success_url: successUrl,
+                    cancel_url: cancelUrl,
+                });
+        
+                logger.info(`Successfully created Checkout Session ${session.id} for ${stripeCustomerId}`);
+                // 5. Return the Session ID
+                resolve({ sessionId: session.id }); // Resolve the promise on success
+        
+            } catch (error) {
+                logger.error(`Error creating Stripe Checkout session for ${housekeeperUid}:`, error);
+                 if (error instanceof HttpsError) {
+                     reject(error); // Reject with HttpsError if it's already one
+                } else {
+                    reject(new HttpsError("internal", "Could not create checkout session.", error.message)); // Reject with a new HttpsError
+                }
+            }
+        }); // End cors handler
+    }); // End Promise wrapper
 });
 
 // ========= END NEW STRIPE CALLABLE FUNCTIONS =========

@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- NEW: Stripe Initialization ---
   // !!! REPLACE with your actual Stripe PUBLISHABLE key !!!
-  const STRIPE_PUBLISHABLE_KEY = "pk_test_51IwWFsA4dTeEbcXnjNhOQJHXsxYrEEE3iV4TV78gCrtztfxmbB5mYapyokASNgLNCDLrl9ERzfgVQfvAFOQVv0Tv00YB7RiXga"; 
+  const STRIPE_PUBLISHABLE_KEY = "pk_test_51IwWFsA4dTeEbcXnp2lQGJMZPilbD4KE5FTV4mWOr2ZJQSTRNayfKZbXHKBlpHvcw9j3i0sulyHQabVGUdZMpiWo00Xb7A9wnT"; 
   let stripe = null;
   try {
     stripe = Stripe(STRIPE_PUBLISHABLE_KEY);
@@ -284,7 +284,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- TODO: Define your Price ID --- 
     // You need to create a Product and Price in your Stripe Dashboard (Test mode)
     // Example: Monthly Subscription Price ID
-    const priceId = "price_1Iwv3XA4dTeEbcXnFtHBIC08"; // !!! User replaced placeholder !!!
+    const priceId = "price_1Iwv3XA4dTeEbcXnFtHBICO8"; // !!! User replaced placeholder !!!
     
     // Show loading state
     subscribeButton.disabled = true;
@@ -324,27 +324,91 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   // --- END NEW ---
 
+  async function loadInitialData(user) {
+      console.log('Loading initial data for user:', user.uid);
+      showLoadingStates(); // Show loading indicators
+      try {
+          // Fetch settings and profile in parallel
+          const [settingsData, profileData] = await Promise.all([
+              firestoreService.getUserSettings(user.uid), // Assuming settings are directly under user doc
+              firestoreService.getHousekeeperProfile(user.uid) // Fetch profile for stripe info
+          ]);
+          
+          console.log('Initial settings data:', settingsData);
+          applyAccountSettings(settingsData);
+          
+          console.log('Initial profile data:', profileData);
+          currentProfile = profileData; // Store profile data
+          updateSubscriptionUI(profileData);
+          updatePayoutsUI(profileData);
+
+          // --- ADDED: Check for Stripe Success Redirect --- 
+          const urlParams = new URLSearchParams(window.location.search);
+          if (urlParams.has('subscription_success')) {
+              console.log('Detected successful subscription redirect.');
+              
+              // 1. Immediately update UI to show active state (even if data might be stale)
+              if (subscriptionDetails) subscriptionDetails.classList.remove('hidden');
+              if (subscriptionInactive) subscriptionInactive.classList.add('hidden');
+              if (subscriptionStatusEl) subscriptionStatusEl.textContent = 'Active'; // Show generic active status
+              // Optionally clear plan/date until next proper load?
+              // if (subscriptionPlanEl) subscriptionPlanEl.textContent = 'Processing...';
+              // if (subscriptionPeriodEndEl) subscriptionPeriodEndEl.textContent = '...';
+              
+              // 2. Show a success message (e.g., using an alert or a dedicated UI element)
+              alert('Subscription successful!'); // Simple alert for now
+              
+              // 3. Remove the parameter from URL to prevent re-triggering
+              const newUrl = window.location.pathname + window.location.hash; // Keep path and hash, remove query
+              history.replaceState(null, '', newUrl);
+              console.log('Removed subscription_success parameter from URL.');
+          }
+           // --- END ADDED --- 
+
+      } catch (error) {
+          console.error('Error loading initial account data:', error);
+          alert('Error loading account data: ' + error.message);
+          // Hide loading indicators even on error
+          if (subscriptionLoading) subscriptionLoading.classList.add('hidden');
+          if (payoutsLoading) payoutsLoading.classList.add('hidden');
+      }
+  }
+
+  function showLoadingStates() {
+    if (subscriptionLoading) subscriptionLoading.classList.remove('hidden');
+    if (subscriptionDetails) subscriptionDetails.classList.add('hidden');
+    if (subscriptionInactive) subscriptionInactive.classList.add('hidden');
+    
+    if (payoutsLoading) payoutsLoading.classList.remove('hidden');
+    if (payoutsDetails) payoutsDetails.classList.add('hidden');
+    if (payoutsError) payoutsError.classList.add('hidden');
+  }
+
   // --- Initialization ---
-  populateTimezoneOptions(); // Populate dropdown immediately
+  populateTimezoneOptions();
+  // Initial data load is now triggered by onAuthStateChanged
+
+  // --- Event Listeners ---
+  if (saveButton) {
+    saveButton.addEventListener('click', saveAccountSettings);
+  }
+  // NEW: Add listeners for Stripe buttons
+  if (manageSubscriptionButton) {
+    manageSubscriptionButton.addEventListener('click', handleManageSubscriptionClick);
+  }
+  if (managePayoutsButton) {
+    managePayoutsButton.addEventListener('click', handleManagePayoutsClick);
+  }
+  if (subscribeButton) {
+      subscribeButton.addEventListener('click', handleSubscribeClick);
+  }
 
   auth.onAuthStateChanged(async (user) => {
     if (user) {
       console.log('User logged in on account settings page.');
       try {
           // Load BOTH settings and profile data
-          const [settings, profile] = await Promise.all([
-              firestoreService.getUserSettings(user.uid), // Assuming this still exists and works
-              firestoreService.getHousekeeperProfile(user.uid) // Assuming this function exists in firestore-service.js
-          ]);
-          
-          currentProfile = profile; // Store profile data
-          applyAccountSettings(settings || {}); // Apply loaded or default empty
-          
-          // NEW: Update Stripe UI sections
-          updateSubscriptionUI(profile);
-          updatePayoutsUI(profile);
-          // END NEW
-
+          await loadInitialData(user);
       } catch (error) {
           console.error('Failed to load initial account data:', error);
           applyAccountSettings({}); // Apply defaults on error
