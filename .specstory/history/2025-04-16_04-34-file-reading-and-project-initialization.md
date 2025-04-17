@@ -8053,7 +8053,7 @@ If the logs aren't clear, the next step would be to try reinstalling dependencie
 
 _**User**_
 
-I used my test pubilshable key is that correct? pk_test_51IwWFsA4dTeEbcXnjNhOQJHXsxYrEEE3iV4TV78gCrtztfxmbB5mYapyokASNgLNCDLrl9ERzfgVQfvAFOQVv0Tv00YB7RiXga
+I used my test pubilshable key is that correct? 
 
 ---
 
@@ -8113,7 +8113,7 @@ Okay, let's clarify exactly:
 
 1.  **In `public/housekeeper/settings/account.js` (Client-Side JavaScript - where your screenshot is from):**
     *   You need the **Publishable Key** (the one starting with `pk_test_...`).
-    *   **Your code:** `const STRIPE_PUBLISHABLE_KEY = "pk_test_51IwWFsA4dTeEbcXnjNhOQJHXsxYrEEE3iV4TV78gCrtztfxmbB5mYapyokASNgLNCDLrl9ERzfgVQfvAFOQVv0Tv00YB7RiXga";` **is CORRECT** for this file.
+    *   **Your code:** `const STRIPE_PUBLISHABLE_KEY = "";` **is CORRECT** for this file.
 
 2.  **In Firebase Functions Configuration (Server-Side):**
     *   You need the **Secret Key** (the one starting with `sk_test_...`).

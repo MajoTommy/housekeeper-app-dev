@@ -1725,6 +1725,49 @@ _**Assistant**_
 
 ---
 
+Okay, that prompt from Cursor is important. It's warning you about the standard "Commit & Sync" behavior, which usually involves:
+
+1.  **Pulling:** Fetching changes from `origin/main` and trying to merge them into your local `main`.
+2.  **Pushing:** Pushing your local `main` commits to `origin/main`.
+
+**This standard sync is NOT what you want right now.** If you click "OK", it will try to pull and merge the history from `origin/main` (which includes the large problematic commit you reverted) back into your local branch, undoing your `reset`.
+
+**To fix this and make the remote `origin/main` match your corrected local `main` branch, you need to *force-push*.**
+
+**How to fix:**
+
+1.  **Do NOT click "OK"** on that Cursor prompt. Click "Cancel" or dismiss it.
+2.  **Open your terminal** in the project directory (you can use the integrated terminal in VS Code/Cursor).
+3.  **Run the force-push command:**
+    ```bash
+    git push origin main --force
+    ```
+    *   `git push`: Pushes changes.
+    *   `origin`: The name of your remote repository.
+    *   `main`: The branch you are pushing.
+    *   `--force`: This tells Git to overwrite the `main` branch on the remote (`origin`) with the history of your local `main` branch.
+
+**IMPORTANT WARNING:**
+
+*   `git push --force` **overwrites the history on the remote repository**. Make absolutely sure your local `main` branch is in the state you want it to be (reverted history + cherry-picked Stripe commits).
+*   If anyone else is collaborating on this project and has pulled the old `origin/main` history, force-pushing can cause problems for them. Coordinate with your team if applicable. Since you seem to be working solo based on commit messages ("Majo"), this is likely safe, but be aware of the implications.
+
+After force-pushing, the `origin/main` indicator in your Git graph should move to align with your local `main` branch, reflecting that the remote has been updated to match your corrected local state.
+
+---
+
+_**User**_
+
+Attached. 
+
+---
+
+_**Assistant**_
+
+
+
+---
+
 
 
 ---
