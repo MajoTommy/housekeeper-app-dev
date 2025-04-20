@@ -27,8 +27,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const companyNameInput = document.getElementById('edit-companyName');
   const phoneInput = document.getElementById('edit-phone');
 
+  // <<< START Timezone Elements >>>
+  const timezoneSelect = document.getElementById('profile-timezone'); 
+  const saveTimezoneButton = document.getElementById('save-timezone-button');
+  const timezoneSavingIndicator = document.getElementById('timezone-saving-indicator');
+  // <<< END Timezone Elements >>>
+
   // --- State ---
   let currentProfileData = null; // To store loaded profile data
+  let currentTimezone = null; // <<< ADD Timezone State >>>
   
   // --- Firebase Services (Assuming global availability) ---
   const auth = firebase.auth();
@@ -36,14 +43,96 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Functions ---
   
+  // <<< START Timezone Functions (Adapted from account.js) >>>
+  function showTimezoneSavingIndicator() {
+      console.log('Showing timezone saving indicator');
+      if (!timezoneSavingIndicator) return;
+      timezoneSavingIndicator.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Saving...';
+      if (saveTimezoneButton) saveTimezoneButton.disabled = true;
+  }
+
+  function hideTimezoneSavingIndicator(success = true) {
+      if (!timezoneSavingIndicator) return;
+      if (success) {
+          timezoneSavingIndicator.innerHTML = '<i class="fas fa-check mr-2 text-green-500"></i> Saved!';
+      } else {
+          timezoneSavingIndicator.innerHTML = '<i class="fas fa-times mr-2 text-red-500"></i> Error!';
+      }
+      setTimeout(() => { 
+          if (timezoneSavingIndicator) timezoneSavingIndicator.innerHTML = ''; 
+      }, 2500);
+      if (saveTimezoneButton) saveTimezoneButton.disabled = false;
+  }
+
+  function populateTimezoneOptions() {
+      if (!timezoneSelect) {
+          console.warn("populateTimezoneOptions: timezoneSelect element not found.");
+          return;
+      }
+      const northAmericanTimezones = [
+          "America/New_York", "America/Chicago", "America/Denver", "America/Phoenix",
+          "America/Los_Angeles", "America/Vancouver", "America/Edmonton", "America/Winnipeg",
+          "America/Toronto", "America/Halifax", "America/St_Johns", "America/Anchorage",
+          "Pacific/Honolulu"
+      ];
+      timezoneSelect.innerHTML = '<option value="">Select Time Zone</option>'; 
+      northAmericanTimezones.forEach(tz => {
+          const option = document.createElement('option');
+          option.value = tz;
+          const displayName = tz.split('/').pop().replace(/_/g, ' '); 
+          const region = tz.split('/')[0];
+          option.textContent = `${displayName} (${region === 'Pacific' || region === 'Atlantic' ? region : 'America'})`; 
+          timezoneSelect.appendChild(option);
+      });
+      console.log("Timezone options populated.");
+  }
+
+  async function saveTimezoneSetting() {
+      console.log("Save Timezone button clicked.");
+      showTimezoneSavingIndicator();
+      const user = auth.currentUser;
+      if (!user) {
+          console.error('User not authenticated for saving timezone.');
+          hideTimezoneSavingIndicator(false);
+          alert('Error: You are not logged in.');
+          return;
+      }
+
+      const newTimezone = timezoneSelect ? timezoneSelect.value : currentTimezone;
+      if (!newTimezone) {
+           console.warn("No timezone selected to save.");
+           hideTimezoneSavingIndicator(false); // Indicate no action taken or error
+           alert('Please select a time zone.');
+           return;
+      }
+
+      const settingsToSave = {
+          timezone: newTimezone,
+      };
+
+      console.log('Saving timezone setting:', settingsToSave);
+
+      try {
+          await firestoreService.updateUserSettings(user.uid, settingsToSave); 
+          console.log('Timezone setting saved successfully.');
+          currentTimezone = newTimezone; // Update local state
+          hideTimezoneSavingIndicator(true);
+      } catch (error) {
+          console.error('Error saving timezone setting:', error);
+          hideTimezoneSavingIndicator(false);
+          alert('Error saving time zone: ' + error.message);
+      }
+  }
+  // <<< END Timezone Functions >>>
+
   /**
-   * Fetches housekeeper profile and updates the UI.
+   * Fetches housekeeper profile AND settings, updates the UI.
    */
   async function loadProfileData() {
-    console.log('Loading profile data...');
+    console.log('Loading profile and settings data...');
     const user = auth.currentUser;
     if (!user) {
-      console.error('Cannot load profile, no user logged in');
+      console.error('Cannot load data, no user logged in');
       // Optionally display error to user
       if (userDisplayNameH2) userDisplayNameH2.textContent = 'Error loading profile';
       if (userEmailP) userEmailP.textContent = 'Please log in again.';
@@ -52,11 +141,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      const profile = await firestoreService.getHousekeeperProfile(user.uid);
+      // <<< Fetch profile AND settings >>>
+      const [profile, settings] = await Promise.all([
+          firestoreService.getHousekeeperProfile(user.uid),
+          firestoreService.getUserSettings(user.uid) // Fetch settings too
+      ]);
       console.log('Profile data fetched:', profile);
+      console.log('Settings data fetched:', settings);
 
+      // --- Process Profile Data --- 
       if (profile) {
-        // Assign fetched data to state variable
         currentProfileData = profile; 
 
         // Display Name and Email
@@ -104,14 +198,26 @@ document.addEventListener('DOMContentLoaded', () => {
         if (inviteCodeDisplaySpan) inviteCodeDisplaySpan.textContent = 'N/A';
         if (copyInviteCodeBtn) copyInviteCodeBtn.disabled = true;
       }
+      
+      // <<< Apply Timezone Setting >>>
+      currentTimezone = settings?.timezone; // Store timezone from settings
+      if (timezoneSelect) {
+          timezoneSelect.value = currentTimezone || ''; // Set dropdown value
+          console.log(`Applied timezone '${currentTimezone || ''}' to dropdown.`);
+      } else {
+           console.warn("loadProfileData: timezoneSelect element not found when trying to apply setting.");
+      }
 
     } catch (error) {
-      console.error('Error loading profile:', error);
-      currentProfileData = null; // Reset on error
+      console.error('Error loading profile/settings:', error);
+      currentProfileData = null; 
+      currentTimezone = null;
       if (userDisplayNameH2) userDisplayNameH2.textContent = 'Error loading profile';
       if (userEmailP) userEmailP.textContent = 'Could not load data.';
       if (inviteCodeDisplaySpan) inviteCodeDisplaySpan.textContent = 'Error';
        if (copyInviteCodeBtn) copyInviteCodeBtn.disabled = true;
+      // Optionally indicate timezone load error
+      if (timezoneSelect) timezoneSelect.value = ''; 
     }
   }
 
@@ -243,6 +349,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- Initialization ---
+  populateTimezoneOptions(); // <<< Call populate function >>>
   auth.onAuthStateChanged((user) => {
     if (user) {
       loadProfileData();
@@ -277,6 +384,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (profileForm) {
       profileForm.addEventListener('submit', handleProfileSave);
+  }
+
+  // <<< Add Timezone Save Listener >>>
+  if (saveTimezoneButton) {
+      saveTimezoneButton.addEventListener('click', saveTimezoneSetting);
+  } else {
+       console.error('Save Timezone button (#save-timezone-button) not found!');
   }
 
 }); 

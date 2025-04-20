@@ -48,7 +48,7 @@
             <a href="index.html" class="text-gray-600 hover:text-gray-900 mr-4">
                 <i class="fas fa-chevron-left"></i>
             </a>
-            <h1 class="text-xl font-semibold text-gray-900 flex-grow text-center">Account & App</h1>
+            <h1 class="text-xl font-semibold text-gray-900 flex-grow text-center">Subscription & Payouts</h1>
             <div class="w-6"></div> <!-- Spacer to balance back button -->
         </div>
     </div>
@@ -58,13 +58,7 @@
         <!-- Account settings content (timezone, payments, etc.) will be moved here -->
         
         <!-- Time Zone Section -->
-        <div class="bg-white p-6 rounded-lg shadow-md">
-            <h2 class="text-xl font-semibold mb-2">Time Zone</h2>
-            <p class="text-gray-600 mb-4">Select the time zone you operate in. This ensures clients see your availability correctly.</p>
-            <select id="timezone" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                <option value="">Loading timezones...</option>
-            </select>
-        </div>
+        <!-- REMOVED TIMEZONE CARD -->
 
         <!-- NEW: Subscription & Billing Section -->
         <div class="bg-white rounded-lg p-4 shadow-sm mt-4">
@@ -114,17 +108,6 @@
             </div>
         </div>
         <!-- END: Payouts Section -->
-
-        <!-- Save Button Footer -->
-        <div class="fixed bottom-[70px] inset-x-0 bg-white p-4 border-t border-gray-200 shadow-lg z-20">
-             <div class="flex items-center justify-end space-x-3">
-                <span id="account-saving-indicator" class="text-sm text-gray-500 italic"></span>
-                <button type="button" id="save-account-settings-button" class="inline-flex items-center justify-center px-6 py-2 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50">
-                    <i class="fas fa-save mr-2 -ml-1 h-5 w-5"></i>
-                    Save Account Settings
-                </button>
-            </div>
-        </div>
 
     </div>
 

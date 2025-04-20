@@ -25,9 +25,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- END NEW ---
 
   // --- UI Element References ---
-  const timezoneSelect = document.getElementById('timezone');
-  const saveButton = document.getElementById('save-account-settings-button');
-  const savingIndicator = document.getElementById('account-saving-indicator');
+  // const timezoneSelect = document.getElementById('timezone'); // REMOVED
+  // const saveButton = document.getElementById('save-account-settings-button'); // REMOVED (only saved timezone)
+  // const savingIndicator = document.getElementById('account-saving-indicator'); // REMOVED (tied to saveButton)
 
   // NEW: Stripe UI Elements
   const subscriptionLoading = document.getElementById('subscription-loading');
@@ -48,87 +48,63 @@ document.addEventListener('DOMContentLoaded', () => {
   // END NEW
 
   // --- State Variables ---
-  let currentSettings = {
-      timezone: null,
-  };
+  // REMOVED currentSettings as it only held timezone
   // NEW: Add state for profile data
   let currentProfile = null;
   // END NEW
 
   // --- Functions ---
 
-  function showSavingIndicator() {
-      console.log('Showing account saving indicator');
-      if (!savingIndicator) return;
-      savingIndicator.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Saving...';
-      if (saveButton) saveButton.disabled = true;
-  }
-
-  function hideSavingIndicator(success = true) {
-      if (!savingIndicator) return;
-      if (success) {
-          savingIndicator.innerHTML = '<i class="fas fa-check mr-2 text-green-500"></i> Saved!';
-      } else {
-          savingIndicator.innerHTML = '<i class="fas fa-times mr-2 text-red-500"></i> Error!';
-      }
-      setTimeout(() => { 
-          if (savingIndicator) savingIndicator.innerHTML = ''; 
-      }, 2500);
-      if (saveButton) saveButton.disabled = false;
-  }
+  // REMOVED showSavingIndicator / hideSavingIndicator as they were tied to the removed save button
+  /* 
+  function showSavingIndicator() { ... }
+  function hideSavingIndicator(success = true) { ... }
+  */
   
-  function populateTimezoneOptions() {
-      if (!timezoneSelect) return;
-      // Use a predefined list of North American timezones
-      const northAmericanTimezones = [
-          "America/New_York", "America/Chicago", "America/Denver", "America/Phoenix",
-          "America/Los_Angeles", "America/Vancouver", "America/Edmonton", "America/Winnipeg",
-          "America/Toronto", "America/Halifax", "America/St_Johns", "America/Anchorage",
-          "Pacific/Honolulu"
-      ];
-      timezoneSelect.innerHTML = '<option value="">Select Time Zone</option>'; 
-      northAmericanTimezones.forEach(tz => {
-          const option = document.createElement('option');
-          option.value = tz;
-          const displayName = tz.split('/').pop().replace(/_/g, ' '); 
-          const region = tz.split('/')[0];
-          option.textContent = `${displayName} (${region === 'Pacific' || region === 'Atlantic' ? region : 'America'})`; 
-          timezoneSelect.appendChild(option);
-      });
-  }
+  // REMOVED populateTimezoneOptions
+  /*
+  function populateTimezoneOptions() { ... }
+  */
 
-  function applyAccountSettings(settings) {
-    if (!settings) return;
-    console.log('Applying account settings:', settings);
-    currentSettings.timezone = settings.timezone;
-
-    if (timezoneSelect) {
-        timezoneSelect.value = currentSettings.timezone || '';
-    }
-  }
+  // REMOVED applyAccountSettings as it only handled timezone
+  /*
+  function applyAccountSettings(settings) { ... }
+  */
 
   // --- NEW: Stripe UI Update Functions ---
   function updateSubscriptionUI(profileData) {
+      console.log("Updating Subscription UI with profile data:", profileData);
       if (!profileData) return;
+      console.log("Updating Subscription UI with profile data:", profileData); // Add log (already added, ensuring it's here)
 
       if (subscriptionLoading) subscriptionLoading.classList.add('hidden');
 
       const status = profileData.stripeSubscriptionStatus;
+      const priceId = profileData.stripePriceId; // Get the price ID
       const isActive = status === 'active' || status === 'trialing';
 
       if (isActive) {
           if (subscriptionStatusEl) subscriptionStatusEl.textContent = formatStripeStatus(status);
           if (subscriptionPlanEl) {
-              // TODO: Map stripePriceId to a user-friendly plan name
-              subscriptionPlanEl.textContent = profileData.stripePriceId || 'Unknown Plan';
+              // --- Display Plan Name from Firestore --- 
+              const planName = profileData.stripePlanName; // <<< READ FROM PROFILE
+              subscriptionPlanEl.textContent = planName || 'Processing...'; // Show name or placeholder
+              // --- END --- 
           }
           if (subscriptionPeriodEndEl) {
-              const endDate = profileData.stripeCurrentPeriodEnd?.toDate();
+              // Convert Firestore Timestamp to Date object if necessary
+              const periodEndTimestamp = profileData.stripeCurrentPeriodEnd;
+              let endDate = null;
+              if (periodEndTimestamp && typeof periodEndTimestamp.toDate === 'function') {
+                 endDate = periodEndTimestamp.toDate();
+              }
+              // Format the date or show placeholder
               subscriptionPeriodEndEl.textContent = endDate ? endDate.toLocaleDateString() : '--';
           }
           if (subscriptionDetails) subscriptionDetails.classList.remove('hidden');
           if (subscriptionInactive) subscriptionInactive.classList.add('hidden');
       } else {
+          console.log("Subscription is not active, hiding details."); // Add log
           if (subscriptionDetails) subscriptionDetails.classList.add('hidden');
           if (subscriptionInactive) subscriptionInactive.classList.remove('hidden');
       }
@@ -165,38 +141,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   // --- END NEW ---
 
-  async function saveAccountSettings() {
-    showSavingIndicator();
-    const user = auth.currentUser;
-    if (!user) {
-        console.error('User not authenticated.');
-        hideSavingIndicator(false);
-        alert('Error: You are not logged in.');
-        return;
-    }
-
-    const newTimezone = timezoneSelect ? timezoneSelect.value : currentSettings.timezone;
-
-    const settingsToSave = {
-        timezone: newTimezone,
-    };
-
-    console.log('Saving account settings:', settingsToSave);
-
-    try {
-        // Note: firestoreService.updateUserSettings might need updating if 
-        // these settings are moved to the 'settings' subcollection
-        await firestoreService.updateUserSettings(user.uid, settingsToSave); 
-        console.log('Account settings saved successfully.');
-        // Update local state after successful save
-        currentSettings.timezone = newTimezone;
-        hideSavingIndicator(true);
-    } catch (error) {
-        console.error('Error saving account settings:', error);
-        hideSavingIndicator(false);
-        alert('Error saving account settings: ' + error.message);
-    }
-  }
+  // REMOVED saveAccountSettings as it only handled timezone
+  /*
+  async function saveAccountSettings() { ... }
+  */
 
   // --- NEW: Stripe Button Click Handlers ---
   async function handleManageSubscriptionClick() {
@@ -329,45 +277,46 @@ document.addEventListener('DOMContentLoaded', () => {
       showLoadingStates(); // Show loading indicators
       try {
           // Fetch settings and profile in parallel
-          const [settingsData, profileData] = await Promise.all([
-              firestoreService.getUserSettings(user.uid), // Assuming settings are directly under user doc
-              firestoreService.getHousekeeperProfile(user.uid) // Fetch profile for stripe info
-          ]);
+          // REMOVED settingsData fetch - no longer needed on this page
+          const profileData = await firestoreService.getHousekeeperProfile(user.uid); // Fetch profile for stripe info
           
-          console.log('Initial settings data:', settingsData);
-          applyAccountSettings(settingsData);
-          
-          console.log('Initial profile data:', profileData);
-          currentProfile = profileData; // Store profile data
-          updateSubscriptionUI(profileData);
-          updatePayoutsUI(profileData);
+          // --- Add try/catch around processing --- 
+          try {
+              // console.log('Initial settings data:', settingsData); // REMOVED
+              // applyAccountSettings(settingsData); // REMOVED
+              
+              // Log only keys to avoid potential console issues with the object itself
+              console.log('Initial profile data keys:', profileData ? Object.keys(profileData) : 'null or undefined'); 
+              console.log('<<< CHECKPOINT AFTER LOGGING PROFILE DATA KEYS >>>'); // <<< Add simple checkpoint log
+              
+              console.log('Attempting to process profile data...'); 
+              
+              currentProfile = profileData; 
+              updateSubscriptionUI(profileData); // Call UI update
+              updatePayoutsUI(profileData); 
+              
+              console.log('Finished processing profile data.'); // Add log after processing
 
-          // --- ADDED: Check for Stripe Success Redirect --- 
-          const urlParams = new URLSearchParams(window.location.search);
-          if (urlParams.has('subscription_success')) {
-              console.log('Detected successful subscription redirect.');
-              
-              // 1. Immediately update UI to show active state (even if data might be stale)
-              if (subscriptionDetails) subscriptionDetails.classList.remove('hidden');
-              if (subscriptionInactive) subscriptionInactive.classList.add('hidden');
-              if (subscriptionStatusEl) subscriptionStatusEl.textContent = 'Active'; // Show generic active status
-              // Optionally clear plan/date until next proper load?
-              // if (subscriptionPlanEl) subscriptionPlanEl.textContent = 'Processing...';
-              // if (subscriptionPeriodEndEl) subscriptionPeriodEndEl.textContent = '...';
-              
-              // 2. Show a success message (e.g., using an alert or a dedicated UI element)
-              alert('Subscription successful!'); // Simple alert for now
-              
-              // 3. Remove the parameter from URL to prevent re-triggering
-              const newUrl = window.location.pathname + window.location.hash; // Keep path and hash, remove query
-              history.replaceState(null, '', newUrl);
-              console.log('Removed subscription_success parameter from URL.');
+              // --- Check for Stripe Success Redirect --- 
+              const urlParams = new URLSearchParams(window.location.search);
+              if (urlParams.has('subscription_success')) {
+                  console.log('Detected successful subscription redirect.');
+                  alert('Subscription successful!'); 
+                  const newUrl = window.location.pathname + window.location.hash; 
+                  history.replaceState(null, '', newUrl);
+                  console.log('Removed subscription_success parameter from URL.');
+              }
+              // --- END CHECK --- 
+          } catch (processingError) {
+              console.error('Error occurred *during* processing of initial data:', processingError);
+              alert('An error occurred displaying account data: ' + processingError.message);
           }
-           // --- END ADDED --- 
+          // --- End try/catch ---
 
-      } catch (error) {
-          console.error('Error loading initial account data:', error);
-          alert('Error loading account data: ' + error.message);
+      } catch (fetchError) {
+          // This outer catch handles errors from the Promise.all fetch itself
+          console.error('Error loading initial account data (fetch stage):', fetchError);
+          alert('Error loading account data: ' + fetchError.message);
           // Hide loading indicators even on error
           if (subscriptionLoading) subscriptionLoading.classList.add('hidden');
           if (payoutsLoading) payoutsLoading.classList.add('hidden');
@@ -385,13 +334,16 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- Initialization ---
-  populateTimezoneOptions();
+  // populateTimezoneOptions(); // REMOVED
   // Initial data load is now triggered by onAuthStateChanged
 
   // --- Event Listeners ---
+  // REMOVED listener for saveButton
+  /*
   if (saveButton) {
     saveButton.addEventListener('click', saveAccountSettings);
   }
+  */
   // NEW: Add listeners for Stripe buttons
   if (manageSubscriptionButton) {
     manageSubscriptionButton.addEventListener('click', handleManageSubscriptionClick);
@@ -407,11 +359,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (user) {
       console.log('User logged in on account settings page.');
       try {
-          // Load BOTH settings and profile data
+          // Load profile data ONLY
           await loadInitialData(user);
       } catch (error) {
           console.error('Failed to load initial account data:', error);
-          applyAccountSettings({}); // Apply defaults on error
+          // applyAccountSettings({}); // REMOVED
           // NEW: Handle Stripe UI loading errors
           if (subscriptionLoading) subscriptionLoading.classList.add('hidden');
           if (subscriptionInactive) subscriptionInactive.classList.remove('hidden'); // Show inactive by default on error
@@ -420,12 +372,14 @@ document.addEventListener('DOMContentLoaded', () => {
           // END NEW
           alert('Could not load your account settings and profile.');
       }
-      // Add listener to the save button
+      // REMOVED listener for saveButton
+      /*
       if (saveButton) {
           saveButton.addEventListener('click', saveAccountSettings);
       } else {
            console.error('Save button (#save-account-settings-button) not found!');
       }
+      */
       
       // NEW: Add listeners for Stripe buttons
       if (manageSubscriptionButton) {
@@ -449,8 +403,8 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       // Handle logged out state
       console.log('User logged out on account settings page.');
-      applyAccountSettings({}); // Reset UI to defaults
-       if (saveButton) saveButton.disabled = true;
+      // applyAccountSettings({}); // REMOVED
+       // if (saveButton) saveButton.disabled = true; // REMOVED
        // NEW: Reset Stripe UI on logout
        if (subscriptionLoading) subscriptionLoading.classList.remove('hidden');
        if (subscriptionDetails) subscriptionDetails.classList.add('hidden');

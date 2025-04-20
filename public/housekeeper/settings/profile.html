@@ -87,6 +87,23 @@
         </div>
         <!-- End Invite Code Section -->
 
+        <!-- START: Inserted Time Zone Section -->
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-xl font-semibold mb-2">Time Zone</h2>
+            <p class="text-gray-600 mb-4">Select the time zone you operate in. This ensures clients see your availability correctly.</p>
+            <select id="profile-timezone" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                <option value="">Loading timezones...</option>
+            </select>
+            <!-- Add Save button specific to timezone -->
+            <div class="mt-4 pt-4 border-t border-gray-200 flex items-center justify-end space-x-3">
+                 <span id="timezone-saving-indicator" class="text-sm text-gray-500 italic"></span>
+                <button type="button" id="save-timezone-button" class="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50">
+                    Save Time Zone
+                </button>
+            </div>
+        </div>
+        <!-- END: Inserted Time Zone Section -->
+
     </div>
 
     <!-- Mobile Footer Navigation -->

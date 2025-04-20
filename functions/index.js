@@ -33,29 +33,25 @@ try {
 }
 const db = admin.firestore();
 
-// --- NEW: Initialize Stripe ---
-// Comment out top-level initialization
-/*
-const stripePackage = require("stripe"); // Use different name to avoid conflict
-let stripe;
-try {
-    // Ensure secret key is configured via Firebase CLI: 
-    // firebase functions:config:set stripe.secret="sk_test_..."
-    const stripeSecret = functions.config().stripe.secret;
-    if (!stripeSecret) {
-        throw new Error("Stripe secret key not configured in Firebase functions config (stripe.secret)");
-    }
-    stripe = stripePackage(stripeSecret);
-    logger.info("Stripe SDK initialized successfully.");
-} catch (error) {
-    logger.error("FATAL: Failed to initialize Stripe SDK:", error.message);
-    // Consider how to handle this robustly in production - may prevent function execution
-}
-*/
-// Declare stripe globally but initialize lazily
+// --- Initialize Stripe Globally ---
 const stripePackage = require("stripe");
-let stripe = null; 
-// --- END NEW ---
+let stripe = null; // Declare stripe globally
+try {
+    const stripeSecret = process.env.STRIPE_SECRET_KEY; 
+    if (!stripeSecret) {
+        // Log a serious error, as this prevents Stripe functionality
+        logger.error("FATAL: Stripe secret key (STRIPE_SECRET_KEY) not found in environment. Stripe SDK NOT initialized.");
+        // You might want to throw here if Stripe is absolutely essential for all functions
+        // throw new Error("Stripe secret key not configured via environment variables (STRIPE_SECRET_KEY)."); 
+    } else {
+    stripe = stripePackage(stripeSecret);
+        logger.info("Stripe SDK initialized globally using environment variable.");
+    }
+} catch (error) {
+    logger.error("FATAL: Exception during global Stripe SDK initialization:", error);
+    // Depending on requirements, you might re-throw or just log
+}
+// --- END Stripe Initialization ---
 
 // Create and deploy your first functions
 // https://firebase.google.com/docs/functions/get-started
@@ -669,7 +665,7 @@ exports.requestBooking = onCall(async (request) => {
         logger.info(`No conflicts found for slot starting ${startTimestamp.toDate().toISOString()}`);
 
         // 4. Prepare New Booking Document (Timestamp format)
-        const newBookingData = {
+    const newBookingData = {
             homeownerId: homeownerId,
             housekeeperId: housekeeperId, 
             startTimestamp: startTimestamp, 
@@ -677,7 +673,7 @@ exports.requestBooking = onCall(async (request) => {
             startTimestampMillis: startTimeMillis, // ADDED: Store milliseconds
             endTimestampMillis: endTimeMillis,     // ADDED: Store milliseconds
             status: "pending", // Initial status
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
             // Add other fields like clientName, address, notes if available/needed
             // These might need to be fetched based on homeownerId if not passed from client
@@ -890,9 +886,9 @@ exports.syncHomeownerProfileToClient = onDocumentUpdated('homeowner_profiles/{ho
 // --- NEW: Archive Client and Block Homeowner --- 
 exports.archiveClientAndBlockHomeowner = onCall(async (request) => {
     logger.info("[archiveClient] Function called", { auth: request.auth, data: request.data });
-
+     
     // 1. Authentication Check
-    if (!request.auth) {
+     if (!request.auth) {
         logger.error("[archiveClient] Authentication required.");
         throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
     }
@@ -948,7 +944,7 @@ exports.archiveClientAndBlockHomeowner = onCall(async (request) => {
             
             // Update Client: Set isActive to false and add archived timestamp
             transaction.update(clientRef, {
-                isActive: false,
+        isActive: false,
                 archivedAt: admin.firestore.FieldValue.serverTimestamp()
             });
             logger.info(`[archiveClient] Transaction: Marked client ${homeownerIdToBlock} as inactive.`);
@@ -977,9 +973,9 @@ exports.archiveClientAndBlockHomeowner = onCall(async (request) => {
 // --- NEW: Unarchive Client and Unblock Homeowner --- 
 exports.unarchiveClientAndUnblockHomeowner = onCall(async (request) => {
     logger.info("[unarchiveClient] Function called", { auth: request.auth, data: request.data });
-
+     
     // 1. Authentication Check
-    if (!request.auth) {
+     if (!request.auth) {
         logger.error("[unarchiveClient] Authentication required.");
         throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
     }
@@ -1001,7 +997,7 @@ exports.unarchiveClientAndUnblockHomeowner = onCall(async (request) => {
         await db.runTransaction(async (transaction) => {
             // Update Client: Set isActive to true and remove archived timestamp (optional)
             transaction.update(clientRef, {
-                isActive: true,
+        isActive: true,
                 archivedAt: admin.firestore.FieldValue.delete() // Remove the archived timestamp if it exists
             });
             logger.info(`[unarchiveClient] Transaction: Marked client ${homeownerIdToUnblock} as active.`);
@@ -1227,132 +1223,111 @@ exports.createExpressDashboardLink = onCall({ cors: true }, async (request) => {
 
 // --- Callable Function: createSubscriptionCheckoutSession (V2) ---
 exports.createSubscriptionCheckoutSession = onCall({ cors: true }, async (request) => {
-    // Wrap the main logic in the cors handler
+    // Wrap the main logic in the cors handler (KEEP CORS WRAPPER if using onCall v1 style with cors:true)
+    // For pure v2 onCall, CORS is handled differently (usually via Cloud Run settings or manually if needed)
+    // Assuming the Promise/cors wrapper is still needed from previous structure:
     return new Promise((resolve, reject) => {
-        cors(request.rawRequest, request.rawRequest.res, async (err) => {
+        cors(request.rawRequest, request.rawRequest.res, async (err) => { // Use request.rawRequest if available
             if (err) {
                 logger.error("CORS error:", err);
                 return reject(new HttpsError("internal", "CORS error", err));
             }
 
-            // --- LAZY INITIALIZATION OF STRIPE --- 
+            // --- REMOVED LAZY INITIALIZATION OF STRIPE ---
+            // Check if global initialization failed
             if (!stripe) {
-                try {
-                    // --- REMOVE OLD LOGGING & CONFIG CALL ---
-                    // logger.info("Attempting lazy Stripe initialization...");
-                    // const functionsConfig = functions.config(); // REMOVE THIS
-                    // logger.info("functions.config() output:", JSON.stringify(functionsConfig, null, 2)); // REMOVE THIS
-                    
-                    // --- USE process.env ---
-                    logger.info("Attempting lazy Stripe initialization using environment variable..."); // Updated log
-                    const stripeSecret = process.env.STRIPE_SECRET_KEY; // READ FROM ENV
-                    
-                    // --- ADDED LOGGING --- 
-                    logger.info("Value of process.env.STRIPE_SECRET_KEY:", stripeSecret ? `Exists (type: ${typeof stripeSecret}, length: ${stripeSecret.length})` : `MISSING or Falsy (Value: ${stripeSecret})`);
-                    // --- END ADDED LOGGING --- 
-
-                    if (!stripeSecret) {
-                        // --- UPDATE ERROR MESSAGE ---
-                        throw new Error("Stripe secret key not configured via environment variables (STRIPE_SECRET_KEY).");
-                    }
-                    stripe = stripePackage(stripeSecret);
-                    // logger.info("Stripe SDK object created:", !!stripe); // REMOVE THIS
-                    logger.info("Stripe SDK lazily initialized successfully.");
-                } catch (initError) {
-                    logger.error("FATAL: Failed to lazily initialize Stripe SDK:", initError.message);
-                    // Update error message slightly
-                    return reject(new HttpsError("internal", "Server configuration error regarding Stripe.", initError.message)); 
-                }
+                logger.error("createSubscriptionCheckoutSession: Stripe SDK was not initialized globally. Aborting.");
+                return reject(new HttpsError("internal", "Server configuration error regarding Stripe."));
             }
-            // --- END LAZY INITIALIZATION ---
+            // --- END REMOVED --- 
 
             // 1. Check Authentication (Now inside cors handler)
-            if (!request.auth) {
+    if (!request.auth) {
                 return reject(new HttpsError(
                     "unauthenticated", 
                     "User must be authenticated."
                 ));
-            }
-            const housekeeperUid = request.auth.uid;
-            const priceId = request.data.priceId; // Get priceId from request.data
-        
-            if (!priceId) {
+    }
+    const housekeeperUid = request.auth.uid;
+    const priceId = request.data.priceId; // Get priceId from request.data
+
+    if (!priceId) {
                  return reject(new HttpsError("invalid-argument", "The function must be called with a 'priceId'."));
+    }
+    logger.info(`(V2) Creating subscription checkout session for housekeeper: ${housekeeperUid}, priceId: ${priceId}`);
+
+    try {
+        // 2. Get/Create Stripe Customer ID
+        const profileRef = db.collection("housekeeper_profiles").doc(housekeeperUid);
+        const profileSnap = await profileRef.get();
+
+        if (!profileSnap.exists) {
+            throw new HttpsError("not-found", `Housekeeper profile not found for UID: ${housekeeperUid}`);
+        }
+        const profileData = profileSnap.data() || {};
+        let stripeCustomerId = profileData.stripeCustomerId;
+
+        // If customer ID doesn't exist, create a new Stripe Customer
+        if (!stripeCustomerId) {
+            logger.info(`No Stripe Customer ID found for ${housekeeperUid}, creating one...`);
+            const userEmail = request.auth.token.email || profileData.email;
+            const userName = `${profileData.firstName || ''} ${profileData.lastName || ''}`.trim();
+            if (!userEmail) {
+                 logger.error(`Cannot create Stripe customer for ${housekeeperUid} without an email address.`);
+                 throw new HttpsError("failed-precondition", "User email is required to create Stripe customer.");
             }
-            logger.info(`(V2) Creating subscription checkout session for housekeeper: ${housekeeperUid}, priceId: ${priceId}`);
-        
-            try {
-                // 2. Get/Create Stripe Customer ID
-                const profileRef = db.collection("housekeeper_profiles").doc(housekeeperUid);
-                const profileSnap = await profileRef.get();
-        
-                if (!profileSnap.exists) {
-                    throw new HttpsError("not-found", `Housekeeper profile not found for UID: ${housekeeperUid}`);
-                }
-                const profileData = profileSnap.data() || {};
-                let stripeCustomerId = profileData.stripeCustomerId;
-        
-                // If customer ID doesn't exist, create a new Stripe Customer
-                if (!stripeCustomerId) {
-                    logger.info(`No Stripe Customer ID found for ${housekeeperUid}, creating one...`);
-                    const userEmail = request.auth.token.email || profileData.email;
-                    const userName = `${profileData.firstName || ''} ${profileData.lastName || ''}`.trim();
-                    if (!userEmail) {
-                         logger.error(`Cannot create Stripe customer for ${housekeeperUid} without an email address.`);
-                         throw new HttpsError("failed-precondition", "User email is required to create Stripe customer.");
-                    }
-        
-                    const customer = await stripe.customers.create({
-                        email: userEmail,
-                        name: userName || undefined,
-                        metadata: {
-                            firebaseUID: housekeeperUid,
-                        },
-                    });
-                    stripeCustomerId = customer.id;
-                    logger.info(`Created Stripe Customer ${stripeCustomerId} for ${housekeeperUid}`);
-        
-                    // Save the new customer ID back to the profile
-                    await profileRef.set({ 
-                        stripeCustomerId: stripeCustomerId,
-                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                     }, { merge: true });
-                    logger.info(`Saved Stripe Customer ID ${stripeCustomerId} to profile ${housekeeperUid}`);
-                } else {
-                     logger.info(`Using existing Stripe Customer ID ${stripeCustomerId} for ${housekeeperUid}`);
-                }
-        
-                // 3. Define Success and Cancel URLs (Using deployed app URL)
-                const successUrl = `https://housekeeper-app-dev.web.app/housekeeper/settings/account.html?subscription_success=true`;
-                const cancelUrl = `https://housekeeper-app-dev.web.app/housekeeper/settings/account.html?subscription_cancelled=true`;
-        
-                // 4. Create Stripe Checkout Session for Subscription
-                const session = await stripe.checkout.sessions.create({
-                    payment_method_types: ['card'],
-                    mode: 'subscription',
-                    customer: stripeCustomerId,
-                    line_items: [
-                        {
-                            price: priceId,
-                            quantity: 1,
-                        },
-                    ],
-                    success_url: successUrl,
-                    cancel_url: cancelUrl,
-                });
-        
-                logger.info(`Successfully created Checkout Session ${session.id} for ${stripeCustomerId}`);
-                // 5. Return the Session ID
+
+            const customer = await stripe.customers.create({
+                email: userEmail,
+                name: userName || undefined,
+                metadata: {
+                    firebaseUID: housekeeperUid,
+                },
+            });
+            stripeCustomerId = customer.id;
+            logger.info(`Created Stripe Customer ${stripeCustomerId} for ${housekeeperUid}`);
+
+            // Save the new customer ID back to the profile
+            await profileRef.set({ 
+                stripeCustomerId: stripeCustomerId,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+             }, { merge: true });
+            logger.info(`Saved Stripe Customer ID ${stripeCustomerId} to profile ${housekeeperUid}`);
+        } else {
+             logger.info(`Using existing Stripe Customer ID ${stripeCustomerId} for ${housekeeperUid}`);
+        }
+
+        // 3. Define Success and Cancel URLs (Using deployed app URL)
+        const successUrl = `https://housekeeper-app-dev.web.app/housekeeper/settings/account.html?subscription_success=true`;
+        const cancelUrl = `https://housekeeper-app-dev.web.app/housekeeper/settings/account.html?subscription_cancelled=true`;
+
+        // 4. Create Stripe Checkout Session for Subscription
+        const session = await stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            mode: 'subscription',
+            customer: stripeCustomerId,
+            line_items: [
+                {
+                    price: priceId,
+                    quantity: 1,
+                },
+            ],
+            success_url: successUrl,
+            cancel_url: cancelUrl,
+        });
+
+        logger.info(`Successfully created Checkout Session ${session.id} for ${stripeCustomerId}`);
+        // 5. Return the Session ID
                 resolve({ sessionId: session.id }); // Resolve the promise on success
-        
-            } catch (error) {
-                logger.error(`Error creating Stripe Checkout session for ${housekeeperUid}:`, error);
-                 if (error instanceof HttpsError) {
+
+    } catch (error) {
+        logger.error(`Error creating Stripe Checkout session for ${housekeeperUid}:`, error);
+         if (error instanceof HttpsError) {
                      reject(error); // Reject with HttpsError if it's already one
                 } else {
                     reject(new HttpsError("internal", "Could not create checkout session.", error.message)); // Reject with a new HttpsError
-                }
-            }
+        }
+    }
         }); // End cors handler
     }); // End Promise wrapper
 });
@@ -1363,10 +1338,151 @@ exports.createSubscriptionCheckoutSession = onCall({ cors: true }, async (reques
 // You will likely need a separate HTTP function (v1 functions.https.onRequest)
 // to handle webhooks from Stripe and ensure Firestore data stays in sync.
 // This requires signature verification using a webhook secret.
-/*
-const STRIPE_WEBHOOK_SECRET = functions.config().stripe.webhook_secret; // Configure this!
 
+// Uncomment the function definition
+/* REMOVE THIS LINE
+const STRIPE_WEBHOOK_SECRET = functions.config().stripe.webhook_secret; // Configure this!
+*/ // REMOVE THIS LINE
+
+// Use v1 onRequest for webhooks as they don't typically use callable context/auth
 exports.stripeWebhookHandler = functions.https.onRequest(async (req, res) => {
+    // Read the secret from environment variables (needs to be set via Secret Manager)
+    const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+    // Basic logging and secret check
+    logger.info("Stripe Webhook Handler received request.");
+    if (!stripeWebhookSecret) {
+        logger.error("FATAL: Stripe webhook secret (STRIPE_WEBHOOK_SECRET) is not configured in environment.");
+        return res.status(500).send("Webhook configuration error.");
+    }
+    logger.info("Stripe webhook secret found in environment.");
+
+    // --- Signature Verification ---
+    const stripeSignature = req.headers['stripe-signature'];
+    let event;
+
+    try {
+        // IMPORTANT: Stripe requires the raw request body for verification.
+        // Firebase Functions v1 automatically parses JSON, but stores the raw body
+        // in req.rawBody. Use this for verification.
+        event = stripe.webhooks.constructEvent(req.rawBody, stripeSignature, stripeWebhookSecret);
+        logger.info(`Webhook signature verified. Event ID: ${event.id}, Type: ${event.type}`);
+    } catch (err) {
+        logger.error('Webhook signature verification failed.', { error: err.message });
+        // Return a 400 error if signature verification fails
+        return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+    // --- End Signature Verification ---
+
+    // --- Handle the specific event type ---
+    const dataObject = event.data.object; // The Stripe object related to the event
+
+    try {
+        switch (event.type) {
+            case 'customer.subscription.created':
+            case 'customer.subscription.updated':
+            case 'customer.subscription.deleted':
+                const subscription = dataObject;
+                const customerId = subscription.customer;
+                const status = subscription.status;
+                const subscriptionItem = subscription.items.data[0]; // Get the first item
+                const priceId = subscriptionItem?.price.id;
+                const priceNickname = subscriptionItem?.price.nickname; // <<< GET NICKNAME
+                
+                // Convert period end from seconds to Firestore Timestamp
+                const currentPeriodEnd = subscription.current_period_end 
+                    ? admin.firestore.Timestamp.fromMillis(subscription.current_period_end * 1000) 
+                    : null;
+                
+                logger.info(`Processing subscription event: ${event.type} for customer ${customerId}, Status: ${status}, Nickname: ${priceNickname}`);
+                
+                // Find user profile by stripeCustomerId
+                const userQuery = await db.collection('housekeeper_profiles')
+                                          .where('stripeCustomerId', '==', customerId)
+                                          .limit(1)
+                                          .get();
+                
+                if (!userQuery.empty) {
+                    const userDoc = userQuery.docs[0];
+                    logger.info(`Found user profile ${userDoc.id}. Updating subscription status...`);
+                    
+                    // Prepare update data
+                    const updateData = {
+                        stripeSubscriptionStatus: status,
+                        stripeSubscriptionId: subscription.id,
+                        stripePriceId: priceId || admin.firestore.FieldValue.delete(),
+                        stripePlanName: priceNickname || admin.firestore.FieldValue.delete(), // <<< ADD NICKNAME
+                        stripeCurrentPeriodEnd: currentPeriodEnd || admin.firestore.FieldValue.delete(),
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    };
+
+                    // Update Firestore document
+                    await userDoc.ref.update(updateData);
+                    logger.info(`Successfully updated subscription status for user ${userDoc.id}.`);
+                } else {
+                    logger.warn(`Webhook received for unknown Stripe customer ID: ${customerId}. No profile found to update.`);
+                }
+                break;
+
+            case 'account.updated': // Handle Stripe Connect account status changes
+                const account = dataObject;
+                const accountId = account.id;
+                const chargesEnabled = account.charges_enabled;
+                const payoutsEnabled = account.payouts_enabled;
+                const detailsSubmitted = account.details_submitted;
+                
+                // Determine a simplified status based on capabilities
+                let accountStatus = 'pending'; // Default
+                if (detailsSubmitted && chargesEnabled && payoutsEnabled) {
+                    accountStatus = 'enabled'; // Fully active
+                } else if (detailsSubmitted) {
+                    accountStatus = 'restricted'; // Submitted, but something isn't active
+                } else {
+                    accountStatus = 'pending'; // Not fully submitted
+                }
+                
+                logger.info(`Processing account.updated event for account ${accountId}, Determined Status: ${accountStatus}`);
+
+                // Find user profile by stripeAccountId
+                const accountUserQuery = await db.collection('housekeeper_profiles')
+                                                 .where('stripeAccountId', '==', accountId)
+                                                 .limit(1)
+                                                 .get();
+                
+                if (!accountUserQuery.empty) {
+                    const userDoc = accountUserQuery.docs[0];
+                    logger.info(`Found user profile ${userDoc.id}. Updating Stripe Connect account status...`);
+                    await userDoc.ref.update({
+                        stripeAccountStatus: accountStatus,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                     logger.info(`Successfully updated Stripe Connect status for user ${userDoc.id}.`);
+                } else {
+                     logger.warn(`Webhook received for unknown Stripe Account ID: ${accountId}. No profile found to update.`);
+                }
+                break;
+
+            // TODO: Add cases for other events like 'invoice.payment_failed'
+            case 'invoice.payment_failed':
+                 logger.warn(`Unhandled event type (invoice.payment_failed): ${event.type}. Consider adding logic.`);
+                 // Potential logic: Notify user, update subscription status if needed.
+                 break;
+
+            default:
+                logger.warn(`Unhandled webhook event type: ${event.type}`);
+        }
+
+        // Return a 200 response to acknowledge receipt of the event
+        res.json({received: true});
+
+    } catch (error) {
+         logger.error("Error processing webhook event:", { eventType: event.type, error: error.message, stack: error.stack });
+         // Send 500 on internal processing errors
+         res.status(500).send("Internal Server Error processing webhook.");
+    }
+});
+
+/* // REMOVE THIS LINE
     // Use cors middleware if needed, though webhooks shouldn't typically trigger preflight
     // cors(req, res, async () => { ... });
 
@@ -1450,6 +1566,6 @@ exports.stripeWebhookHandler = functions.https.onRequest(async (req, res) => {
          res.status(500).send("Internal Server Error processing webhook.");
     }
 });
-*/
+*/ // REMOVE THIS LINE
 
 // ========= END STRIPE WEBHOOK HANDLER (Skeleton) =========
