@@ -1062,8 +1062,15 @@ exports.createBillingPortalSession = onCall({ cors: true }, async (request) => {
             );
         }
 
-        // 3. Define the return URL
-        const returnUrl = "https://housekeeper-app-dev.web.app/housekeeper/settings/account.html"; // PRODUCTION URL
+        // 3. Define the return URL based on environment
+        let returnUrl;
+        if (process.env.FUNCTIONS_EMULATOR === 'true') {
+            returnUrl = "http://127.0.0.1:5000/housekeeper/settings/account.html"; // LOCAL DEV URL
+            logger.info("Using local return URL for Billing Portal:", returnUrl);
+        } else {
+            returnUrl = "https://housekeeper-app-dev.web.app/housekeeper/settings/account.html"; // PRODUCTION/HOSTED URL
+            logger.info("Using hosted return URL for Billing Portal:", returnUrl);
+        }
 
         // 4. Create Stripe Billing Portal Session
         const session = await stripe.billingPortal.sessions.create({
