@@ -313,17 +313,22 @@ async function populateCoreData(homeownerUid, housekeeperUid, options = { stripe
     const housekeeperProfileRef = db.collection('housekeeper_profiles').doc(housekeeperUid);
     batch.set(housekeeperProfileRef, housekeeperProfile); // Use the potentially modified object
 
-    // 2. Housekeeper Base User Doc (Update existing)
+    // 2. Housekeeper Base User Doc (Set with Merge to Create/Update)
     const housekeeperUserRef = db.collection('users').doc(housekeeperUid);
-    const housekeeperUserUpdate = {
+    const housekeeperUserData = {
+        // Include base data and profile data needed at the root user doc
+        ...coreHousekeeperBaseData, // adds email and role
         firstName: coreHousekeeperProfileData.firstName,
         lastName: coreHousekeeperProfileData.lastName,
         phone: coreHousekeeperProfileData.phone,
         companyName: coreHousekeeperProfileData.companyName,
+        // IMPORTANT: Add createdAt ONLY if creating, or use merge
+        // Using set with merge handles both create and update safely
+        createdAt: timestamp, // Add on initial set
         updatedAt: timestamp,
-        // Note: Ensure role was set correctly during signup
     };
-    batch.update(housekeeperUserRef, housekeeperUserUpdate);
+    // Use set with merge: true to create if missing, update if exists
+    batch.set(housekeeperUserRef, housekeeperUserData, { merge: true }); 
 
     // 3. Homeowner Profile
     const homeownerProfile = {
@@ -339,16 +344,20 @@ async function populateCoreData(homeownerUid, housekeeperUid, options = { stripe
     const homeownerProfileRef = db.collection('homeowner_profiles').doc(homeownerUid);
     batch.set(homeownerProfileRef, homeownerProfile);
 
-    // 4. Homeowner Base User Doc (Update existing)
+    // 4. Homeowner Base User Doc (Set with Merge to Create/Update)
     const homeownerUserRef = db.collection('users').doc(homeownerUid);
-    const homeownerUserUpdate = {
+    const homeownerUserData = {
+        // Include base data and profile data needed at the root user doc
+        ...coreHomeownerBaseData, // adds email and role
         firstName: coreHomeownerProfileData.firstName,
         lastName: coreHomeownerProfileData.lastName,
         phone: coreHomeownerProfileData.phone,
+        // Using set with merge handles both create and update safely
+        createdAt: timestamp, // Add on initial set
         updatedAt: timestamp,
-        // Note: Ensure role was set correctly during signup
     };
-    batch.update(homeownerUserRef, homeownerUserUpdate);
+    // Use set with merge: true to create if missing, update if exists
+    batch.set(homeownerUserRef, homeownerUserData, { merge: true });
 
     // ... (Rest of the function: clearing subcollections, adding clients, services, bookings) ...
 
@@ -372,16 +381,94 @@ async function populateCoreData(homeownerUid, housekeeperUid, options = { stripe
     // --- Commit Batch --- 
     try {
         await batch.commit();
-        console.log("✅ Core data population batch committed successfully!");
-        // Add subsequent operations (like adding clients/bookings needing separate calls) here
-        // ... add manual clients ...
-        // ... add services ...
-        // ... add bookings ...
+        console.log("✅ Core profiles batch committed successfully!");
+
+        // --- Add Subcollection Data (AFTER profiles are potentially created) ---
+        console.log("--- Starting Subcollection Data Population ---");
+        const db = firebase.firestore(); // Get instance again just in case
+        const timestamp = firebase.firestore.FieldValue.serverTimestamp(); // Get timestamp again
+
+        // 1. Add Default Settings
+        const settingsRef = db.collection('users').doc(housekeeperUid).collection('settings').doc('app');
+        // Define default settings (adjust as needed, use structure from DEFAULT_SETTINGS in index.js)
+        const defaultAppSettings = {
+            workingDays: {
+                monday: { isWorking: true, startTime: "09:00", jobDurations: [120, 120], breakDurations: [60] },
+                tuesday: { isWorking: true, startTime: "09:00", jobDurations: [120, 120], breakDurations: [60] },
+                wednesday: { isWorking: true, startTime: "09:00", jobDurations: [120, 120], breakDurations: [60] },
+                thursday: { isWorking: true, startTime: "09:00", jobDurations: [120, 120], breakDurations: [60] },
+                friday: { isWorking: true, startTime: "09:00", jobDurations: [120, 120], breakDurations: [60] },
+                saturday: { isWorking: false },
+                sunday: { isWorking: false },
+            },
+            timezone: "America/Los_Angeles", // Default example timezone
+            updatedAt: timestamp
+        };
+        try {
+            await settingsRef.set(defaultAppSettings);
+            console.log("   -> Step 1/4: Default settings write attempted."); // LOG Step
+        } catch (e) {
+            console.error("      ERROR adding settings:", e);
+        }
+
+        // 2. Add Services
+        const servicesColRef = db.collection('users').doc(housekeeperUid).collection('services');
+        const servicesToAdd = sampleServicesData(housekeeperUid); // Generate with correct ownerId
+        let servicesAddedCount = 0;
+        try {
+            for (const serviceData of servicesToAdd) {
+                await servicesColRef.add({...serviceData, createdAt: timestamp, updatedAt: timestamp}); // Use add for auto-ID
+                servicesAddedCount++;
+            }
+            console.log(`   -> Step 2/4: ${servicesAddedCount}/${servicesToAdd.length} sample services writes attempted.`); // LOG Step
+        } catch (e) {
+            console.error("      ERROR adding services:", e);
+        }
+
+        // 3. Add Manual Clients and Capture IDs
+        const clientsColRef = db.collection('users').doc(housekeeperUid).collection('clients');
+        let clientIds = [];
+        let clientsAddedCount = 0;
+        try {
+            const clientPromises = manualClientsData.map(clientData => 
+                clientsColRef.add({...clientData, createdAt: timestamp, updatedAt: timestamp})
+            );
+            const clientRefs = await Promise.all(clientPromises);
+            clientIds = clientRefs.map(ref => ref.id);
+            clientsAddedCount = clientIds.length;
+            console.log(`   -> Step 3/4: ${clientsAddedCount}/${manualClientsData.length} manual clients writes attempted.`); // LOG Step
+            if(clientIds.length > 0) console.log(`      (Manual Client 1 ID: ${clientIds[0]})`);
+        } catch (e) {
+            console.error("      ERROR adding clients:", e);
+        }
+        let manualClientOneId = clientIds.length > 0 ? clientIds[0] : null; // Keep for booking data
+
+        // 4. Add Bookings (using captured client ID)
+        const bookingsColRef = db.collection('users').doc(housekeeperUid).collection('bookings');
+        const bookingsToAdd = sampleBookingsData(homeownerUid, manualClientOneId, housekeeperUid);
+        let bookingsAddedCount = 0;
+        try {
+            for (const bookingData of bookingsToAdd) {
+                // Ensure createdAt is set if not already
+                if (!bookingData.createdAt) {
+                     bookingData.createdAt = timestamp;
+                }
+                bookingData.updatedAt = timestamp; // Always set updatedAt
+                await bookingsColRef.add(bookingData);
+                bookingsAddedCount++;
+            }
+             console.log(`   -> Step 4/4: ${bookingsAddedCount}/${bookingsToAdd.length} sample bookings writes attempted.`); // LOG Step
+        } catch (e) {
+            console.error("      ERROR adding bookings:", e);
+        }
+        
+        // Add Time-Off Data here if needed in the future
+        
         console.log("✅ All sample data operations completed.");
         alert("Core sample data populated successfully!");
 
     } catch (error) {
-        console.error("❌ Error committing core data population batch:", error);
+        console.error("❌ Error committing core data population batch or subsequent operations:", error);
         alert("Error populating core data. Check console.");
     }
 

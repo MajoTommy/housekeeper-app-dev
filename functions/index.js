@@ -11,6 +11,7 @@ const { HttpsError, onCall } = require("firebase-functions/v2/https");
 const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
+const { Timestamp } = require("firebase-admin/firestore"); // <<< ADD THIS IMPORT
 const functions = require("firebase-functions");
 const cors = require('cors')({origin: true}); // Import and configure CORS
 const dateFnsTz = require('date-fns-tz'); // COMMONJS DEFAULT IMPORT
@@ -39,27 +40,40 @@ let stripe = null; // Declare stripe globally
 try {
     const stripeSecret = process.env.STRIPE_SECRET_KEY; 
     if (!stripeSecret) {
-        // Log a serious error, as this prevents Stripe functionality
-        logger.error("FATAL: Stripe secret key (STRIPE_SECRET_KEY) not found in environment. Stripe SDK NOT initialized.");
-        // You might want to throw here if Stripe is absolutely essential for all functions
-        // throw new Error("Stripe secret key not configured via environment variables (STRIPE_SECRET_KEY)."); 
+        // Log a WARNING during analysis/runtime if missing, not FATAL.
+        // Functions needing Stripe will fail later if it's truly missing in their runtime env.
+        logger.warn("Stripe secret key (STRIPE_SECRET_KEY) not found in environment. Stripe SDK NOT initialized globally. Functions requiring Stripe may fail if secret is not provided via Secret Manager.");
     } else {
-    stripe = stripePackage(stripeSecret);
-        logger.info("Stripe SDK initialized globally using environment variable.");
+        stripe = stripePackage(stripeSecret);
+        logger.info("Stripe SDK initialized globally using environment variable (or secret passed as env var).");
     }
 } catch (error) {
-    logger.error("FATAL: Exception during global Stripe SDK initialization:", error);
-    // Depending on requirements, you might re-throw or just log
+    // Log initialization errors but don't halt deployment analysis
+    logger.error("Exception during global Stripe SDK initialization attempt:", error);
 }
 // --- END Stripe Initialization ---
 
+// --- NEW TEST FUNCTION ---
+exports.testAuthContext = functions.https.onCall((data, context) => {
+    logger.info("--- testAuthContext called ---");
+    logger.info("testAuthContext received data:", data);
+    // Log the whole context object to see what's inside
+    logger.info("testAuthContext full context:", context);
+    // Specifically log context.auth
+    logger.info("testAuthContext context.auth:", context.auth);
+
+    if (!context.auth) {
+        logger.error("!!! testAuthContext: Auth context is UNDEFINED!");
+        throw new functions.https.HttpsError('unauthenticated', 'Auth context missing in test function.');
+    }
+
+    logger.info("+++ testAuthContext: Auth context FOUND:", context.auth.uid);
+    return { success: true, uid: context.auth.uid };
+});
+// --- END NEW TEST FUNCTION ---
+
 // Create and deploy your first functions
 // https://firebase.google.com/docs/functions/get-started
-
-// exports.helloWorld = onRequest((request, response) => {
-//   logger.info("Hello logs!", {structuredData: true});
-//   response.send("Hello from Firebase!");
-// });
 
 // --- Time Helper Functions (JavaScript) ---
 
@@ -105,9 +119,23 @@ const DEFAULT_SETTINGS = {
 };
 const DEFAULT_JOB_DURATION = 180; // minutes
 
-// --- Main Cloud Function: getAvailableSlots (Refactored for UTC Timestamps) ---
-exports.getAvailableSlots = onCall(async (request) => {
-    logger.info("getAvailableSlots (UTC Refactor) called", { authUid: request.auth ? request.auth.uid : "none", data: request.data });
+// --- Main Cloud Function: getAvailableSlots (Refactored to V2 onCall Syntax) ---
+exports.getAvailableSlots = onCall({ cors: true }, async (request) => {
+    // V2 onCall handles CORS via options, no manual wrapper needed
+
+    console.log("getAvailableSlots (V2) called with data:", request.data);
+    console.log("getAvailableSlots (V2) request.auth:", request.auth); // Use request.auth for V2
+
+    // Check if user is authenticated
+    if (!request.auth) {
+        throw new HttpsError(
+            'unauthenticated',
+            'The function must be called while authenticated.'
+        );
+    }
+    const authUid = request.auth.uid; // Get UID from request.auth
+
+    logger.info("getAvailableSlots (V2) called", { authUid: authUid, data: request.data });
 
     // 1. Input Validation (Keep ISO strings as input)
     const { housekeeperId, startDateString, endDateString } = request.data;
@@ -116,23 +144,21 @@ exports.getAvailableSlots = onCall(async (request) => {
         throw new HttpsError("invalid-argument", "Required data missing or invalid (housekeeperId, startDateString, endDateString).");
     }
 
+    // --- ADD LOGGING ---
+    logger.info("Received date strings for parsing:", { startDateString, endDateString });
+    // --- END LOGGING ---
+
     let startDateUTC, endDateUTC, rangeStartTimestamp, rangeEndTimestamp;
     try {
-        // Parse input strings directly into Date objects (interpreted as UTC by Firestore client/Admin SDK when used in queries)
         startDateUTC = new Date(startDateString);
-        endDateUTC = new Date(endDateString); 
-        // Ensure times are start/end of day UTC for range query
-        startDateUTC.setUTCHours(0, 0, 0, 0); 
-        // For end date, we need the very end of the day for <= comparison
-        endDateUTC.setUTCHours(23, 59, 59, 999); 
-        
+        endDateUTC = new Date(endDateString);
+        startDateUTC.setUTCHours(0, 0, 0, 0);
+        endDateUTC.setUTCHours(23, 59, 59, 999);
         if (isNaN(startDateUTC.getTime()) || isNaN(endDateUTC.getTime())) {
             throw new Error("Invalid date conversion.");
         }
-        // Convert to Firestore Timestamps for querying
-        rangeStartTimestamp = admin.firestore.Timestamp.fromDate(startDateUTC);
-        rangeEndTimestamp = admin.firestore.Timestamp.fromDate(endDateUTC);
-        
+        rangeStartTimestamp = Timestamp.fromDate(startDateUTC);
+        rangeEndTimestamp = Timestamp.fromDate(endDateUTC);
         logger.info(`Processing request for housekeeper: ${housekeeperId}, UTC range: ${startDateUTC.toISOString()} to ${endDateUTC.toISOString()}`);
     } catch (e) {
         logger.error("Invalid date format provided", { startDateString, endDateString, error: e.message });
@@ -140,39 +166,34 @@ exports.getAvailableSlots = onCall(async (request) => {
     }
 
     try {
-        // --- NEW: Identify Requester (Homeowner) ---
-        const requestingHomeownerId = request.auth ? request.auth.uid : null;
+        // --- Identify Requester ---
+        const requestingHomeownerId = authUid;
         logger.info(`Slot request initiated by homeowner: ${requestingHomeownerId || 'Anonymous/Unauthenticated'}`);
-        // --- END NEW ---
 
-        // 2. Fetch Housekeeper Profile (for blocklist) and Settings
+        // --- Fetch Profile and Settings ---
         const housekeeperProfileRef = db.collection('users').doc(housekeeperId);
-        const settingsPath = housekeeperProfileRef.collection('settings').doc('app'); // Corrected path
-
+        const settingsPath = housekeeperProfileRef.collection('settings').doc('app');
         const [housekeeperProfileDoc, settingsDoc] = await Promise.all([
             housekeeperProfileRef.get(),
-            settingsPath.get() // <<< CORRECTED: Call .get() directly on the DocumentReference
+            settingsPath.get()
         ]);
-        
-        // --- NEW: Check Blocklist --- 
+
+        // --- Check Blocklist --- 
         if (requestingHomeownerId && housekeeperProfileDoc.exists) {
             const housekeeperData = housekeeperProfileDoc.data();
             const blockedHomeowners = housekeeperData.blockedHomeowners || [];
             if (blockedHomeowners.includes(requestingHomeownerId)) {
                 logger.info(`Access denied: Homeowner ${requestingHomeownerId} is blocked by housekeeper ${housekeeperId}. Returning empty schedule.`);
-                return { schedule: {} }; // Return empty schedule if blocked
+                return { schedule: {} }; // Early return if blocked
             }
         } else if (!housekeeperProfileDoc.exists) {
             logger.warn(`Housekeeper profile ${housekeeperId} not found. Cannot check blocklist.`);
-            // Decide behavior: proceed or throw error? Proceeding for now.
         }
-        // --- END NEW ---
 
-        // Continue fetching settings (already fetched in Promise.all)
+        // --- Process Settings --- 
         let settings = DEFAULT_SETTINGS;
         if (settingsDoc.exists) {
             const fetchedSettings = settingsDoc.data();
-            // Deep merge might be better, but basic merge for now
             settings = {
                 ...DEFAULT_SETTINGS,
                 ...fetchedSettings,
@@ -181,36 +202,30 @@ exports.getAvailableSlots = onCall(async (request) => {
                     ...(fetchedSettings?.workingDays || {}),
                 },
             };
-            logger.info("Fetched settings successfully.", { housekeeperId });
+             logger.info("Fetched settings successfully.", { housekeeperId });
         } else {
             logger.warn(`Settings not found for housekeeper ${housekeeperId}, using default settings.`);
         }
 
-        // 3. Fetch Bookings (Querying Timestamps)
+        // --- Fetch Bookings --- 
         const bookingsPath = `users/${housekeeperId}/bookings`;
         const bookingsRef = db.collection(bookingsPath);
         
-        // Query based on startTimestamp falling within the range
-        // Note: For full overlap check, more complex queries or client-side filtering might be needed if a booking *crosses* the start/end date boundaries.
-        // Assuming bookings are contained within single days for now.
         logger.info(`Querying bookings using Timestamps: >= ${rangeStartTimestamp.toDate().toISOString()} and <= ${rangeEndTimestamp.toDate().toISOString()}`);
         const bookingsSnapshot = await bookingsRef
           .where("startTimestamp", ">=", rangeStartTimestamp) 
           .where("startTimestamp", "<=", rangeEndTimestamp) // Bookings starting within the range
-          // Consider adding .where("status", "!=", "cancelled") if cancelled bookings might exist temporarily
           .get();
 
         const bookingsByDateStr = {};
         const profileIdsToFetch = { clients: new Set(), homeowners: new Set() };
 
-        // Fetch profiles in parallel
         bookingsSnapshot.forEach((doc) => {
             const booking = doc.data();
             if (booking.clientId) profileIdsToFetch.clients.add(booking.clientId);
             if (booking.homeownerId) profileIdsToFetch.homeowners.add(booking.homeownerId);
         });
 
-        // Fetch profiles in parallel
         const clientProfilePromises = Array.from(profileIdsToFetch.clients).map(clientId => 
             db.collection(`users/${housekeeperId}/clients`).doc(clientId).get()
         );
@@ -223,7 +238,6 @@ exports.getAvailableSlots = onCall(async (request) => {
             Promise.all(homeownerProfilePromises)
         ]);
 
-        // Create maps for easy lookup
         const clientProfiles = new Map();
         clientProfileSnapshots.forEach(doc => {
             if (doc.exists) clientProfiles.set(doc.id, doc.data());
@@ -233,12 +247,10 @@ exports.getAvailableSlots = onCall(async (request) => {
             if (doc.exists) homeownerProfiles.set(doc.id, doc.data());
         });
 
-        // Process bookings and store by date string (key) using UTC Timestamps
         bookingsSnapshot.forEach((doc) => {
             const booking = doc.data();
             const bookingId = doc.id;
             
-            // Check for existence and validity of timestamps
             if (!booking.startTimestamp || typeof booking.startTimestamp.toDate !== 'function' || 
                 !booking.endTimestamp || typeof booking.endTimestamp.toDate !== 'function') {
                 logger.warn("Skipping booking: Missing or invalid Firestore Timestamps.", { bookingId });
@@ -253,14 +265,12 @@ exports.getAvailableSlots = onCall(async (request) => {
                 return;
             }
 
-            // Get UTC date string key (YYYY-MM-DD)
             const startDate = booking.startTimestamp.toDate();
             const year = startDate.getUTCFullYear();
             const month = (startDate.getUTCMonth() + 1).toString().padStart(2, "0");
             const day = startDate.getUTCDate().toString().padStart(2, "0");
             const bookingDateStr = `${year}-${month}-${day}`;
 
-            // Get client/homeowner name
             let clientName = "Unknown Client";
             if (booking.clientId && clientProfiles.has(booking.clientId)) {
                 const clientData = clientProfiles.get(booking.clientId);
@@ -285,25 +295,19 @@ exports.getAvailableSlots = onCall(async (request) => {
         });
         logger.info(`Fetched and processed ${bookingsSnapshot.size} relevant bookings.`, { housekeeperId });
 
-        // 3b. Fetch Time Off Dates (Querying Timestamps)
-        const timeOffPath = `users/${housekeeperId}/timeOffDates`; // Assuming new structure
+        // --- Fetch Time Off --- 
+        const timeOffPath = `users/${housekeeperId}/timeOffDates`;
         const timeOffRef = db.collection(timeOffPath);
-        // Query for any timeOff range that overlaps with the requested range
-        // Fetch docs where the timeOff START is before the requested range END
-        // AND the timeOff END is after the requested range START.
-        logger.info(`Querying timeOff using Timestamps: startOfDayUTC <= ${rangeEndTimestamp.toDate().toISOString()} and endOfDayUTC >= ${rangeStartTimestamp.toDate().toISOString()}`)
+        
+        logger.info(`Querying timeOff using Timestamps: startOfDayUTC <= ${rangeEndTimestamp.toDate().toISOString()} and endOfDayUTC >= ${rangeStartTimestamp.toDate().toISOString()}`);
         const timeOffSnapshot = await timeOffRef
             .where("housekeeperId", "==", housekeeperId) // Requires index
             .where("startOfDayUTC", "<=", rangeEndTimestamp) 
-            // Firestore doesn't allow range filters on multiple fields.
-            // We need to fetch potentially more and filter locally:
-            // .where("endOfDayUTC", ">=", rangeStartTimestamp) // CANNOT DO THIS
             .get();
             
         const timeOffRanges = []; 
         timeOffSnapshot.forEach(doc => {
              const timeOff = doc.data();
-             // Local filtering for the end date
              if (timeOff.startOfDayUTC && timeOff.endOfDayUTC && 
                  timeOff.endOfDayUTC.toMillis() >= rangeStartTimestamp.toMillis()) {
                   timeOffRanges.push({
@@ -314,12 +318,12 @@ exports.getAvailableSlots = onCall(async (request) => {
         });
         logger.info(`Fetched ${timeOffRanges.length} potentially relevant time off ranges.`, { housekeeperId });
 
-        // 4. Calculate Availability Day by Day (Using UTC)
+        // --- Calculate Availability --- 
         const schedule = {};
         const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-        let currentDateUTC = new Date(startDateUTC); // Start loop with UTC date
+        let currentDateUTC = new Date(startDateUTC);
 
-        while (currentDateUTC.getTime() <= endDateUTC.getTime()) { // Loop based on UTC day end
+        while (currentDateUTC.getTime() <= endDateUTC.getTime()) {
             // --- Date Setup ---
             const currentDayStartMillis = currentDateUTC.getTime(); // Already 00:00:00 UTC
             const year = currentDateUTC.getUTCFullYear();
@@ -333,7 +337,6 @@ exports.getAvailableSlots = onCall(async (request) => {
             // --- Check for Time Off --- 
             let isTimeOffDay = false;
             for(const range of timeOffRanges) {
-                 // Check if the start of the current day falls within any time-off range
                  if (currentDayStartMillis >= range.startMillis && currentDayStartMillis <= range.endMillis) {
                       isTimeOffDay = true;
                       break;
@@ -349,16 +352,14 @@ exports.getAvailableSlots = onCall(async (request) => {
                     message: 'Marked as Time Off',
                     slots: [],
                 };
-                 // Move to the next day (UTC)
-                currentDateUTC.setUTCDate(currentDateUTC.getUTCDate() + 1);
-                continue; 
+                 currentDateUTC.setUTCDate(currentDateUTC.getUTCDate() + 1);
+                 continue; 
             }
 
             // --- Settings and Bookings for the Day ---
             const daySettings = settings.workingDays[dayKey] || { isWorking: false };
             const isWorkingBasedOnSettings = daySettings.isWorking === true;
             const housekeeperTimezone = settings.timezone || 'UTC'; // Get timezone from settings
-            // Get bookings using the UTC date string key
             const todaysBookingsMillis = (bookingsByDateStr[currentDateStr] || []).map(b => ({ 
                 startMillis: b.startMillis, 
                 endMillis: b.endMillis,
@@ -375,10 +376,8 @@ exports.getAvailableSlots = onCall(async (request) => {
             if (isWorkingBasedOnSettings) {
                 const startTimeSetting = daySettings.startTime || "09:00"; // e.g., "09:00 AM" or "09:00"
                 
-                // --- UPDATED: Calculate correct UTC start time using parse + toDate --- 
                 let startMillisUTC = null;
                 try {
-                    // 1. Parse HH:mm AM/PM into 24-hour format
                     const timeMatch = startTimeSetting.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
                     if (!timeMatch) throw new Error(`Invalid startTime format: ${startTimeSetting}`);
                     let hours = parseInt(timeMatch[1], 10);
@@ -390,18 +389,13 @@ exports.getAvailableSlots = onCall(async (request) => {
                          throw new Error(`Invalid parsed time components: H${hours} M${minutes}`);
                     }
 
-                    // 2. Construct local date/time string in the specified format
                     const localDateTimeStr = `${currentDateStr} ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
                     
-                    // 3. Convert the string to a Date object representing the correct UTC instant using toDate
-                    // Pass the local time string directly, with the timezone option.
                     const startDateInZone = dateFnsTz.toDate(localDateTimeStr, { timeZone: housekeeperTimezone });
                     if (isNaN(startDateInZone.getTime())) {
-                        // Throw error if toDate resulted in an invalid date
                         throw new Error(`date-fns-tz toDate failed for: ${localDateTimeStr} in ${housekeeperTimezone}`);
-                        image.png}
+                    }
 
-                    // 4. Get the UTC milliseconds
                     startMillisUTC = startDateInZone.getTime();
                     logger.debug(`[${currentDateStr}] Calculated start time (using toDate): LocalStr=${localDateTimeStr}, TargetZone=${housekeeperTimezone}, Final UTC Millis=${startMillisUTC}, ZonedDateObj=${startDateInZone.toISOString()}`);
 
@@ -409,50 +403,37 @@ exports.getAvailableSlots = onCall(async (request) => {
                      logger.error(`[${currentDateStr}] Error calculating zoned start time (using toDate):`, { date: currentDateStr, time: startTimeSetting, timezone: housekeeperTimezone, error: tzError.message, stack: tzError.stack });
                      startMillisUTC = null; 
                 }
-                // --- END UPDATED --- 
 
-                // Proceed only if we have a valid starting millisecond timestamp
                 if (startMillisUTC !== null) {
-                    // Calculate start time in UTC millis for the current day
-                    let currentMillis = startMillisUTC; // Use the correctly calculated UTC start time
-                    
-                    // --- RESTORED Job/Break durations logic --- 
                     const jobDurationsInput = daySettings.jobDurations;
                     let jobDurations = [];
-                    // Check if it's a valid array of positive numbers
                     if (Array.isArray(jobDurationsInput) && jobDurationsInput.length > 0 && jobDurationsInput.every(d => typeof d === "number" && d > 0)) {
                         jobDurations = jobDurationsInput;
                     } else {
-                        // Fallback logic if jobDurations is missing or invalid
                         const jobsPerDayFallback = (typeof daySettings.jobsPerDay === "number" && daySettings.jobsPerDay > 0) ? daySettings.jobsPerDay : 1;
                         jobDurations = Array(jobsPerDayFallback).fill(DEFAULT_JOB_DURATION);
                         if (jobsPerDayFallback === 0) jobDurations = []; // Handle case of explicitly 0 jobs
                         logger.warn(`[${currentDateStr}] Using fallback job durations`, { count: jobsPerDayFallback, duration: DEFAULT_JOB_DURATION });
                     }
 
-                    // Ensure breakDurations is an array of valid numbers, defaulting invalid ones to 0
                     const breakDurationsInput = daySettings.breakDurations;
                     let breakDurations = [];
                     if (Array.isArray(breakDurationsInput)) {
                         breakDurations = breakDurationsInput.map(d => typeof d === 'number' && d > 0 ? d : 0);
                     }
-                    // --- END RESTORED Logic --- 
 
                     for (let jobIndex = 0; jobIndex < jobDurations.length; jobIndex++) {
                         const jobDurationMillis = jobDurations[jobIndex] * 60 * 1000;
-                        const jobStartMillis = currentMillis;
+                        const jobStartMillis = startMillisUTC;
                         const jobEndMillis = jobStartMillis + jobDurationMillis;
                         potentialSlotsMillis.push({ startMillis: jobStartMillis, endMillis: jobEndMillis, type: 'job' });
-                        currentMillis = jobEndMillis;
-
                         if (jobIndex < jobDurations.length - 1) {
                             const breakDuration = breakDurations.length > jobIndex ? breakDurations[jobIndex] : 0;
                             if (breakDuration > 0) {
                                 const breakDurationMillis = breakDuration * 60 * 1000;
-                                const breakStartMillis = currentMillis;
+                                const breakStartMillis = startMillisUTC;
                                 const breakEndMillis = breakStartMillis + breakDurationMillis;
                                 potentialSlotsMillis.push({ startMillis: breakStartMillis, endMillis: breakEndMillis, type: 'break' });
-                                currentMillis = breakEndMillis;
                             }
                         }
                     }
@@ -465,7 +446,6 @@ exports.getAvailableSlots = onCall(async (request) => {
             // --- Combine Bookings and Potential Slots (Using UTC Millis) ---
             const finalSlotsMillis = [...todaysBookingsMillis]; // Start with actual bookings
 
-            // Add potential slots if they DON'T overlap with existing bookings
             potentialSlotsMillis.forEach(potentialSlot => {
                 let overlapsWithBooking = false;
                 for (const bookedSlot of finalSlotsMillis) { // Check against all slots added so far of type booking
@@ -473,28 +453,22 @@ exports.getAvailableSlots = onCall(async (request) => {
                         Math.max(potentialSlot.startMillis, bookedSlot.startMillis) < Math.min(potentialSlot.endMillis, bookedSlot.endMillis))
                     {
                         overlapsWithBooking = true;
-                        // Add debug logging here if needed
                         break;
                     }
                 }
 
                 if (!overlapsWithBooking) {
-                    // Add the non-overlapping potential slot
                     finalSlotsMillis.push({
                         ...potentialSlot, 
                         status: potentialSlot.type === 'break' ? 'unavailable' : 'available',
                         bookingId: null,
                         clientName: null
                     });
-                } else {
-                    // Add debug logging here if needed
                 }
             });
 
-            // --- Sort by Start Time (Millis) ---
             finalSlotsMillis.sort((a, b) => a.startMillis - b.startMillis);
 
-            // --- Determine overall status and Format Final Output ---
             let overallStatus = 'not_working'; // Default
             let statusMessage = 'Not scheduled to work';
             let availableSlotsFormatted = [];
@@ -502,7 +476,6 @@ exports.getAvailableSlots = onCall(async (request) => {
             const hasAnyAvailableSlot = finalSlotsMillis.some(slot => slot.status === 'available');
             const isWorkingAnySlot = finalSlotsMillis.length > 0;
 
-            // Determine overall status
             if (isTimeOffDay) { // Check Time Off first (redundant check, but safe)
                 overallStatus = 'not_working';
                 statusMessage = 'Marked as Time Off';
@@ -515,11 +488,9 @@ exports.getAvailableSlots = onCall(async (request) => {
             } else if (hasAnyAvailableSlot) { // At least one slot is available
                 overallStatus = 'available';
                 statusMessage = ''; // No message needed when available
-                // Filter for only available slots and format for frontend
                 availableSlotsFormatted = finalSlotsMillis
                     .filter(slot => slot.status === 'available')
                     .map(slot => {
-                        // Calculate duration (assuming job type)
                         const durationMillis = slot.endMillis - slot.startMillis;
                         return {
                             startTimestampMillis: slot.startMillis,
@@ -532,17 +503,14 @@ exports.getAvailableSlots = onCall(async (request) => {
                         };
                     });
             } else {
-                // Fallback case: If settings say working, but no slots generated (e.g., invalid start time)
                 overallStatus = 'not_working';
                 statusMessage = 'Configuration issue or no slots defined';
                 logger.warn(`Day ${currentDateStr} considered not_working due to fallback (settings working=${isWorkingBasedOnSettings}, slots=${finalSlotsMillis.length})`);
             }
 
-            // Format ALL final slots for the response, returning UTC Milliseconds
             const allSlotsFormatted = finalSlotsMillis.map(slot => {
                 const durationMillis = slot.endMillis - slot.startMillis;
                 return {
-                    // RETURN TIMESTAMPS as Milliseconds (or ISO Strings)
                     startTimestampMillis: slot.startMillis, 
                     endTimestampMillis: slot.endMillis,
                     durationMinutes: Math.round(durationMillis / (60 * 1000)), // Keep calculated duration
@@ -561,26 +529,29 @@ exports.getAvailableSlots = onCall(async (request) => {
                 slots: allSlotsFormatted // Return the array with UTC millis
             };
             
-            // Move to the next day (UTC)
             currentDateUTC.setUTCDate(currentDateUTC.getUTCDate() + 1);
         } // End daily loop
 
-        logger.info("Finished calculating schedule successfully (UTC Refactor).");
-        return { schedule };
+        logger.info("Finished calculating schedule successfully (V2).");
+        return { schedule }; // Direct return for V2
 
     } catch (error) {
-        logger.error("Error occurred while calculating availability:", {
+        logger.error("Error occurred while calculating availability (V2):", {
             housekeeperId,
             startDateString,
             endDateString,
+            authUid: authUid,
             error: error.message,
             stack: error.stack,
         });
-        // Ensure the HttpsError includes details potentially useful on client
+        // Re-throw HttpsError or wrap other errors
+        if (error instanceof HttpsError) {
+            throw error;
+        }
         throw new HttpsError(
             "internal",
-            error.message || "An error occurred while calculating availability. Please try again later.", // Pass original message
-            { originalErrorMessage: error.message } // Keep details separate if needed
+            error.message || "An error occurred while calculating availability. Please try again later.",
+            { originalErrorMessage: error.message }
         );
     }
 });

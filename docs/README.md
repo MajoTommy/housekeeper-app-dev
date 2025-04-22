@@ -19,5 +19,6 @@ Review these files:
 - [RULES.md] - Instructions for Cursor to consider when working with me
 - [NEXTSTEPS.md](NEXTSTEPS.md) - Upcoming major development tasks.
 - Always check the most recent `.specstory/*.md` logs for prior conversation context.
+- Read the current TDD driven tests in the folders [/test/].  This will given you an idea of core features and how they work. 
 - Use information from these logs to maintain continuity across sessions.
 - Use the logs to recall prior tasks, project goals, and decisions made.
