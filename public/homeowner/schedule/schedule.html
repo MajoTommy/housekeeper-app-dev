@@ -1,174 +1,279 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full bg-gray-50">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>View Schedule - Housekeeping App</title>
+    <!-- <title>Schedule - Housekeeper App</title> -->
+    <title>Request Service - Housekeeping</title> <!-- RENAMED TITLE -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    
-    <!-- Firebase SDKs (ensure versions match dashboard if needed) -->
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-functions-compat.js"></script> <!-- Added Functions SDK -->
-
+    <!-- Flatpickr CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { // From docs/UI.md (assuming these map to tailwind 'primary')
+                            DEFAULT: '#2196F3', // Blue
+                            light: '#E3F2FD',
+                            dark: '#1976D2'
+                        },
+                        secondary: { // From docs/UI.md
+                            DEFAULT: '#4CAF50', // Green
+                            light: '#E8F5E9',
+                            dark: '#388E3C'
+                        },
+                        accent: { // From docs/UI.md
+                            DEFAULT: '#FFC107' // Amber
+                        },
+                        neutral: { // From docs/UI.md
+                            text: '#333333',
+                            background: '#F5F5F5', // Page background
+                            card: '#FFFFFF'       // Card background
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        body { font-family: 'Inter', sans-serif; }
-        /* Removed redundant slot styles - assuming Tailwind covers this or they are defined elsewhere */
+        /* Custom styles if needed */
+        .flatpickr-calendar {
+            background-color: white; /* Ensure calendar is not transparent */
+            /* Add other custom flatpickr styles if needed */
+        }
+         /* Loading spinner styles */
+        .spinner {
+            border-top-color: #2196F3; /* Directly use primary color hex */
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
-<body class="bg-gray-100">
+<body class="h-full flex flex-col">
 
-    <div class="container mx-auto max-w-4xl px-4 pb-24"> <!-- Padding adjusted -->
-
-        <!-- Header -->
-        <header class="py-4 flex items-center justify-between">
-             <!-- Removed Back Button -->
-             <!-- <a href="/homeowner/dashboard.html" class="text-blue-600 hover:text-blue-800"> -->
-             <!--    <i class="fas fa-arrow-left mr-2"></i>Dashboard -->
-             <!-- </a> -->
-            <h1 id="page-title" class="text-xl font-semibold text-gray-800">Housekeeper Schedule</h1> <!-- Added ID -->
-             <p class="text-sm text-gray-500" id="housekeeper-timezone-info"></p>
-        </header>
-
-        <!-- Week Navigation -->
-        <div class="my-4 p-4 bg-white rounded-lg shadow flex items-center justify-between">
-            <!-- Using consistent IDs from original schedule.js -->
-            <button id="prev-week-btn" class="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50">
-                <i class="fas fa-chevron-left"></i> Prev
-            </button>
-            <div id="week-display" class="text-lg font-medium text-gray-700 text-center">
-                Loading week...
-            </div>
-            <button id="next-week-btn" class="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50">
-                Next <i class="fas fa-chevron-right"></i>
-            </button>
+    <!-- Header -->
+    <div class="bg-neutral-card px-4 py-5 border-b border-gray-200 sticky top-0 z-20">
+        <div class="flex justify-between items-center">
+            <h1 id="page-title" class="text-xl font-bold text-neutral-text">Request New Service</h1>
+            <!-- Removed UTC time display as it's less relevant for request form -->
         </div>
-
-        <!-- Loading Indicator -->
-        <div id="loading-indicator" class="text-center py-8 text-gray-500">
-            <i class="fas fa-spinner fa-spin mr-2"></i>Loading schedule...
-        </div>
-        
-        <!-- Schedule Container -->
-        <!-- Changed structure to grid layout -->
-        <main id="schedule-container" class="hidden grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
-            <!-- Schedule content will be dynamically generated here -->
-        </main>
-        
-        <!-- Error Message Area -->
-         <div id="error-message" class="hidden mt-4 p-4 bg-red-100 text-red-700 border border-red-300 rounded-md">
-             <!-- Error messages will appear here -->
-             <strong class="font-bold">Error:</strong> 
-             <span id="error-text"></span> <!-- Added span for specific message -->
-         </div>
-
     </div>
 
-    <!-- Bottom Navigation (Using a structure similar to dashboard) -->
-    <nav class="fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 shadow-sm z-10">
-        <div class="max-w-md mx-auto flex justify-around py-2 px-4">
-            <!-- Home Tab -->
-            <a href="../dashboard/dashboard.html" class="text-center text-gray-500 hover:text-blue-600 p-2">
-                <svg class="w-6 h-6 mx-auto mb-1" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20"> <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" /> </svg>
-                <span class="text-xs font-medium">Home</span>
-            </a>
-            <!-- Schedule Tab (Current Page) -->
-            <a href="schedule.html" class="text-center text-blue-600 p-2"> 
-                <svg class="w-6 h-6 mx-auto mb-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"> <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /> </svg>
-                <span class="text-xs font-medium">Schedule</span>
-            </a>
-             <!-- Add other tabs if needed later -->
+    <!-- Main Content Area -->
+    <main class="flex-grow overflow-y-auto p-4 space-y-6 bg-neutral-background">
+        <!-- Tabs (Static for now, can be made dynamic later) -->
+        <div class="mb-6">
+            <div class="border-b border-gray-200">
+                <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                    <button id="tab-request-new" class="border-primary text-primary whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm" aria-current="page">
+                        Request New Service
+                    </button>
+                    <button id="tab-my-requests" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">
+                        My Requests
+                    </button>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Request New Service Content (Initially visible) -->
+        <div id="content-request-new" class="space-y-6">
+            <!-- Housekeeper Info Display (Loaded by JS) -->
+            <div id="housekeeper-info-banner" class="bg-primary-light p-4 rounded-lg shadow text-sm text-primary-dark hidden">
+                <p>You are requesting service from: <strong id="housekeeper-name-display">[Housekeeper Name]</strong></p>
+                <p id="housekeeper-company-display" class="text-xs"></p>
+            </div>
+            
+            <!-- Loading Indicator for Services -->
+            <div id="services-loading-indicator" class="text-center py-6">
+                <div class="spinner h-8 w-8 border-4 border-gray-200 rounded-full mx-auto"></div>
+                <p class="mt-2 text-sm text-gray-500">Loading available services...</p>
+            </div>
+
+            <!-- Error Display for Services -->
+            <div id="services-error-display" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative" role="alert">
+                <strong class="font-bold">Error!</strong>
+                <span class="block sm:inline" id="services-error-message">Could not load services. Please try again later.</span>
+            </div>
+
+            <!-- Base Services Section -->
+            <section id="base-services-section" class="hidden">
+                <h2 class="text-lg font-semibold text-neutral-text mb-3">Choose Your Base Service(s)</h2>
+                <div id="base-services-list" class="space-y-3">
+                    <!-- Base services will be populated by JavaScript -->
+                    <!-- Example of a service item (for structure reference):
+                    <label class="flex items-center bg-neutral-card p-4 rounded-lg shadow hover:shadow-md transition-shadow cursor-pointer">
+                        <input type="checkbox" name="base_service" value="service_id_1" class="h-5 w-5 text-primary focus:ring-primary border-gray-300 rounded">
+                        <div class="ml-3 flex-grow">
+                            <span class="text-md font-medium text-neutral-text">Standard Cleaning</span>
+                            <p class="text-sm text-gray-600">Comprehensive cleaning for your home.</p>
+                        </div>
+                        <span class="text-md font-semibold text-primary">$150</span>
+                    </label>
+                    -->
+                </div>
+            </section>
+
+            <!-- Add-on Services Section -->
+            <section id="addon-services-section" class="hidden">
+                <h2 class="text-lg font-semibold text-neutral-text mb-3">Optional Add-ons</h2>
+                <div id="addon-services-list" class="space-y-3">
+                    <!-- Add-on services will be populated by JavaScript -->
+                </div>
+            </section>
+
+            <!-- Preferred Date and Time Section -->
+            <section id="datetime-preference-section" class="hidden">
+                <h2 class="text-lg font-semibold text-neutral-text mb-3">Preferred Date & Time</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="preferred-date" class="block text-sm font-medium text-neutral-text mb-1">Preferred Date</label>
+                        <input type="text" id="preferred-date" name="preferred-date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm bg-neutral-card p-2.5" placeholder="Select a date">
+                    </div>
+                    <div>
+                        <label for="preferred-time" class="block text-sm font-medium text-neutral-text mb-1">Preferred Time Window</label>
+                        <select id="preferred-time" name="preferred-time" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm bg-neutral-card p-2.5">
+                            <option value="">Any time</option>
+                            <option value="morning">Morning (8 AM - 12 PM)</option>
+                            <option value="afternoon">Afternoon (12 PM - 4 PM)</option>
+                            <option value="evening">Evening (4 PM - 8 PM)</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="datetime-error-display" class="text-red-500 text-sm mt-1 hidden"></div>
+            </section>
+
+            <!-- Notes Section -->
+            <section id="notes-section" class="hidden">
+                <h2 class="text-lg font-semibold text-neutral-text mb-3">Additional Notes</h2>
+                <div>
+                    <label for="homeowner-notes" class="sr-only">Additional notes for the housekeeper</label>
+                    <textarea id="homeowner-notes" name="homeowner-notes" rows="4" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm bg-neutral-card p-2.5" placeholder="Any specific instructions or requests? (e.g., focus on kitchen, key under mat, etc.)"></textarea>
+                </div>
+            </section>
+            
+            <!-- Estimated Total (Calculated by JS) -->
+            <div id="estimated-total-section" class="pt-4 mt-4 border-t border-gray-200 hidden">
+                <h3 class="text-md font-semibold text-neutral-text">Estimated Total: <span id="estimated-total-amount" class="text-primary">$0.00</span></h3>
+                <p class="text-xs text-gray-500">This is an estimate. The housekeeper will confirm the final price.</p>
+            </div>
+
+
+            <!-- Submit Request Button -->
+            <div class="pt-6">
+                 <button type="button" id="submit-service-request-btn" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50" disabled>
+                    Review and Send Request
+                </button>
+                <div id="submit-error-display" class="text-red-500 text-sm mt-2 text-center hidden"></div>
+            </div>
+        </div>
+
+        <!-- My Requests Content (Initially hidden) -->
+        <div id="content-my-requests" class="hidden space-y-4">
+            <div id="my-requests-loading-indicator" class="text-center py-6">
+                <div class="spinner h-8 w-8 border-4 border-gray-200 rounded-full mx-auto"></div>
+                <p class="mt-2 text-sm text-gray-500">Loading your requests...</p>
+            </div>
+            <div id="my-requests-list">
+                <!-- Requests will be populated by JavaScript -->
+                <!-- Example:
+                <div class="bg-neutral-card p-4 rounded-lg shadow">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-md font-semibold text-neutral-text">Standard Cleaning + Window Cleaning</p>
+                            <p class="text-sm text-gray-500">Requested for: Aug 20, 2025 (Morning)</p>
+                        </div>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            Pending Review
+                        </span>
+                    </div>
+                    <div class="mt-3">
+                        <button class="text-sm text-primary hover:underline">View Details / Proposal</button>
+                    </div>
+                </div>
+                -->
+            </div>
+            <p id="no-requests-message" class="text-center text-gray-500 py-4 hidden">You have no active service requests.</p>
+        </div>
+
+    </main>
+
+    <!-- Bottom Navigation -->
+    <nav class="bg-neutral-card border-t border-gray-200 sticky bottom-0 z-20">
+        <div class="mx-auto max-w-md px-4">
+            <div class="flex justify-around items-center h-16">
+                <a href="../dashboard/dashboard.html" id="nav-dashboard" class="flex flex-col items-center justify-center text-gray-500 hover:text-primary w-full">
+                    <i class="fas fa-home text-xl"></i>
+                    <span class="text-xs mt-1">Home</span>
+                </a>
+                <a href="#" id="nav-schedule" class="flex flex-col items-center justify-center text-primary w-full"> <!-- Current page, active color -->
+                    <i class="fas fa-calendar-alt text-xl"></i>
+                    <span class="text-xs mt-1">Schedule</span>
+                </a>
+                <!-- Add other nav items if any, e.g., Settings -->
+            </div>
         </div>
     </nav>
-
-    <!-- NEW: Booking Confirmation Drawer Modal -->
-    <div id="bookingConfirmationDrawer" class="fixed inset-x-0 bottom-0 z-50 transform transition-transform duration-300 ease-in-out translate-y-full">
-        <div class="bg-white w-full max-w-md mx-auto rounded-t-xl overflow-hidden shadow-xl transform transition-all flex flex-col">
-            <!-- Handle -->
-            <div class="flex justify-center pt-2 pb-1 cursor-grab">
-                <div class="w-10 h-1 bg-gray-300 rounded-full"></div>
-            </div>
+    
+    <!-- Modal Drawer for Confirming Request (Initially Hidden) -->
+    <div id="confirm-request-modal" class="fixed inset-0 z-50 flex items-end bg-black bg-opacity-50 hidden transition-opacity duration-300 ease-in-out opacity-0" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <div id="confirm-request-drawer" class="bg-neutral-card w-full rounded-t-xl shadow-xl max-h-[80vh] flex flex-col transform transition-transform duration-300 ease-in-out translate-y-full">
             <!-- Header -->
             <div class="flex justify-between items-center p-4 border-b border-gray-200">
-                <h2 class="text-xl font-bold text-gray-900">Confirm Booking</h2>
-                <button id="closeBookingDrawerBtn" class="text-gray-500 hover:text-gray-700">
-                    <i class="fas fa-times"></i>
-                     <span class="sr-only">Close</span>
+                <h2 id="modal-title" class="text-lg font-semibold text-neutral-text">Confirm Your Request</h2>
+                <button id="close-confirm-modal-btn" type="button" class="text-gray-400 hover:text-gray-600">
+                    <span class="sr-only">Close</span>
+                    <i class="fas fa-times text-xl"></i>
                 </button>
             </div>
             <!-- Content -->
-            <div id="bookingDrawerContent" class="p-4 overflow-y-auto flex-grow -webkit-overflow-scrolling-touch">
-                <p class="text-sm text-gray-600 mb-3">
-                    Please confirm you want to book the following time slot:
-                </p>
-                <div id="drawerSlotDetails" class="p-3 bg-gray-100 rounded-md border border-gray-200 mb-4">
-                    <!-- Details will be populated by JS -->
-                    Loading...
+            <div class="p-4 overflow-y-auto flex-grow space-y-3">
+                <p class="text-sm text-gray-600">Please review your service request details before sending:</p>
+                <div id="modal-selected-services-summary" class="space-y-1 text-sm">
+                    <!-- Service summary populated by JS -->
                 </div>
-                 <!-- Status/Error Area -->
-                <div id="bookingDrawerStatus" class="mt-4 text-center text-sm"></div>
+                <p class="text-sm"><strong class="text-neutral-text">Preferred Date:</strong> <span id="modal-preferred-date-summary">[Date]</span></p>
+                <p class="text-sm"><strong class="text-neutral-text">Preferred Time:</strong> <span id="modal-preferred-time-summary">[Time]</span></p>
+                <div class="text-sm">
+                    <strong class="text-neutral-text">Notes:</strong>
+                    <p id="modal-notes-summary" class="mt-1 p-2 bg-gray-50 rounded border border-gray-200 text-gray-700 whitespace-pre-wrap">[Notes]</p>
+                </div>
+                 <p class="text-md font-semibold pt-2 border-t border-gray-100"><strong class="text-neutral-text">Estimated Total:</strong> <span id="modal-estimated-total-summary" class="text-primary">[Total]</span></p>
             </div>
-            <!-- Actions -->
-            <div class="p-4 border-t border-gray-200 flex justify-end space-x-3">
-                 <button type="button" id="cancelBookingDrawerBtn" class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Cancel</button>
-                 <button type="button" id="confirmBookingDrawerBtn" class="inline-flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                     Confirm Booking
-                 </button>
+            <!-- Footer Actions -->
+            <div class="flex justify-end items-center p-4 border-t border-gray-200 bg-gray-50 rounded-b-xl space-x-3">
+                <button type="button" id="cancel-send-request-btn" class="px-4 py-2.5 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 text-sm font-medium">
+                    Cancel
+                </button>
+                <button type="button" id="confirm-send-request-btn" class="px-4 py-2.5 bg-secondary text-white rounded-md hover:bg-secondary-dark text-sm font-medium disabled:opacity-50 flex items-center">
+                    <span id="confirm-send-spinner" class="spinner h-4 w-4 border-2 border-white rounded-full mr-2 hidden"></span>
+                    Send Request to Housekeeper
+                </button>
             </div>
+             <div id="modal-submit-error-display" class="text-red-500 text-sm p-3 text-center hidden bg-red-50 border-t border-red-200"></div>
         </div>
     </div>
-    <!-- Booking Drawer Backdrop -->
-    <div id="bookingDrawerBackdrop" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden transition-opacity duration-300"></div>
 
-    <!-- Toast Notification -->
-    <div id="bookingToast" class="fixed top-5 right-5 z-[100] hidden px-4 py-3 rounded-md shadow-lg bg-green-500 text-white text-sm font-medium transition-transform duration-300 ease-out translate-x-full">
-        <!-- Message will be set by JS -->
-    </div>
 
-    <!-- NEW: Cancellation Modal -->
-    <div id="cancelModal" class="fixed inset-x-0 bottom-0 z-20 bg-white p-4 shadow-lg rounded-t-lg transform translate-y-full transition-transform duration-300 ease-in-out">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-semibold">Cancel Booking</h3>
-            <button id="closeCancelModalTopBtn" class="text-gray-500 hover:text-gray-700">
-                <i class="fas fa-times fa-lg"></i>
-            </button>
-        </div>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-functions-compat.js"></script>
 
-        <!-- Booking Details Placeholder -->
-        <div id="cancelBookingDetails" class="mb-4 text-sm">
-            <p>Loading booking details...</p>
-        </div>
+    <!-- Flatpickr JS -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 
-        <!-- Cancellation Reason -->
-        <div class="mb-4">
-            <label for="cancelReason" class="block text-sm font-medium text-gray-700 mb-1">Reason for Cancellation (Optional)</label>
-            <textarea id="cancelReason" name="cancelReason" rows="3" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="Let the housekeeper know why you're cancelling..."></textarea>
-        </div>
+    <!-- Common scripts -->
+    <script src="../../common/js/firebase-config.js"></script> <!-- Assume this is safe and configured -->
+    <script type="module" src="../../common/js/date-utils.js"></script>
+    <script src="../../common/js/firestore-service.js"></script> 
+    <script src="../../common/js/auth-router.js"></script>
 
-        <!-- Action Buttons -->
-        <div class="flex justify-end space-x-3">
-            <button id="confirmCancellationBtn" class="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
-                Confirm Cancellation
-            </button>
-            <button id="closeCancelModalBtn" type="button" class="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-md shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400">
-                Close
-            </button>
-        </div>
-    </div>
-    <!-- End Cancellation Modal -->
-
-    <!-- Firebase Config and Init -->
-    <script src="/common/js/firebase-config.js"></script>
-
-    <!-- Shared Services -->
-    <!-- Ensure firestore-service path is correct -->
-    <script src="/common/js/firestore-service.js" defer></script> 
-    
-    <!-- Page Specific Script -->
-    <script type="module" src="schedule.js" defer></script> 
-
+    <!-- Page-specific script -->
+    <script type="module" src="schedule.js"></script>
 </body>
 </html> 

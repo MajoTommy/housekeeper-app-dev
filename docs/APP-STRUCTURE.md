@@ -32,7 +32,7 @@ Each role has a consistent footer navigation menu:
 
 ### Homeowner Navigation
 - **Dashboard** (home icon) - Main view.
-- **Schedule** (calendar icon) - Placeholder/Future: View detailed schedule or request bookings.
+- **Schedule** (calendar icon) - Allows homeowners to request new services from their linked housekeeper and view their past/pending requests.
 - **Account** (user icon) - Placeholder/Future: Manage account settings, payments, etc.
 
 ## File Structure
@@ -45,16 +45,16 @@ Each role has a consistent footer navigation menu:
 - `public/dev-tools.html` - Developer utility page (not for production). Used to trigger sample data population.
 - `public/common/js/` - Directory for JavaScript modules shared between roles.
     - `firebase-config.js`: Initializes Firebase SDKs.
-    - `firestore-service.js`: Centralized functions for Firestore interactions (CRUD operations for users, profiles, clients, bookings, settings, time-off).
+    - `firestore-service.js`: Centralized functions for Firestore interactions (CRUD operations for users, profiles, clients, bookings, booking requests, settings, time-off).
     - `auth.js`: Handles user login, logout, signup, password reset logic.
     - `auth-router.js`: Manages role-based redirects after authentication state changes.
     - `date-utils.js`: Utility functions for date/time formatting and manipulation.
-    - `sample-data.js`: **DEPRECATED/REMOVE?**
+    - `sample-data.js`: **DEPRECATED.** Core sample data population is now handled by `/public/js/populate-sample-data.js` via `dev-tools.html`.
 
 ### Housekeeper Section (`public/housekeeper/`)
 - `public/housekeeper/schedule/`
     - `schedule.html`: Main schedule view.
-    - `schedule.js`: UI logic for displaying schedule, handling booking modal (including client and service selection, one-time booking confirmation).
+    - `schedule.js`: UI logic for displaying schedule, handling booking modal (including client and service selection, one-time booking confirmation), reviewing incoming service requests, approving requests (which converts them to bookings), proposing alternatives, or declining requests.
 - `public/housekeeper/clients/`
     - `clients.html`: Client list and management view.
     - `clients.js`: UI logic for displaying clients (filtering active/archived via toggle), search, add/edit modals, archive/unarchive logic.
@@ -75,9 +75,9 @@ Each role has a consistent footer navigation menu:
 - `public/homeowner/dashboard/`
     - `dashboard.html`: Unified main dashboard view.
     - `dashboard.js`: UI logic for the dashboard, displaying data, handling profile/location edit modals.
-- `public/homeowner/schedule/` (Future/Placeholder)
-    - `schedule.html`: Potential future view for homeowner schedule/booking requests.
-    - `schedule.js`
+- `public/homeowner/schedule/`
+    - `schedule.html`: Allows homeowners to request new services from their linked housekeeper and view their past/pending requests.
+    - `schedule.js`: Handles fetching housekeeper services, building the request form (base services, add-ons, date/time, notes), calculating estimates, submitting requests, and displaying 'My Requests'.
 - `public/homeowner/account/` (Future/Placeholder)
     - `account.html`: Potential future view for homeowner account settings.
     - `account.js`
@@ -122,8 +122,9 @@ Each role has a consistent footer navigation menu:
 
 #### Schedule (`/housekeeper/schedule`)
 - View weekly schedule (fetches data, potentially via Cloud Function).
-- Book new *one-time* cleanings (modal workflow: select client, select base/add-on services, confirm).
+- Manually book new *one-time* cleanings (modal workflow: select client, select base/add-on services, confirm).
 - Manage existing appointments (view details, cancel - which deletes the booking).
+- Review incoming service requests (view details, approve, decline, or propose alternatives).
 
 #### Clients (`/housekeeper/clients`)
 - View/search client list.

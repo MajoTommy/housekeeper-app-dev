@@ -90,41 +90,22 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
             // --- END ADDED CHECK --- 
             
-            // --- NEW: Redirect from index/root to login if not logged in ---
-            if (currentPath.endsWith('/index.html') || currentPath === '/' || currentPath.endsWith('/')) {
-                // Allow exceptions for specific files accessible when logged out
-                const allowedRootFiles = ['/index.html', '/signup.html', '/forgot-password.html', '/404.html']; 
-                let onAllowedPage = false;
-                for (const allowedFile of allowedRootFiles) {
-                    // Handle root path explicitly or ensure endsWith check works
-                    if (currentPath === '/' && allowedFile === '/index.html') {
-                         onAllowedPage = true; // Allow root if index is the target
-                         break;
-                    } 
-                    if (currentPath.endsWith(allowedFile)) {
-                        onAllowedPage = true;
-                        break;
-                    }
-                }
-                // Only redirect from root/index if not already on an allowed page
-                if (!onAllowedPage) {
-                     console.log('Not logged in and on index/root page, redirecting to login (index.html).');
-                     window.location.href = baseUrl + 'index.html'; // Target is index.html
-                     return; // Stop further checks
-                }
+            // --- SIMPLIFIED LOGIC for Logged Out Users ---
+            // If trying to access protected pages when not logged in, redirect to login.
+            if (currentPath.includes('/housekeeper/') || currentPath.includes('/homeowner/')) {
+                console.log('Not logged in and trying to access protected page:', currentPath, 'Redirecting to login (index.html).');
+                // Determine baseUrl again in case it wasn't set (although it should be)
+                let baseUrl = window.location.origin + (currentPath.includes('/public/') ? currentPath.split('/public/')[0] + '/public/' : '/');
+                if (!baseUrl.endsWith('/')) baseUrl += '/'; // Ensure trailing slash for consistency
+
+                window.location.href = baseUrl + 'index.html'; 
+                return; // Stop execution
             }
-            // --- END NEW ---
             
-            // If trying to access protected pages, redirect to login (Existing logic)
-            if (currentPath.includes('/housekeeper/') || 
-                currentPath.includes('/homeowner/')) {
-                
-                console.log('Not logged in and on protected page, redirecting to login (index.html).');
-                window.location.href = baseUrl + 'index.html'; // Ensure this points to index.html too
-                return;
-            }
-            // Otherwise, do nothing (allow access to public pages like signup, forgot-password)
-            console.log('Not logged in, but on an allowed public page.');
+            // Otherwise, if logged out, allow access to the current page 
+            // (e.g., /, /index.html, /signup.html, /forgot-password.html, /dev-tools.html)
+            console.log('Not logged in, allowing access to public page:', currentPath);
+            // --- END SIMPLIFIED LOGIC ---
         }
     });
 }); 

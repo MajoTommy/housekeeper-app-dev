@@ -1186,7 +1186,36 @@ const firestoreService = {
             return null;
         }
     },
+
+    // NEW FUNCTION for booking REQUESTS status update
+    async updateBookingRequestStatus(housekeeperId, requestId, newStatus, additionalData = {}) {
+        console.log(`[Firestore] Updating booking REQUEST status for housekeeper ${housekeeperId}, request ${requestId} to ${newStatus}`);
+        if (!housekeeperId || !requestId || !newStatus) {
+            console.error('[Firestore] updateBookingRequestStatus called with invalid IDs or status');
+            throw new Error('Missing required fields to update booking request status.');
+        }
+        try {
+            const requestRef = db.collection('users').doc(housekeeperId)
+                                 .collection('bookingRequests').doc(requestId);
+            
+            const updatePayload = {
+                status: newStatus,
+                lastUpdatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                ...additionalData
+            };
+
+            await requestRef.update(updatePayload);
+            console.log(`[Firestore] Booking request ${requestId} status updated to ${newStatus} successfully.`);
+            return { success: true, requestId: requestId, newStatus: newStatus };
+        } catch (error) {
+            console.error(`[Firestore] Error updating booking request ${requestId} status:`, error);
+            throw error; // Re-throw to be caught by caller
+        }
+    }
 };
 
-// Make the service globally accessible
-window.firestoreService = firestoreService; 
+// Ensure firestoreService is available globally if that is the project pattern
+if (typeof window !== 'undefined' && !window.firestoreService) {
+    window.firestoreService = firestoreService;
+    console.log('[Firestore Service] Attached to window object.');
+} 

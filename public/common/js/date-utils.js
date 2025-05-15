@@ -98,29 +98,40 @@ export function isSameDate(date1, date2) {
  */
 export function formatDate(dateInput, formatOrOptions, timeZone) {
     let date;
+    let effectiveTimeZone = timeZone || getLocalTimezone(); // Default to passed or local timezone
+
     try {
-        date = new Date(dateInput);
+        if (typeof dateInput === 'string' && dateInput.match(/^\\d{4}-\\d{2}-\\d{2}$/)) {
+            // For "YYYY-MM-DD" strings, interpret as UTC to ensure calendar date fidelity
+            const parts = dateInput.split('-');
+            const year = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed
+            const day = parseInt(parts[2], 10);
+            date = new Date(Date.UTC(year, month, day));
+            effectiveTimeZone = 'UTC'; // Force UTC for formatting this specific input type
+        } else {
+            // For other string formats or Date objects, use existing logic
+            date = new Date(dateInput);
+        }
         if (isNaN(date.getTime())) throw new Error('Invalid date input');
     } catch (e) {
         console.error('Invalid date input provided to formatDate:', dateInput, e);
         return "Invalid Date";
     }
 
-    const targetTimeZone = timeZone || getLocalTimezone();
     let options = {};
 
     if (typeof formatOrOptions === 'string') {
         switch (formatOrOptions) {
             case 'YYYY-MM-DD':
-                // Use ISO format parts but adjust for target timezone
                 try {
-                    const year = date.toLocaleDateString('en-CA', { year: 'numeric', timeZone: targetTimeZone });
-                    const month = date.toLocaleDateString('en-CA', { month: '2-digit', timeZone: targetTimeZone });
-                    const day = date.toLocaleDateString('en-CA', { day: '2-digit', timeZone: targetTimeZone });
-                    return `${year}-${month}-${day}`;
+                    const yearStr = date.toLocaleDateString('en-CA', { year: 'numeric', timeZone: effectiveTimeZone });
+                    const monthStr = date.toLocaleDateString('en-CA', { month: '2-digit', timeZone: effectiveTimeZone });
+                    const dayStr = date.toLocaleDateString('en-CA', { day: '2-digit', timeZone: effectiveTimeZone });
+                    return `${yearStr}-${monthStr}-${dayStr}`;
                 } catch (e) {
-                     console.error("Error formatting date to YYYY-MM-DD with timezone", date, targetTimeZone, e);
-                     return date.toISOString().split('T')[0]; // Fallback
+                     console.error("Error formatting date to YYYY-MM-DD with timezone", date, effectiveTimeZone, e);
+                     return date.toISOString().split('T')[0]; // Fallback, safe for UTC dates
                 }
             case 'short-date': // e.g., Jul 21, 2025
                 options = { year: 'numeric', month: 'short', day: 'numeric' };
@@ -157,14 +168,14 @@ export function formatDate(dateInput, formatOrOptions, timeZone) {
         options = formatOrOptions;
     }
 
-    options.timeZone = targetTimeZone;
+    options.timeZone = effectiveTimeZone; // Use the determined effectiveTimeZone
 
     try {
         return date.toLocaleDateString(undefined, options);
     } catch (e) {
         console.error('Error formatting date with options:', date, options, e);
         try {
-            return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', timeZone: targetTimeZone });
+            return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', timeZone: effectiveTimeZone });
         } catch (fallbackError) {
             console.error('Fallback date formatting failed:', fallbackError);
             return date.toISOString().split('T')[0]; // Absolute fallback

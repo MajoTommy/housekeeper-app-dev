@@ -72,7 +72,34 @@
         "firebase-debug.*.log",
         "*.local"
       ],
-      "predeploy": [ ]
+      "predeploy": [
+        "echo 'Skipping lint for predeploy test'"
+      ]
     }
-  ]
+  ],
+  "emulators": {
+    "auth": {
+      "port": 9100
+    },
+    "functions": {
+      "port": 5002
+    },
+    "firestore": {
+      "port": 8081
+    },
+    "hosting": {
+      "port": 5005
+    },
+    "ui": {
+      "enabled": true,
+      "port": 4001
+    },
+    "hub": {
+      "port": 4401
+    },
+    "logging": {
+      "port": 4501
+    },
+    "singleProjectMode": true
+  }
 }

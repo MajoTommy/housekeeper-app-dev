@@ -14,6 +14,7 @@ let currentBookingData = {
     baseService: null, // NEW: Store selected base service {id, name, price}
     addonServices: [] // NEW: Store selected add-on services [{id, name, price}]
 };
+let currentProposingRequestData = null; // NEW: For Propose Alternative flow
 
 // --- DOM Elements (Add new ones for services) ---
 const baseServiceOptionsContainer = document.getElementById('base-service-options');
@@ -38,6 +39,14 @@ const reviewBookingBtn = document.getElementById('reviewBookingBtn'); // NEW
 const confirmationStep = document.getElementById('confirmationStep');
 const confirmationDetailsElement = document.getElementById('confirmationDetails');
 const confirmBookingBtn = document.getElementById('confirmBookingBtn');
+
+// --- NEW: Incoming Requests Elements (MOVED TO GLOBAL SCOPE) ---
+const viewIncomingRequestsBtn = document.getElementById('view-incoming-requests-btn');
+const incomingRequestsBadge = document.getElementById('incoming-requests-badge');
+const incomingRequestsContainer = document.getElementById('incoming-requests-container');
+const incomingRequestsList = document.getElementById('incoming-requests-list');
+const mainScheduleContainer = document.getElementById('schedule-container');
+
 // --- END DOM Elements ---
 
 // --- NEW: Cancel Confirm Modal Elements ---
@@ -56,10 +65,18 @@ const cancelConfirmIndicator = document.getElementById('cancel-confirm-indicator
 const bookingDetailModal = document.getElementById('booking-detail-modal');
 const bookingDetailBackdrop = document.getElementById('booking-detail-backdrop');
 const bookingDetailContent = document.getElementById('booking-detail-content');
-// REMOVED: Variables for buttons, using onclick instead
-// const closeBookingDetailModalBtn = document.getElementById('closeBookingDetailModalBtn'); 
-// const closeBookingDetailModalFooterBtn = document.getElementById('closeBookingDetailModalFooterBtn');
+const bookingDetailFooter = document.getElementById('booking-detail-footer'); // Ensure this is defined
+const proposeAlternativeForm = document.getElementById('propose-alternative-form');
+const alternativeDateInput = document.getElementById('alternative-date');
+const alternativeTimeInput = document.getElementById('alternative-time');
+const alternativeNotesInput = document.getElementById('alternative-notes');
+const standardRequestActionsContainer = document.getElementById('standard-request-actions');
+const proposeAlternativeActionsContainer = document.getElementById('propose-alternative-actions');
 // --- END Booking Detail Modal Elements ---
+
+// --- NEW: Manual Time Input for Approved Request in Modal ---
+const manualTimeInputContainer = document.getElementById('manualTimeInputContainer');
+const manualStartTimeInput = document.getElementById('manualStartTime');
 
 // Flag to track if booking handlers are set up - DECLARED ONCE HERE
 let bookingHandlersInitialized = false;
@@ -372,7 +389,7 @@ async function loadUserSchedule(showLoadingIndicator = true) {
 
 // --- Schedule Generation (Refactored to use Cloud Function Data) ---
 async function fetchAndRenderSchedule(startDate, housekeeperId) {
-    console.log(`Fetching schedule for week starting: ${startDate.toISOString()}`);
+    console.log(`[DupeDebug] fetchAndRenderSchedule START for week: ${startDate.toISOString()}`); // ADDED LOG
     
     // --- ADDED: Slight delay for showLoading ---
     setTimeout(() => showLoading(), 0); // Delay slightly to ensure DOM is ready
@@ -380,10 +397,11 @@ async function fetchAndRenderSchedule(startDate, housekeeperId) {
     
     const scheduleContainer = document.getElementById('schedule-container');
     if (!scheduleContainer) {
-        console.error("Schedule container element not found!");
+        console.error("[DupeDebug] Schedule container element not found in fetchAndRenderSchedule!"); // ADDED LOG
         hideLoading(); // Still try to hide if showLoading failed
         return;
     }
+    console.log("[DupeDebug] fetchAndRenderSchedule: Clearing scheduleContainer.innerHTML"); // ADDED LOG
     scheduleContainer.innerHTML = ''; // Clear previous schedule
 
     const functions = firebase.functions(); // Ensure Functions SDK is initialized
@@ -396,6 +414,8 @@ async function fetchAndRenderSchedule(startDate, housekeeperId) {
             startDateString: startDate.toISOString(),
             endDateString: endDate.toISOString(),
         });
+
+        console.log('[DupeDebug] Cloud Function schedule RAW result.data:', JSON.parse(JSON.stringify(result.data))); // ADDED DETAILED LOG
 
         console.log('Cloud Function schedule result:', result.data);
 
@@ -418,12 +438,17 @@ async function fetchAndRenderSchedule(startDate, housekeeperId) {
 
 // NEW: Renders the schedule grid from the data fetched by the Cloud Function
 function renderScheduleFromData(scheduleData, weekStartDate) {
+    console.log(`[DupeDebug] renderScheduleFromData START for week: ${weekStartDate.toISOString()}`); // ADDED LOG
     const scheduleContainer = document.getElementById('schedule-container');
-    if (!scheduleContainer) return; // Already checked, but safe
+    if (!scheduleContainer) {
+         console.error("[DupeDebug] Schedule container element not found in renderScheduleFromData!"); // ADDED LOG
+        return; // Already checked, but safe
+    }
 
     // --- UPDATED: ADD Grid Classes, don't overwrite existing (like p-4) ---
     scheduleContainer.classList.add('grid', 'grid-cols-1', 'md:grid-cols-3', 'lg:grid-cols-7', 'gap-4');
     // Ensure any previous styles not related to grid/padding are cleared if needed, but preserve p-4 from HTML
+    console.log("[DupeDebug] renderScheduleFromData: Clearing scheduleContainer.innerHTML"); // ADDED LOG
     scheduleContainer.innerHTML = ''; // Clear previous schedule content
     // --- END UPDATED ---
 
@@ -826,34 +851,82 @@ async function loadAndDisplayServicesForBooking() {
 // --- END Service Loading Function --- 
 
 // Function to open the booking modal
-async function openBookingModal(dateTimeString, durationMinutes) {
-    console.log('[Modal] Opening booking modal for:', dateTimeString);
-    currentBookingData = { dateTime: dateTimeString, duration: durationMinutes, client: null, baseService: null, addonServices: [] }; // Reset/set initial data
+async function openBookingModal(dateTimeString, durationMinutes, prefillData = null) { // MODIFIED: Added prefillData parameter
+    console.log('[Modal] Opening booking modal for:', dateTimeString, 'Prefill:', prefillData);
 
-    // Display date/time info
-    try {
-        const dateObject = new Date(dateTimeString);
-        // --- FIX: Use valid formatDate and formatTime arguments --- 
-        const displayDate = dateUtils.formatDate(dateObject, 'full-date', housekeeperTimezone); // e.g., "Monday, April 14, 2025"
-        const displayTime = dateUtils.formatTime(dateObject, housekeeperTimezone, 'h:mm A'); // e.g., "8:00 AM"
-        // --- END FIX ---
-        const displayDuration = formatDuration(durationMinutes);
-        bookingDateTimeElement.innerHTML = `<p class="font-medium">${displayDate} at ${displayTime}</p><p class="text-sm text-gray-600">Duration: ${displayDuration}</p>`;
-    } catch(e) {
-        console.error("[Modal] Error formatting date/time for display:", e);
-        bookingDateTimeElement.innerHTML = `<p class="font-medium text-red-600">Error displaying time</p>`;
+    if (prefillData && prefillData.client) {
+        // --- APPROVED REQUEST FLOW ---
+        console.log('[Modal] Approved request flow. Prefilling data.');
+        currentBookingData = {
+            dateTime: dateTimeString, // This is preferredDateForModal (ISO string)
+            duration: durationMinutes, // This is totalDurationMinutes from services in request
+            client: prefillData.client,
+            baseService: prefillData.baseService,
+            addonServices: prefillData.addonServices || [],
+            originalRequestId: prefillData.originalRequestId // Store the original request ID
+        };
+        console.log('[Modal] currentBookingData after prefill:', currentBookingData);
+
+        // Display date/time info using the initial preferred date and calculated total duration
+        try {
+            const dateObject = new Date(dateTimeString); // Preferred date
+            const displayDate = dateUtils.formatDate(dateObject, 'full-date', housekeeperTimezone);
+            // Duration comes from calculated totalDurationMinutes passed to this function
+            const displayDuration = formatDuration(durationMinutes); 
+            bookingDateTimeElement.innerHTML = `<p class="font-medium">${displayDate}</p><p class="text-sm text-gray-600">Total Duration: ${displayDuration}</p><p class="text-sm text-gray-600 mt-1">Please select a specific start time below.</p>`;
+        } catch (e) {
+            console.error("[Modal] Error formatting date/time for prefill display:", e);
+            bookingDateTimeElement.innerHTML = `<p class="font-medium text-red-600">Error displaying time</p>`;
+        }
+
+        // Hide client and service selection steps
+        if (clientSelectionStep) clientSelectionStep.classList.add('hidden');
+        if (baseServiceSelectionStep) baseServiceSelectionStep.classList.add('hidden');
+        if (addonServiceSelectionStep) addonServiceSelectionStep.classList.add('hidden');
+        
+        // Show manual time input
+        if (manualTimeInputContainer) manualTimeInputContainer.classList.remove('hidden');
+        manualStartTimeInput.value = ''; // Clear previous time
+
+        // Show review button directly
+        if (reviewBookingButtonContainer) reviewBookingButtonContainer.classList.remove('hidden');
+        
+        // Hide other steps that might have been visible from a previous normal flow
+        if (confirmationStep) confirmationStep.classList.add('hidden');
+
+        // Ensure booking steps container itself is visible if it was hidden
+        if (bookingStepsContainer) bookingStepsContainer.classList.remove('hidden');
+
+
+    } else {
+        // --- STANDARD MANUAL BOOKING FLOW (from available slot or manual add) ---
+        console.log('[Modal] Standard manual booking flow.');
+        currentBookingData = { dateTime: dateTimeString, duration: durationMinutes, client: null, baseService: null, addonServices: [] }; // Reset/set initial data
+
+        // Display date/time info
+        try {
+            const dateObject = new Date(dateTimeString);
+            const displayDate = dateUtils.formatDate(dateObject, 'full-date', housekeeperTimezone);
+            const displayTime = dateUtils.formatTime(dateObject, housekeeperTimezone, 'h:mm A');
+            const displayDuration = formatDuration(durationMinutes);
+            bookingDateTimeElement.innerHTML = `<p class="font-medium">${displayDate} at ${displayTime}</p><p class="text-sm text-gray-600">Duration: ${displayDuration}</p>`;
+        } catch(e) {
+            console.error("[Modal] Error formatting date/time for display:", e);
+            bookingDateTimeElement.innerHTML = `<p class="font-medium text-red-600">Error displaying time</p>`;
+        }
+
+        // Reset steps visibility for standard flow
+        showBookingStep('clientSelection'); // Start with client selection
+        
+        // Hide manual time input if it was visible
+        if (manualTimeInputContainer) manualTimeInputContainer.classList.add('hidden');
+
+        // Load clients & services for selection
+        await loadClientsForSelection();
+        await loadAndDisplayServicesForBooking();
     }
 
-    // Reset steps visibility
-    showBookingStep('clientSelection'); // Start with client selection
-    
-    // Load clients
-    await loadClientsForSelection();
-    
-    // Load Services
-    await loadAndDisplayServicesForBooking();
-
-    // Show the modal AFTER content is likely loaded/loading
+    // Show the modal AFTER content is likely loaded/set up
     bookingModalBackdrop.classList.remove('hidden');
     bookingModal.classList.remove('translate-y-full');
     bookingContent.scrollTop = 0; // Scroll to top
@@ -895,36 +968,75 @@ function setupBookingModalListeners() {
     reviewBookingBtn.addEventListener('click', () => {
         console.log('[Modal] Review Booking button clicked');
         
-        // Gather selected services
-        const selectedBaseRadio = baseServiceOptionsContainer.querySelector('input[name="baseService"]:checked');
-        const selectedAddonCheckboxes = addonServiceOptionsContainer.querySelectorAll('input[name="addonServices"]:checked');
+        if (manualTimeInputContainer && !manualTimeInputContainer.classList.contains('hidden')) {
+            // Handling approved request: Get manual start time
+            const manualTime = manualStartTimeInput.value;
+            if (!manualTime) {
+                alert('Please select a start time for the approved request.');
+                manualStartTimeInput.focus();
+                return;
+            }
+            // Combine date from currentBookingData.dateTime (which is an ISO date string) with manualTime
+            const preferredDatePart = currentBookingData.dateTime.substring(0, 10); // YYYY-MM-DD
+            currentBookingData.dateTime = new Date(`${preferredDatePart}T${manualTime}`).toISOString();
+            console.log('[Modal] Updated dateTime with manual start time:', currentBookingData.dateTime);
 
-        if (!selectedBaseRadio) {
-            // Show error inline near base services
-             baseServiceErrorMsg.textContent = 'Please select a base service.';
-             baseServiceErrorMsg.classList.remove('hidden');
-             baseServiceOptionsContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            return; // Stop processing
+            // Update display with specific time
+            const dateObject = new Date(currentBookingData.dateTime);
+            const displayDate = dateUtils.formatDate(dateObject, 'full-date', housekeeperTimezone);
+            const displayTime = dateUtils.formatTime(dateObject, housekeeperTimezone, 'h:mm A');
+            const displayDuration = formatDuration(currentBookingData.duration);
+            bookingDateTimeElement.innerHTML = `<p class="font-medium">${displayDate} at ${displayTime}</p><p class="text-sm text-gray-600">Duration: ${displayDuration}</p>`;
+
+            // Client and services are already in currentBookingData from prefill
+            if (!currentBookingData.client || !currentBookingData.baseService) {
+                alert('Critical error: Client or base service data missing for approved request. Please close and retry.');
+                return;
+            }
+
         } else {
-             baseServiceErrorMsg.classList.add('hidden'); // Clear error if present
+            // Standard manual booking: Gather selected services
+            const selectedBaseRadio = baseServiceOptionsContainer.querySelector('input[name="baseService"]:checked');
+            const selectedAddonCheckboxes = addonServiceOptionsContainer.querySelectorAll('input[name="addonServices"]:checked');
+
+            if (!selectedBaseRadio) {
+                baseServiceErrorMsg.textContent = 'Please select a base service.';
+                baseServiceErrorMsg.classList.remove('hidden');
+                baseServiceOptionsContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+            } else {
+                baseServiceErrorMsg.classList.add('hidden');
+            }
+
+            currentBookingData.baseService = {
+                id: selectedBaseRadio.value,
+                name: selectedBaseRadio.dataset.serviceName,
+                price: parseFloat(selectedBaseRadio.dataset.servicePrice),
+                durationMinutes: parseInt(selectedBaseRadio.dataset.serviceDuration || 0) // Assuming duration is in dataset
+            };
+
+            currentBookingData.addonServices = [];
+            selectedAddonCheckboxes.forEach(checkbox => {
+                currentBookingData.addonServices.push({
+                    id: checkbox.value,
+                    name: checkbox.dataset.serviceName,
+                    price: parseFloat(checkbox.dataset.servicePrice),
+                    durationMinutes: parseInt(checkbox.dataset.serviceDuration || 0) // Assuming duration
+                });
+            });
+             // Recalculate total duration for manual bookings
+            let totalDuration = currentBookingData.baseService.durationMinutes || 0;
+            currentBookingData.addonServices.forEach(s => totalDuration += (s.durationMinutes || 0));
+            currentBookingData.duration = totalDuration;
+            // Update display with specific time and new duration
+            const dateObject = new Date(currentBookingData.dateTime);
+            const displayDate = dateUtils.formatDate(dateObject, 'full-date', housekeeperTimezone);
+            const displayTime = dateUtils.formatTime(dateObject, housekeeperTimezone, 'h:mm A');
+            const displayDuration = formatDuration(currentBookingData.duration);
+            bookingDateTimeElement.innerHTML = `<p class="font-medium">${displayDate} at ${displayTime}</p><p class="text-sm text-gray-600">Duration: ${displayDuration}</p>`;
         }
 
-        currentBookingData.baseService = {
-            id: selectedBaseRadio.value,
-            name: selectedBaseRadio.dataset.serviceName,
-            price: parseFloat(selectedBaseRadio.dataset.servicePrice)
-        };
-
-        currentBookingData.addonServices = [];
-        selectedAddonCheckboxes.forEach(checkbox => {
-            currentBookingData.addonServices.push({
-                id: checkbox.value,
-                name: checkbox.dataset.serviceName,
-                price: parseFloat(checkbox.dataset.servicePrice)
-            });
-        });
-
-        console.log('[Modal] Services selected:', {
+        console.log('[Modal] Services for confirmation:', {
              base: currentBookingData.baseService,
              addons: currentBookingData.addonServices
         });
@@ -941,10 +1053,8 @@ function setupBookingModalListeners() {
     confirmBookingBtn.addEventListener('click', async () => {
         console.log('[Modal] Confirm Booking button clicked with data:', currentBookingData);
         
-        // --- Validate required data ---
         if (!currentBookingData.client || !currentBookingData.baseService || !currentBookingData.dateTime || !currentBookingData.duration) {
             console.error('[Modal] Missing required data for booking confirmation.');
-            // TODO: Show error in modal confirmation step?
             alert('Missing required information (Client, Base Service, or Time). Please go back and select.');
             return;
         }
@@ -956,73 +1066,84 @@ function setupBookingModalListeners() {
             return;
         }
 
-        // --- Set loading state --- 
         confirmBookingBtn.disabled = true;
         confirmBookingBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Confirming...';
-        // TODO: Clear any previous confirmation errors
-
+        
         try {
-            // --- Prepare Timestamps --- 
             const startDateTime = new Date(currentBookingData.dateTime);
-            const endDateTime = new Date(startDateTime.getTime() + currentBookingData.duration * 60000); // duration is in minutes
-            
+            const endDateTime = new Date(startDateTime.getTime() + currentBookingData.duration * 60000);
             const startTimestamp = firebase.firestore.Timestamp.fromDate(startDateTime);
             const endTimestamp = firebase.firestore.Timestamp.fromDate(endDateTime);
             const startTimestampMillis = startTimestamp.toMillis();
             const endTimestampMillis = endTimestamp.toMillis();
 
-            // --- Construct Booking Object --- 
             const bookingData = {
                 housekeeperId: user.uid,
                 clientId: currentBookingData.client.id,
-                clientName: currentBookingData.client.name, // Store name for easy display
-                
+                clientName: currentBookingData.client.name, 
                 startTimestamp: startTimestamp,
                 endTimestamp: endTimestamp,
                 startTimestampMillis: startTimestampMillis,
                 endTimestampMillis: endTimestampMillis,
                 durationMinutes: currentBookingData.duration,
-                
                 baseServiceId: currentBookingData.baseService.id,
                 baseServiceName: currentBookingData.baseService.name,
                 baseServicePrice: currentBookingData.baseService.price,
-                
-                addonServices: currentBookingData.addonServices.map(s => ({ // Store addons as array of objects
+                baseServiceDurationMinutes: currentBookingData.baseService.durationMinutes || 0, 
+                addonServices: currentBookingData.addonServices.map(s => ({ 
                     id: s.id,
                     name: s.name,
-                    price: s.price
+                    price: s.price,
+                    durationMinutes: s.durationMinutes || 0 
                 })),
-
-                // Calculate total price (simple sum for now)
-                // TODO: Refine price calculation if needed (e.g., discounts, taxes)
                 totalPrice: currentBookingData.baseService.price + currentBookingData.addonServices.reduce((sum, addon) => sum + addon.price, 0),
-
-                status: 'confirmed', // Default status for housekeeper booking
-                frequency: 'one-time', // Explicitly set as one-time
-                BookingNote: '', // <<< UPDATED from notes
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                status: 'confirmed', 
+                frequency: 'one-time', 
+                BookingNote: '', 
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                source: currentBookingData.originalRequestId ? 'service_request' : 'manual_booking' 
             };
 
             console.log('[Modal] Saving booking data:', bookingData);
 
-            // --- Save to Firestore --- 
             const bookingsPath = `users/${user.uid}/bookings`;
             const bookingsCollection = firebase.firestore().collection(bookingsPath);
-            await bookingsCollection.add(bookingData);
+            const newBookingRef = await bookingsCollection.add(bookingData); 
+            const newBookingId = newBookingRef.id; 
 
-            console.log('[Modal] Booking saved successfully!');
-            // TODO: Add success toast notification?
+            console.log('[Modal] Booking saved successfully with ID:', newBookingId);
+            
+            let successMessage = 'Booking confirmed and scheduled!'; // Default message for manual bookings
 
+            if (currentBookingData.originalRequestId) {
+                console.log(`[Modal] Updating original booking request ${currentBookingData.originalRequestId} to approved_and_scheduled, linking booking ${newBookingId}`);
+                await window.firestoreService.updateBookingRequestStatus(
+                    user.uid, 
+                    currentBookingData.originalRequestId, 
+                    'approved_and_scheduled',
+                    { scheduledBookingId: newBookingId } 
+                );
+                successMessage = 'Service request approved and scheduled!'; // Override for approved requests
+                
+                // Refresh pending items AFTER request status update is confirmed
+                await updatePendingRequestCountBadge(); 
+                const latestRequests = await fetchPendingRequests();
+                displayPendingRequests(latestRequests); // Update the HTML for the list (it will be hidden)
+                                
+                if (mainScheduleContainer && incomingRequestsContainer) {
+                    mainScheduleContainer.classList.remove('hidden'); 
+                    incomingRequestsContainer.classList.add('hidden');  
+                }
+            }
+            
+            showSuccessMessage(successMessage);
             closeBookingModal();
-            // Refresh schedule view to show the new booking
-            await fetchAndRenderSchedule(currentWeekStart, user.uid); 
+            await fetchAndRenderSchedule(currentWeekStart, user.uid); // Refresh main schedule view for all cases
 
         } catch (error) {
             console.error('[Modal] Error saving booking:', error);
-            // TODO: Show error in modal confirmation step?
-            alert(`Failed to save booking: ${error.message || 'Please try again.'}`);
+            showErrorMessage(`Failed to save booking: ${error.message || 'Please try again.'}`);
         } finally {
-            // --- Reset loading state --- 
             confirmBookingBtn.disabled = false;
             confirmBookingBtn.textContent = 'Confirm Booking';
         }
@@ -1043,30 +1164,35 @@ function closeBookingModal() {
 // Function to show a specific step in the booking process
 function showBookingStep(stepId) {
     // Hide all steps first
-    // REMOVED: frequencySelectionStep from array
-    [clientSelectionStep, baseServiceSelectionStep, addonServiceSelectionStep, reviewBookingButtonContainer, confirmationStep].forEach(step => {
+    const allSteps = [
+        clientSelectionStep, 
+        baseServiceSelectionStep, 
+        addonServiceSelectionStep, 
+        reviewBookingButtonContainer, // This is also a "step" in the flow
+        confirmationStep
+        // manualTimeInputContainer is NOT part of this standard flow, managed separately
+    ];
+
+    allSteps.forEach(step => {
         if (step) step.classList.add('hidden');
     });
 
-    // Show the target step
+    // Show the target step if it's one of the known steps
     const targetStep = document.getElementById(stepId);
-    if (targetStep) {
+    if (targetStep && allSteps.includes(targetStep)) { // Only show if it's a known step
         targetStep.classList.remove('hidden');
-        console.log(`[Modal] Showing step: ${stepId}`);
+        console.log(`[Modal] Showing standard booking step: ${stepId}`);
         
-        // Show Add-on step and Review button when Base step is shown
+        // Special handling for baseServiceSelection to also show addon and review button
         if (stepId === 'baseServiceSelection') {
-            // Ensure elements exist before modifying classList
             if (addonServiceSelectionStep) addonServiceSelectionStep.classList.remove('hidden');
-            if (reviewBookingButtonContainer) reviewBookingButtonContainer.classList.remove('hidden'); // Show Review button
+            if (reviewBookingButtonContainer) reviewBookingButtonContainer.classList.remove('hidden');
             console.log(`[Modal] Also showing steps: addonServiceSelection, reviewBookingButtonContainer`);
-        } // No 'else' needed here, warning logic removed as it was possibly problematic
-        
-    } else {
-        console.error(`[Modal] Step not found: ${stepId}`);
+        }
+    } else if (stepId !== 'prefill_mode') { // Don't log error for our special prefill_mode ID
+        console.warn(`[Modal] Standard booking step not found or not part of main flow: ${stepId}`);
     }
     
-    // Scroll content area to top when changing steps
     if (bookingContent) bookingContent.scrollTop = 0;
 }
 
@@ -1539,15 +1665,27 @@ function closeBookingDetailModal() {
     const backdrop = document.getElementById('booking-detail-backdrop');
     if (modal) {
         modal.style.transform = 'translateY(100%)';
-        modal.classList.add('hidden'); // Add hidden after transition starts
+        // Add hidden after transition starts to allow animation
+        setTimeout(() => {
+            modal.classList.add('hidden');
+        }, 300); 
     }
     if (backdrop) {
         backdrop.style.opacity = '0';
-        backdrop.classList.add('hidden');
+        setTimeout(() => {
+            backdrop.classList.add('hidden');
+        }, 300);
     }
     // Re-enable body scrolling
     document.body.style.overflow = '';
     document.documentElement.style.overflow = '';
+
+    // NEW: Reset proposal mode if active
+    if (proposeAlternativeForm && !proposeAlternativeForm.classList.contains('hidden')) {
+        handleCancelProposalMode();
+    }
+    currentProposingRequestData = null; // Clear any stored request data for proposing
+    console.log('[Detail Modal] Closed.');
 }
 // --- END NEW ---
 
@@ -1693,3 +1831,583 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     });
 }); // <<< RESTORED Closing brace and parenthesis for DOMContentLoaded listener
+
+// --- NEW: Incoming Service Requests Logic ---
+
+// Helper function to ensure userProfile is available
+async function ensureUserProfile() {
+    if (userProfile && userProfile.uid) return userProfile;
+    return new Promise((resolve) => {
+        const unsubscribe = firebase.auth().onAuthStateChanged(user => {
+            if (user) {
+                userProfile = user; // Also set the global userProfile here
+                resolve(user);
+                unsubscribe(); // Clean up listener
+            } else if (firebase.auth().currentUser) {
+                // Sometimes currentUser is available synchronously after a reload
+                userProfile = firebase.auth().currentUser;
+                resolve(userProfile);
+                unsubscribe();
+            } else {
+                // If still no user, this will hang until auth state changes or times out elsewhere.
+                // Consider adding a timeout or rejection if auth never resolves.
+                console.warn('[Auth Ensure] Waiting for user authentication...');
+            }
+        });
+    });
+}
+
+async function fetchPendingRequests() {
+    await ensureUserProfile(); // Wait for userProfile to be set
+    if (!userProfile || !userProfile.uid) {
+        console.error('[Pending Requests] User not logged in or UID missing after ensure.');
+        return [];
+    }
+    const housekeeperId = userProfile.uid;
+    console.log(`[Pending Requests] Fetching for housekeeper: ${housekeeperId}`);
+    try {
+        const requestsSnapshot = await firebase.firestore()
+            .collection('users').doc(housekeeperId)
+            .collection('bookingRequests')
+            .where('status', '==', 'pending_housekeeper_review')
+            .orderBy('requestTimestamp', 'asc') // Show oldest first
+            .get();
+
+        if (requestsSnapshot.empty) {
+            console.log('[Pending Requests] No pending requests found.');
+            return [];
+        }
+        const requests = requestsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        console.log('[Pending Requests] Fetched:', requests);
+        return requests;
+    } catch (error) {
+        console.error('[Pending Requests] Error fetching pending requests:', error);
+        showErrorMessage('Could not load incoming requests. Check console.');
+        return [];
+    }
+}
+
+function displayPendingRequests(requests) {
+    if (!incomingRequestsList || !incomingRequestsContainer || !mainScheduleContainer) {
+        console.error('[Pending Requests] UI containers not found.');
+        return;
+    }
+
+    incomingRequestsList.innerHTML = ''; // Clear previous list
+
+    if (requests.length === 0) {
+        incomingRequestsList.innerHTML = '<p class="text-gray-500 italic">No new service requests at this time.</p>';
+    } else {
+        requests.forEach(request => {
+            const requestEl = document.createElement('div');
+            requestEl.className = 'p-3 border rounded-lg hover:bg-gray-50 cursor-pointer';
+            requestEl.dataset.requestId = request.id;
+
+            // Use UTC interpretation for preferredDate string for display consistency
+            let formattedReqListDate = 'N/A';
+            if (request.preferredDate && typeof request.preferredDate === 'string') {
+                const parts = request.preferredDate.split('-');
+                if (parts.length === 3) {
+                    const year = parseInt(parts[0], 10);
+                    const month = parseInt(parts[1], 10) - 1; 
+                    const day = parseInt(parts[2], 10);
+                    if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+                        const dateObj = new Date(Date.UTC(year, month, day));
+                        formattedReqListDate = dateObj.toLocaleDateString(undefined, { 
+                            month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' 
+                        });
+                    }
+                }
+            }
+            const timeWindow = request.preferredTimeWindow || 'Any time';
+            
+            let serviceSummary = 'Services not specified';
+            if (request.baseServices && request.baseServices.length > 0) {
+                serviceSummary = request.baseServices.map(s => s.name).join(', ');
+                if (request.addonServices && request.addonServices.length > 0) {
+                    serviceSummary += ` (+${request.addonServices.length} add-on${request.addonServices.length > 1 ? 's' : ''})`;
+                }
+            }
+
+            requestEl.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <h4 class="font-semibold text-md">${escapeHtml(request.homeownerName || 'Unknown Homeowner')}</h4>
+                    <span class="text-sm text-yellow-600">Pending Review</span>
+                </div>
+                <p class="text-sm text-gray-600">Date: ${escapeHtml(formattedReqListDate)} (${escapeHtml(timeWindow)})</p>
+                <p class="text-sm text-gray-600">Services: ${escapeHtml(serviceSummary)}</p>
+                <p class="text-sm text-gray-600">Est. Total: $${request.estimatedTotalPrice ? request.estimatedTotalPrice.toFixed(2) : 'N/A'}</p>
+            `;
+            requestEl.addEventListener('click', () => openRequestReviewModal(request));
+            incomingRequestsList.appendChild(requestEl);
+        });
+    }
+    // Toggle visibility
+    mainScheduleContainer.classList.add('hidden');
+    incomingRequestsContainer.classList.remove('hidden');
+}
+
+async function updatePendingRequestCountBadge() {
+    if (!incomingRequestsBadge) return;
+    try {
+        await ensureUserProfile(); // Wait for userProfile
+        const pendingRequests = await fetchPendingRequests(); 
+        const count = pendingRequests.length;
+        incomingRequestsBadge.textContent = count;
+        if (count > 0) {
+            incomingRequestsBadge.classList.remove('hidden');
+        } else {
+            incomingRequestsBadge.classList.add('hidden');
+        }
+    } catch (error) {
+        console.error('[Pending Requests] Error updating badge count:', error);
+        incomingRequestsBadge.classList.add('hidden'); // Hide on error
+    }
+}
+
+// STUBS for modal functions
+function openRequestReviewModal(requestData) {
+    console.log('[Request Review Modal] Opening for request:', requestData);
+
+    const modalElement = document.getElementById('booking-detail-modal');
+    if (!modalElement) {
+        console.error("#booking-detail-modal not found!");
+        return;
+    }
+
+    const modalTitle = document.getElementById('booking-detail-title');
+    const modalContent = document.getElementById('booking-detail-content');
+
+    if (modalTitle) modalTitle.textContent = `Review Request: ${escapeHtml(requestData.homeownerName || 'Unknown')}`;
+    
+    if (modalContent) {
+        // Remove initial "Loading details..." placeholder paragraph if it exists directly in modalContent
+        const placeholderP = modalContent.querySelector('p.text-gray-500.italic');
+        if (placeholderP && placeholderP.textContent.includes('Loading details...') && placeholderP.parentElement === modalContent) {
+            placeholderP.remove();
+        }
+
+        // Ensure propose-alternative-form is initially hidden when details are reloaded
+        const proposalForm = modalContent.querySelector('#propose-alternative-form');
+        if (proposalForm) proposalForm.classList.add('hidden');
+
+        // Create a wrapper for the request details to easily show/hide them
+        let requestDetailsDisplay = modalContent.querySelector('#request-details-display');
+        if (!requestDetailsDisplay) {
+            requestDetailsDisplay = document.createElement('div');
+            requestDetailsDisplay.id = 'request-details-display';
+            // Prepend it so proposal form (if already in HTML) comes after
+            modalContent.insertBefore(requestDetailsDisplay, modalContent.firstChild);
+        } else {
+            requestDetailsDisplay.classList.remove('hidden'); // Ensure it's visible
+        }
+
+        let contentHtml = '<div class="space-y-3">'; // This will go INSIDE request-details-display
+
+        // Homeowner Name (already in title, but can repeat if desired or add other homeowner info)
+        // contentHtml += `<div><p class="text-sm font-medium text-gray-600">Homeowner:</p><p>${escapeHtml(requestData.homeownerName || 'N/A')}</p></div>`;
+
+        // Requested Date & Time - using UTC interpretation for display to match YYYY-MM-DD input
+        let formattedReqDate = 'N/A';
+        if (requestData.preferredDate && typeof requestData.preferredDate === 'string') {
+            const parts = requestData.preferredDate.split('-');
+            if (parts.length === 3) {
+                const year = parseInt(parts[0], 10);
+                const month = parseInt(parts[1], 10) - 1; 
+                const day = parseInt(parts[2], 10);
+                if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+                    const dateObj = new Date(Date.UTC(year, month, day));
+                    formattedReqDate = dateObj.toLocaleDateString(undefined, { 
+                        month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' 
+                    });
+                }
+            }
+        }
+        const timeWindow = requestData.preferredTimeWindow || 'Any time';
+        contentHtml += `<div><p class="text-sm font-medium text-gray-600">Requested Date:</p><p>${escapeHtml(formattedReqDate)} (${escapeHtml(timeWindow)})</p></div>`;
+
+        // Base Services
+        if (requestData.baseServices && requestData.baseServices.length > 0) {
+            contentHtml += '<div><p class="text-sm font-medium text-gray-600">Base Service(s):</p><ul class="list-disc list-inside pl-4 text-sm">';
+            requestData.baseServices.forEach(service => {
+                contentHtml += `<li>${escapeHtml(service.name)} ($${service.price.toFixed(2)})</li>`;
+            });
+            contentHtml += '</ul></div>';
+        }
+
+        // Add-on Services
+        if (requestData.addonServices && requestData.addonServices.length > 0) {
+            contentHtml += '<div><p class="text-sm font-medium text-gray-600">Add-on Service(s):</p><ul class="list-disc list-inside pl-4 text-sm">';
+            requestData.addonServices.forEach(service => {
+                contentHtml += `<li>${escapeHtml(service.name)} ($${service.price.toFixed(2)})</li>`;
+            });
+            contentHtml += '</ul></div>';
+        }
+
+        // Homeowner Notes
+        if (requestData.notes) {
+            contentHtml += `<div><p class="text-sm font-medium text-gray-600">Homeowner Notes:</p><p class="text-sm p-2 bg-gray-50 rounded whitespace-pre-wrap">${escapeHtml(requestData.notes)}</p></div>`;
+        } else {
+            contentHtml += `<div><p class="text-sm font-medium text-gray-600">Homeowner Notes:</p><p class="text-sm italic">No notes provided.</p></div>`;
+        }
+
+        // Estimated Total Price
+        contentHtml += `<div class="mt-4 pt-3 border-t"><p class="text-sm font-medium text-gray-600">Estimated Total:</p><p class="text-lg font-semibold">$${requestData.estimatedTotalPrice ? requestData.estimatedTotalPrice.toFixed(2) : 'N/A'}</p></div>`;
+
+        contentHtml += '</div>'; // Close space-y-3
+        // modalContent.innerHTML = contentHtml; // OLD WAY
+        requestDetailsDisplay.innerHTML = contentHtml; // NEW: Populate the dedicated div
+    }
+    
+    setupRequestActionButtons(modalElement, requestData);
+
+    // Show modal 
+    modalElement.classList.remove('hidden');
+    modalElement.style.transform = 'translateY(0)';
+    const backdrop = document.getElementById('booking-detail-backdrop');
+    if (backdrop) {
+        backdrop.classList.remove('hidden');
+        backdrop.style.opacity = '0.5';
+    }
+    document.body.style.overflow = 'hidden';
+}
+
+function setupRequestActionButtons(modalElement, requestData) {
+    console.log('[Request Review Modal] Setting up action buttons for:', requestData.id);
+    // const footer = modalElement.querySelector('#booking-detail-footer'); // Original
+    // Ensure footer points to the main footer div, not the sub-containers yet
+    const footer = document.getElementById('booking-detail-footer'); 
+
+    if (!footer) {
+        console.error('#booking-detail-footer not found in modalElement or document!');
+        return;
+    }
+
+    const stdActionsContainer = footer.querySelector('#standard-request-actions');
+    const propActionsContainer = footer.querySelector('#propose-alternative-actions');
+
+    if (!stdActionsContainer || !propActionsContainer) {
+        console.error('Standard or propose alternative action containers not found in footer!');
+        return;
+    }
+
+    stdActionsContainer.innerHTML = ''; // Clear existing standard buttons
+    propActionsContainer.innerHTML = ''; // Clear existing proposal buttons
+
+    const actions = [
+        { label: 'Approve', class: 'bg-green-600 hover:bg-green-700', handler: () => handleApproveRequest(requestData.id, requestData) },
+        { label: 'Propose Alternative', class: 'bg-blue-600 hover:bg-blue-700', handler: () => handleProposeAlternative(requestData) },
+        { label: 'Decline', class: 'bg-red-600 hover:bg-red-700', handler: () => handleDeclineRequest(requestData.id, requestData) },
+        { label: 'Close', class: 'bg-gray-500 hover:bg-gray-600', handler: () => closeBookingDetailModal() }
+    ];
+
+    actions.forEach(action => {
+        const button = document.createElement('button');
+        button.textContent = action.label;
+        button.className = `w-full mb-2 px-4 py-2.5 text-sm font-semibold text-white rounded-lg shadow-sm ${action.class} focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2`;
+        button.onclick = action.handler;
+        stdActionsContainer.appendChild(button);
+    });
+
+    propActionsContainer.classList.add('hidden');
+    stdActionsContainer.classList.remove('hidden');
+}
+
+// STUBS for handler functions
+async function handleApproveRequest(requestId, requestData) {
+    console.log(`[Request Action] Approve clicked for request ID: ${requestId}`, requestData);
+    
+    closeBookingDetailModal(); // Close the review modal first
+
+    // Calculate total duration from services in requestData
+    let totalDurationMinutes = 0;
+    if (requestData.baseServices && requestData.baseServices.length > 0) {
+        requestData.baseServices.forEach(s => { 
+            // Ensure durationMinutes is a number, default to 0 if undefined/null/NaN
+            const duration = Number(s.durationMinutes);
+            totalDurationMinutes += (isNaN(duration) ? 0 : duration); 
+        });
+    }
+    if (requestData.addonServices && requestData.addonServices.length > 0) {
+        requestData.addonServices.forEach(s => { 
+            const duration = Number(s.durationMinutes);
+            totalDurationMinutes += (isNaN(duration) ? 0 : duration); 
+        });
+    }
+
+    if (totalDurationMinutes === 0 && (requestData.baseServices?.length > 0 || requestData.addonServices?.length > 0)) {
+        console.warn("Service durations were missing or zero for all selected services. Defaulting to 120 minutes for scheduling modal.");
+        totalDurationMinutes = 120; 
+    } else if (totalDurationMinutes === 0) {
+        console.warn("No services found in request or all services had zero/missing duration. Defaulting to 60 minutes for scheduling modal as a fallback.");
+        totalDurationMinutes = 60; // A shorter fallback if no services were in request but flow proceeded.
+    }
+    
+    const prefillForScheduling = {
+        client: { id: requestData.homeownerId, name: requestData.homeownerName },
+        // Make sure to pass all necessary fields for baseService and addonServices including durationMinutes
+        baseService: requestData.baseServices && requestData.baseServices.length > 0 
+            ? { 
+                id: requestData.baseServices[0].id, 
+                name: requestData.baseServices[0].name, 
+                price: requestData.baseServices[0].price, // Assuming 'price' is the correct field from requestData
+                durationMinutes: Number(requestData.baseServices[0].durationMinutes) || 0
+              }
+            : null,
+        addonServices: requestData.addonServices 
+            ? requestData.addonServices.map(s => ({ 
+                id: s.id, 
+                name: s.name, 
+                price: s.price, // Assuming 'price' is correct
+                durationMinutes: Number(s.durationMinutes) || 0
+            })) 
+            : [],
+        originalRequestId: requestId // Pass the original request ID
+    };
+
+    // Convert YYYY-MM-DD from requestData.preferredDate to an ISO string for new Date()
+    // Adding T00:00:00 ensures it's parsed as local start of day, then toISOString converts to UTC.
+    // openBookingModal should handle this ISO string.
+    let preferredDateForModal;
+    if (requestData.preferredDate && requestData.preferredDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        preferredDateForModal = new Date(requestData.preferredDate + "T00:00:00").toISOString();
+    } else {
+        console.warn("Preferred date from request is missing or invalid, defaulting to today for modal.");
+        preferredDateForModal = new Date().toISOString(); // Default to today if not present
+    }
+
+    console.log(`[Request Action] Opening scheduling modal with prefill:`, prefillForScheduling, `Date: ${preferredDateForModal}, Duration: ${totalDurationMinutes}`);
+    openBookingModal(preferredDateForModal, totalDurationMinutes, prefillForScheduling);
+}
+
+async function handleProposeAlternative(requestData) {
+    console.log(`[Request Action] Propose Alternative clicked for request ID: ${requestData.id}`, requestData);
+    currentProposingRequestData = requestData; // Store the request data
+
+    const detailContent = document.getElementById('booking-detail-content');
+    const requestDetailsDisplay = detailContent ? detailContent.querySelector('#request-details-display') : null;
+
+    if (!proposeAlternativeForm || !standardRequestActionsContainer || !proposeAlternativeActionsContainer || !alternativeDateInput || !alternativeTimeInput || !alternativeNotesInput || !requestDetailsDisplay) {
+        console.error('One or more elements for "Propose Alternative" form or request display are missing.');
+        showErrorMessage('UI error: Cannot open proposal form.');
+        return;
+    }
+
+    // Hide original request details, show proposal form
+    requestDetailsDisplay.classList.add('hidden');
+    proposeAlternativeForm.classList.remove('hidden');
+
+    // Clear and initialize the form
+    alternativeDateInput.value = '';
+    alternativeTimeInput.value = '';
+    alternativeNotesInput.value = '';
+    if (window.flatpickr && alternativeDateInput._flatpickr) {
+        alternativeDateInput._flatpickr.clear();
+         // Set a default date to today or requestData.preferredDate if valid
+        const initialDate = requestData.preferredDate && requestData.preferredDate.match(/^\d{4}-\d{2}-\d{2}$/) 
+                            ? requestData.preferredDate 
+                            : new Date();
+        alternativeDateInput._flatpickr.setDate(initialDate, false);
+    }
+
+    // Scroll the form into view if it's inside a scrollable container
+    // Ensure the content area is scrollable to see the form if it's long
+    if (bookingDetailContent) bookingDetailContent.scrollTop = bookingDetailContent.scrollHeight;
+    proposeAlternativeForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    // Switch action buttons
+    standardRequestActionsContainer.classList.add('hidden');
+    proposeAlternativeActionsContainer.innerHTML = ''; // Clear previous
+    proposeAlternativeActionsContainer.classList.remove('hidden');
+
+    const sendButton = document.createElement('button');
+    sendButton.textContent = 'Send Proposal';
+    sendButton.className = 'w-full mb-2 px-4 py-2.5 text-sm font-semibold text-white rounded-lg shadow-sm bg-green-600 hover:bg-green-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2';
+    sendButton.onclick = handleSendProposal;
+    proposeAlternativeActionsContainer.appendChild(sendButton);
+
+    const cancelButton = document.createElement('button');
+    cancelButton.textContent = 'Cancel Proposal Mode';
+    cancelButton.className = 'w-full mb-2 px-4 py-2.5 text-sm font-semibold text-white rounded-lg shadow-sm bg-gray-500 hover:bg-gray-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2';
+    cancelButton.onclick = handleCancelProposalMode;
+    proposeAlternativeActionsContainer.appendChild(cancelButton);
+}
+
+async function handleSendProposal() {
+    if (!currentProposingRequestData) {
+        showErrorMessage('Error: No request data for proposal.');
+        return;
+    }
+    if (!alternativeDateInput || !alternativeTimeInput) {
+        showErrorMessage('Error: Date or time input fields are missing.');
+        return;
+    }
+
+    const proposedDate = alternativeDateInput.value; // This will be YYYY-MM-DD from Flatpickr
+    const proposedTime = alternativeTimeInput.value; // HH:MM
+    const proposedNotes = alternativeNotesInput ? alternativeNotesInput.value.trim() : '';
+
+    if (!proposedDate) {
+        showErrorMessage('Please select a proposed date.');
+        alternativeDateInput.focus();
+        return;
+    }
+    if (!proposedTime) {
+        showErrorMessage('Please select a proposed time.');
+        alternativeTimeInput.focus();
+        return;
+    }
+
+    // Combine date and time, then convert to ISO string for storage, respecting housekeeper's timezone potentially
+    // For simplicity, we'll store as YYYY-MM-DD and HH:MM and notes.
+    // The homeowner side will need to interpret this.
+    
+    const proposalDetails = {
+        proposedDate: proposedDate, // YYYY-MM-DD
+        proposedTime: proposedTime, // HH:MM
+        housekeeperNotes: proposedNotes,
+        proposedAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+
+    console.log(`[Request Action] Sending proposal for request ID: ${currentProposingRequestData.id}`, proposalDetails);
+    showLoading('Sending proposal...');
+
+    try {
+        const user = firebase.auth().currentUser;
+        if (!user) {
+            throw new Error("User not authenticated to send proposal.");
+        }
+
+        await window.firestoreService.updateBookingRequestStatus(
+            user.uid,
+            currentProposingRequestData.id,
+            'housekeeper_proposed_alternative',
+            { proposal: proposalDetails }
+        );
+
+        showSuccessMessage('Alternative proposal sent to homeowner.');
+        
+        handleCancelProposalMode(); // Reset UI
+        closeBookingDetailModal();   // Close the main review modal
+
+        // Refresh pending requests list and badge
+        await updatePendingRequestCountBadge();
+        const updatedRequests = await fetchPendingRequests();
+        displayPendingRequests(updatedRequests);
+
+    } catch (error) {
+        console.error('[Request Action] Error sending proposal:', error);
+        showErrorMessage(`Failed to send proposal: ${error.message || 'Please try again.'}`);
+    } finally {
+        hideLoading();
+    }
+}
+
+function handleCancelProposalMode() {
+    const detailContent = document.getElementById('booking-detail-content');
+    const requestDetailsDisplay = detailContent ? detailContent.querySelector('#request-details-display') : null;
+
+    if (proposeAlternativeForm) proposeAlternativeForm.classList.add('hidden');
+    if (requestDetailsDisplay) requestDetailsDisplay.classList.remove('hidden'); // Show original details again
+
+    if (proposeAlternativeActionsContainer) proposeAlternativeActionsContainer.classList.add('hidden');
+    if (standardRequestActionsContainer) standardRequestActionsContainer.classList.remove('hidden');
+    
+    // Clear input fields
+    if (alternativeDateInput && alternativeDateInput._flatpickr) alternativeDateInput._flatpickr.clear();
+    else if (alternativeDateInput) alternativeDateInput.value = '';
+    if (alternativeTimeInput) alternativeTimeInput.value = '';
+    if (alternativeNotesInput) alternativeNotesInput.value = '';
+
+    currentProposingRequestData = null; // Clear stored data
+    console.log('[Request Action] Cancelled proposal mode.');
+}
+
+// ... existing code ...
+async function handleDeclineRequest(requestId, requestData) {
+    console.log(`[Request Action] Decline clicked for request ID: ${requestId}`, requestData);
+    showLoading('Declining request...');
+
+    try {
+        const user = firebase.auth().currentUser;
+        if (!user) {
+            throw new Error("User not authenticated to decline request.");
+        }
+
+        await window.firestoreService.updateBookingRequestStatus(
+            user.uid,
+            requestId,
+            'declined_by_housekeeper'
+        );
+
+        showSuccessMessage(`Request from ${requestData.homeownerName || 'homeowner'} has been declined.`);
+        
+        closeBookingDetailModal();
+        await updatePendingRequestCountBadge();
+        const updatedRequests = await fetchPendingRequests(); // Fetch latest requests
+        displayPendingRequests(updatedRequests); // Refresh the list display
+
+    } catch (error) {
+        console.error('[Decline Request] Error:', error);
+        showErrorMessage(`Failed to decline request: ${error.message || 'Please try again.'}`);
+    } finally {
+        hideLoading();
+    }
+}
+window.handleDeclineRequest = handleDeclineRequest; // EXPLICITLY ASSIGN TO WINDOW
+
+// ... existing code ...
+
+document.addEventListener('DOMContentLoaded', async () => {
+    // ... (other existing DOMContentLoaded logic) ...
+
+    if (viewIncomingRequestsBtn) {
+        viewIncomingRequestsBtn.addEventListener('click', async () => {
+            console.log('[Pending Requests] View Incoming Requests button clicked.');
+            showLoading('Loading requests...');
+            await ensureUserProfile(); // Wait for userProfile
+            const requests = await fetchPendingRequests();
+            displayPendingRequests(requests);
+            hideLoading();
+        });
+    }
+
+    // Initial update of the badge count
+    // No longer need separate if/else for firebase.auth().currentUser vs onAuthStateChanged
+    // as ensureUserProfile will handle it.
+    try {
+        await ensureUserProfile(); // Ensure user profile is loaded
+        if (userProfile) { // Check if userProfile was successfully obtained
+             housekeeperTimezone = userProfile?.timezone || userSettings?.timezone || dateUtils.getLocalTimezone();
+             await updatePendingRequestCountBadge();
+        } else {
+            console.warn('[DOMContentLoaded] User profile not available after ensure for initial badge update.');
+        }
+    } catch (error) {
+        console.error('[DOMContentLoaded] Error during initial setup for pending requests badge:', error);
+    }
+
+    // Ensure close button for booking detail modal is wired up if not already
+    const closeDetailX = document.getElementById('close-detail-modal-btn-x');
+    if (closeDetailX && typeof closeBookingDetailModal === 'function') {
+        closeDetailX.addEventListener('click', closeBookingDetailModal);
+    }
+
+    currentWeekStart = dateUtils.getStartOfWeek(new Date());
+// ... existing code ...
+
+    // Initialize Flatpickr for the alternative date input
+    if (document.getElementById('alternative-date')) {
+        flatpickr(document.getElementById('alternative-date'), {
+            altInput: true,
+            altFormat: "F j, Y", // E.g., "March 15, 2025"
+            dateFormat: "Y-m-d",   // Stores as YYYY-MM-DD
+            minDate: "today"
+        });
+        console.log('[Flatpickr] Initialized for #alternative-date');
+    } else {
+        console.warn('[Flatpickr] #alternative-date input not found on DOMContentLoaded.');
+    }
+
+    // ... existing code ...
+});

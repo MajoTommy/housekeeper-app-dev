@@ -83,12 +83,17 @@ Contains basic profile information common to all users, primarily sourced from F
           "baseServiceName": "Standard Cleaning", // Denormalized name at booking time
           "baseServicePrice": 120.00, // Denormalized price at booking time
           "addonServices": [
-              { "id": "addonId1", "name": "Inside Oven", "price": 45.00 },
-              { "id": "addonId2", "name": "Laundry", "price": 25.00 }
+              { "id": "addonId1", "name": "Inside Oven", "price": 45.00, "durationMinutes": 45 },
+              { "id": "addonId2", "name": "Laundry", "price": 25.00, "durationMinutes": 60 }
               // ... other selected addons
           ],
           "totalPrice": 190.00, // Calculated total at booking time
           // --- END: Service Details ---
+
+          // --- NEW: Service Request Origin ---
+          "originalRequestId": "requestDocId", // (String, Optional) If booking originated from a service request, this is the ID from /users/{housekeeperId}/bookingRequests
+          "source": "service_request" | "manual_booking", // (String, Optional) How the booking was created
+          // --- END: Service Request Origin ---
 
           "createdAt": Timestamp,
           "updatedAt": Timestamp,
@@ -481,7 +486,7 @@ When a new user signs up (`signup.js`):
     *   A minimal profile document in `/housekeeper_profiles/{userId}` or `/homeowner_profiles/{userId}`.
     *   (Potentially) An empty settings document in `/users/{userId}/settings/app`.
 
-*(Note: Comprehensive sample data population is now handled separately by the developer tool `dev-tools.html` and `populate-sample-data.js`, not during regular signup.)*
+*(Note: Comprehensive sample data population is now handled separately by the developer tool `dev-tools.html` and `public/js/populate-sample-data.js`. This script now also **deletes existing subcollection data** (services, clients, bookings, settings) for the specified housekeeper before populating to ensure a clean state.)*
 
 ## Data Relationships
 
@@ -490,6 +495,8 @@ When a new user signs up (`signup.js`):
 3.  **Housekeepers to Clients**: Housekeepers manage multiple clients (1:many relationship) stored in their `/users/{housekeeperId}/clients` subcollection.
 4.  **Bookings Relationships**: 
     *   Bookings in `/users/{housekeeperId}/bookings` reference the client via `clientId`. This `clientId` can be the **User ID** of a linked homeowner OR the **Document ID** of a client stored in the housekeeper's `/clients` subcollection.
+    *   If a booking originated from a service request, its `originalRequestId` field links to the corresponding document in `/users/{housekeeperId}/bookingRequests`.
+    *   A `bookingRequest` with status `approved_and_scheduled` will have a `scheduledBookingId` field linking to the created document in `/users/{housekeeperId}/bookings`.
     *   *(Removed reference to propertyId here as it doesn't seem relevant to bookings collection)*
 
 ## Role-Based Application Flow
@@ -551,3 +558,44 @@ Stores information about individual booking appointments.
 ## `users` Collection (May be split or combined based on Auth)
 
 Stores user profile information. Could potentially be split into `homeowners` and `housekeepers` collections if profiles differ significantly. 
+
+// ... NEW SUBCOLLECTION: bookingRequests ---
+-   `/bookingRequests/{requestId}`: Stores service requests made by homeowners to this housekeeper.
+    ```json
+    {
+      "homeownerId": "homeownerUserId",
+      "homeownerName": "Corey Homeowner",
+      "housekeeperId": "housekeeperUserId",
+      "baseServices": [
+        {
+          "id": "serviceDocId",
+          "name": "Standard Cleaning",
+          "price": 120.00,
+          "type": "base",
+          "durationMinutes": 120
+        }
+      ],
+      "addonServices": [
+        {
+          "id": "addonId1",
+          "name": "Inside Oven",
+          "price": 45.00,
+          "type": "addon",
+          "durationMinutes": 45
+        }
+      ],
+      "preferredDate": "YYYY-MM-DD",
+      "preferredTime": "9am-12pm",
+      "notes": "Please pay attention to the kitchen floor.",
+      "estimatedTotal": 165.00,
+      "status": "pending_housekeeper_review" | "housekeeper_proposed_alternative" | "homeowner_accepted_proposal" | "approved_and_scheduled" | "declined_by_housekeeper" | "cancelled_by_homeowner" | "completed",
+      "requestTimestamp": Timestamp,
+      "lastUpdatedAt": Timestamp,
+      "scheduledBookingId": "bookingDocId",
+      "proposedDate": "YYYY-MM-DD",
+      "proposedTime": "9am-12pm",
+      "proposalNotes": "This time works better for my schedule.",
+      "proposalSentAt": Timestamp
+    }
+    ```
+// ... END NEW SUBCOLLECTION --- 
