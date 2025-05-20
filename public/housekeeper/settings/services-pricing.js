@@ -40,9 +40,12 @@ const editServiceIdInput = document.getElementById('edit-service-id');
 const serviceNameInput = document.getElementById('service-name');
 const serviceTypeBaseRadio = document.getElementById('service-type-base');
 const serviceTypeAddonRadio = document.getElementById('service-type-addon');
-const servicePriceInput = document.getElementById('service-price');
+const servicePriceInput = document.getElementById('service-price'); // This is basePrice
+const serviceMinPriceInput = document.getElementById('service-min-price'); // NEW
+const serviceMaxPriceInput = document.getElementById('service-max-price'); // NEW
 const serviceDescriptionInput = document.getElementById('service-description');
 const serviceActiveCheckbox = document.getElementById('service-active');
+const serviceTasksContainer = document.getElementById('service-tasks-container'); // NEW DOM ELEMENT
 
 // --- NEW: Modal Delete Button --- 
 const deleteServiceBtn = document.getElementById('delete-service-btn');
@@ -56,8 +59,13 @@ const openModal = (serviceType = 'base', serviceToEdit = null) => {
     modalError.classList.add('hidden');
     serviceForm.reset(); // Clear previous form data
     editServiceIdInput.value = ''; // Clear edit ID
+    serviceMinPriceInput.value = '';
+    serviceMaxPriceInput.value = '';
     modalSavingIndicator.textContent = '';
     saveServiceBtn.disabled = false;
+
+    // Populate task chips (and clear previous selections)
+    populateTaskChips(serviceToEdit ? serviceToEdit.includedTasks : []);
 
     // Show/Hide Delete button based on whether we are editing
     if (serviceToEdit) {
@@ -67,6 +75,8 @@ const openModal = (serviceType = 'base', serviceToEdit = null) => {
         editServiceIdInput.value = serviceToEdit.id;
         serviceNameInput.value = serviceToEdit.serviceName || '';
         servicePriceInput.value = serviceToEdit.basePrice || '';
+        serviceMinPriceInput.value = serviceToEdit.homeownerVisibleMinPrice || '';
+        serviceMaxPriceInput.value = serviceToEdit.homeownerVisibleMaxPrice || '';
         serviceDescriptionInput.value = serviceToEdit.description || '';
         serviceActiveCheckbox.checked = serviceToEdit.isActive !== false; // Default to true if undefined
         if (serviceToEdit.type === 'addon') {
@@ -98,7 +108,101 @@ const closeModal = () => {
     modalError.classList.add('hidden');
     modalSavingIndicator.textContent = '';
     saveServiceBtn.disabled = false;
+    // Clear task chips selection when modal closes
+    if (serviceTasksContainer) {
+        serviceTasksContainer.querySelectorAll('.task-chip-selected').forEach(chip => {
+            chip.classList.remove('task-chip-selected');
+            // Revert to base style if needed, e.g., chip.classList.add('border-gray-300', 'hover:bg-gray-100');
+            // For simplicity, we assume removing task-chip-selected is enough if base styles are persistent.
+        });
+    }
 };
+
+// --- NEW: Task Chip Population and Management ---
+const populateTaskChips = (selectedTaskIds = []) => {
+    if (!serviceTasksContainer) return;
+    serviceTasksContainer.innerHTML = ''; // Clear existing chips
+
+    if (typeof PREDEFINED_CLEANING_TASKS === 'undefined') {
+        console.error('PREDEFINED_CLEANING_TASKS is not loaded. Make sure cleaning-tasks-config.js is included before this script.');
+        serviceTasksContainer.innerHTML = '<p class="text-red-500 text-sm">Error: Task list could not be loaded.</p>';
+        return;
+    }
+
+    Object.keys(PREDEFINED_CLEANING_TASKS).forEach(categoryKey => {
+        const category = PREDEFINED_CLEANING_TASKS[categoryKey];
+        if (category.length === 0) return; // Skip empty categories
+
+        const categoryContainer = document.createElement('div');
+
+        const categoryTitle = document.createElement('h4');
+        categoryTitle.className = 'text-sm font-medium text-gray-700 mb-1.5';
+        // Capitalize first letter of categoryKey for display
+        categoryTitle.textContent = categoryKey.charAt(0).toUpperCase() + categoryKey.slice(1).replace(/_/g, ' ');
+        categoryContainer.appendChild(categoryTitle);
+
+        const chipsWrapper = document.createElement('div');
+        chipsWrapper.className = 'flex flex-wrap gap-2';
+
+        category.forEach(task => {
+            const chip = document.createElement('span');
+            // Base classes for all chips
+            chip.className = 'task-chip px-3 py-1.5 text-xs border rounded-full cursor-pointer flex items-center hover:bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-light'; 
+            chip.dataset.taskId = task.id;
+            chip.setAttribute('role', 'checkbox');
+            chip.tabIndex = 0; // Make it focusable
+
+            // Icon (hidden by default)
+            const icon = document.createElement('i');
+            icon.className = 'fas fa-check mr-1.5 text-xs hidden'; // Icon class, hidden initially
+            chip.appendChild(icon);
+
+            // Text label
+            const labelText = document.createElement('span');
+            labelText.textContent = task.label;
+            chip.appendChild(labelText);
+
+            // Function to update chip appearance based on selection state
+            const updateChipAppearance = (isSelected) => {
+                if (isSelected) {
+                    chip.classList.add('task-chip-selected', 'bg-primary', 'text-white', 'border-primary');
+                    chip.classList.remove('bg-gray-100', 'text-gray-700', 'border-gray-300', 'hover:bg-gray-200');
+                    icon.classList.remove('hidden');
+                    chip.setAttribute('aria-checked', 'true');
+                } else {
+                    chip.classList.remove('task-chip-selected', 'bg-primary', 'text-white', 'border-primary');
+                    chip.classList.add('bg-gray-100', 'text-gray-700', 'border-gray-300', 'hover:bg-gray-200'); // Explicitly set unselected style
+                    icon.classList.add('hidden');
+                    chip.setAttribute('aria-checked', 'false');
+                }
+            };
+
+            // Set initial state
+            if (selectedTaskIds.includes(task.id)) {
+                updateChipAppearance(true);
+            } else {
+                updateChipAppearance(false); // Ensure unselected style is applied
+            }
+
+            chip.addEventListener('click', () => {
+                const isSelected = chip.classList.toggle('task-chip-selected');
+                updateChipAppearance(isSelected);
+            });
+
+            chip.addEventListener('keydown', (e) => {
+                if (e.key === ' ' || e.key === 'Enter') {
+                    e.preventDefault(); // Prevent page scroll on Space
+                    chip.click(); // Trigger the click handler
+                }
+            });
+
+            chipsWrapper.appendChild(chip);
+        });
+        categoryContainer.appendChild(chipsWrapper);
+        serviceTasksContainer.appendChild(categoryContainer);
+    });
+};
+// --- END: Task Chip Population and Management ---
 
 // --- NEW: Delete Confirmation Modal Management ---
 const openDeleteConfirmModal = (serviceId, serviceName) => {
@@ -244,19 +348,21 @@ const handleSaveService = async (event) => {
         return;
     }
 
-    modalSavingIndicator.textContent = 'Saving...';
-    saveServiceBtn.disabled = true;
-    modalError.classList.add('hidden');
+    // --- Get selected task IDs ---
+    const selectedTaskChips = serviceTasksContainer.querySelectorAll('.task-chip-selected');
+    const includedTaskIds = Array.from(selectedTaskChips).map(chip => chip.dataset.taskId);
+    // --- End Get selected task IDs ---
 
     const serviceData = {
         serviceName: serviceNameInput.value.trim(),
-        type: serviceTypeAddonRadio.checked ? 'addon' : 'base',
+        type: serviceTypeBaseRadio.checked ? 'base' : 'addon',
         basePrice: parseFloat(servicePriceInput.value) || 0,
+        homeownerVisibleMinPrice: parseFloat(serviceMinPriceInput.value) || null,
+        homeownerVisibleMaxPrice: parseFloat(serviceMaxPriceInput.value) || null,
         description: serviceDescriptionInput.value.trim(),
         isActive: serviceActiveCheckbox.checked,
-        // Store owner ID for potential future rules/queries although path already contains it
-        ownerId: currentUser.uid,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp() // Add update timestamp
+        includedTasks: includedTaskIds, // NEW: Add included tasks
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp() // Use core SDK
     };
 
     const serviceIdToEdit = editServiceIdInput.value;
@@ -375,6 +481,9 @@ const initializePage = async () => {
                 // --- END ADD ---
                 
                 console.log('Services loaded and event listeners attached.');
+
+                // Initial population of task chips in the modal (will be hidden initially)
+                populateTaskChips();
 
             } catch (error) {
                 console.error('Error during authenticated initialization:', error);

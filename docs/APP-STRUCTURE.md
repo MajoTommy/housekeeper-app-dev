@@ -50,11 +50,12 @@ Each role has a consistent footer navigation menu:
     - `auth-router.js`: Manages role-based redirects after authentication state changes.
     - `date-utils.js`: Utility functions for date/time formatting and manipulation.
     - `sample-data.js`: **DEPRECATED.** Core sample data population is now handled by `/public/js/populate-sample-data.js` via `dev-tools.html`.
+    - `cleaning-tasks-config.js`: Defines a predefined list of cleaning tasks used for service definitions and AI suggestions.
 
 ### Housekeeper Section (`public/housekeeper/`)
 - `public/housekeeper/schedule/`
     - `schedule.html`: Main schedule view.
-    - `schedule.js`: UI logic for displaying schedule, handling booking modal (including client and service selection, one-time booking confirmation), reviewing incoming service requests, approving requests (which converts them to bookings), proposing alternatives, or declining requests.
+    - `schedule.js`: UI logic for displaying schedule, handling booking modal (including client and service selection, one-time booking confirmation), reviewing incoming service requests (including AI price/time suggestions), approving requests (which converts them to bookings), proposing alternatives, or declining requests.
 - `public/housekeeper/clients/`
     - `clients.html`: Client list and management view.
     - `clients.js`: UI logic for displaying clients (filtering active/archived via toggle), search, add/edit modals, archive/unarchive logic.
@@ -173,6 +174,7 @@ Each role has a consistent footer navigation menu:
     - `createBillingPortalSession`: Creates a Stripe Billing Portal session for managing an existing subscription.
     - `createConnectOnboardingLink`: Creates a Stripe Connect onboarding link for setting up a payout account.
     - `createExpressDashboardLink`: Creates a link to the Stripe Express Dashboard for managing an existing payout account.
+- `getAIPriceAndTimeSuggestion`: Provides price and time estimations for service requests using OpenAI, considering service tasks, property details, and housekeeper preferences (HTTPS Callable).
 - **Stripe Webhook Handler (`stripeWebhookHandler` - Planned):** A standard HTTP function (not callable) needed to receive events from Stripe (e.g., subscription updates, account updates) and update Firestore accordingly (requires webhook secret).
 - Potential Trigger Functions (e.g., `syncHomeownerProfileToClient`).
 

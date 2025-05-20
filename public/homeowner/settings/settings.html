@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Homeowner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+    
+    <!-- Firebase Config -->
+    <script src="../../common/js/firebase-config.js"></script>
+    <!-- Firestore Service -->
+    <script src="../../common/js/firestore-service.js"></script>
+    <!-- Auth Service -->
+    <script src="../../common/js/auth.js"></script>
+    <!-- Auth Router -->
+    <script src="../../common/js/auth-router.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { DEFAULT: '#2196F3', light: '#E3F2FD', dark: '#1976D2' },
+                        secondary: { DEFAULT: '#4CAF50', light: '#E8F5E9', dark: '#388E3C' },
+                        accent: { DEFAULT: '#FFC107', light: '#FFF8E1', dark: '#FFA000' },
+                        neutral: { card: '#FFFFFF', background: '#F7FAFC', text: '#4A5568', muted: '#A0AEC0', border: '#E2E8F0' }
+                    }
+                }
+            }
+        };
+    </script>
+    <link rel="stylesheet" href="../../common/css/style.css"> <!-- If you have a common stylesheet -->
+</head>
+<body class="h-full bg-neutral-background pb-20"> <!-- Padding for footer -->
+
+    <!-- Header -->
+    <div class="bg-neutral-card border-b border-neutral-border sticky top-0 z-10">
+        <div class="max-w-md mx-auto">
+            <div class="flex items-center justify-between px-4 py-5">
+                <h1 class="text-xl font-semibold text-neutral-text">Settings</h1>
+                <!-- Optional: Back button if navigating from a settings index -->
+                <!-- <a href="../dashboard/dashboard.html" class="text-gray-600 hover:text-gray-900">
+                    <i class="fas fa-chevron-left"></i>
+                </a> -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="max-w-md mx-auto p-4 md:p-6 space-y-6">
+        <!-- Loading State -->
+        <div id="loading-state" class="text-center py-10">
+            <i class="fas fa-spinner fa-spin text-primary text-3xl"></i>
+            <p class="mt-2 text-neutral-muted">Loading settings...</p>
+        </div>
+
+        <!-- Content Loaded State (hidden by default) -->
+        <div id="content-loaded" class="hidden">
+            <form id="property-settings-form">
+                <!-- Property Details Card -->
+                <div class="bg-neutral-card p-4 sm:p-6 rounded-lg shadow">
+                    <h2 class="text-lg font-semibold text-neutral-text mb-4">Property Details</h2>
+                    <p class="text-sm text-neutral-muted mb-4">
+                        Provide details about your home to help your housekeeper estimate service time and pricing accurately.
+                    </p>
+                    <div class="space-y-4">
+                        <div>
+                            <label for="square-footage" class="block text-sm font-medium text-neutral-text">Approx. Square Footage</label>
+                            <input type="number" id="square-footage" name="squareFootage" class="mt-1 block w-full rounded-md border-neutral-border shadow-sm focus:border-primary focus:ring-primary sm:text-sm" placeholder="e.g., 2000">
+                        </div>
+
+                        <div>
+                            <label for="num-bedrooms" class="block text-sm font-medium text-neutral-text">Number of Bedrooms</label>
+                            <input type="number" id="num-bedrooms" name="numBedrooms" step="1" min="0" class="mt-1 block w-full rounded-md border-neutral-border shadow-sm focus:border-primary focus:ring-primary sm:text-sm" placeholder="e.g., 3">
+                        </div>
+
+                        <div>
+                            <label for="num-bathrooms" class="block text-sm font-medium text-neutral-text">Number of Bathrooms</label>
+                            <input type="number" id="num-bathrooms" name="numBathrooms" step="0.5" min="0" class="mt-1 block w-full rounded-md border-neutral-border shadow-sm focus:border-primary focus:ring-primary sm:text-sm" placeholder="e.g., 2.5">
+                        </div>
+
+                        <div>
+                            <label for="home-type" class="block text-sm font-medium text-neutral-text">Type of Home</label>
+                            <select id="home-type" name="homeType" class="mt-1 block w-full rounded-md border-neutral-border shadow-sm focus:border-primary focus:ring-primary sm:text-sm">
+                                <option value="">Select type...</option>
+                                <option value="house">House</option>
+                                <option value="apartment">Apartment</option>
+                                <option value="townhouse">Townhouse</option>
+                                <option value="condo">Condo</option>
+                                <option value="studio">Studio</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div id="property-status-message" class="mt-4 text-sm"></div>
+
+                    <div class="mt-6">
+                        <button type="submit" id="save-property-settings-btn" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50">
+                            Save Property Details
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Other settings cards can be added here -->
+             <div class="bg-neutral-card p-4 sm:p-6 rounded-lg shadow mt-6">
+                <h2 class="text-lg font-semibold text-neutral-text mb-4">My Account</h2>
+                 <button id="logout-btn" class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md">
+                    <i class="fas fa-sign-out-alt mr-2"></i>Logout
+                </button>
+            </div>
+
+        </div> <!-- End Content Loaded -->
+    </main>
+
+    <!-- Bottom Navigation -->
+    <nav class="fixed bottom-0 inset-x-0 bg-neutral-card border-t border-neutral-border shadow-sm z-10">
+        <div class="mx-auto max-w-md px-4">
+            <div class="flex justify-around items-center h-16">
+                <a href="../dashboard/dashboard.html" id="nav-dashboard" class="flex flex-col items-center justify-center text-neutral-muted hover:text-primary w-full">
+                    <i class="fas fa-home text-xl"></i>
+                    <span class="text-xs mt-1 font-medium">Home</span>
+                </a>
+                <a href="../schedule/schedule.html" id="nav-schedule" class="flex flex-col items-center justify-center text-neutral-muted hover:text-primary w-full">
+                    <i class="fas fa-calendar-alt text-xl"></i>
+                    <span class="text-xs mt-1 font-medium">Service Requests</span>
+                </a>
+                <a href="#" id="nav-settings" class="flex flex-col items-center justify-center text-primary w-full"> <!-- Current page -->
+                    <i class="fas fa-cog text-xl"></i>
+                    <span class="text-xs mt-1 font-medium">Settings</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <script type="module" src="./settings.js"></script>
+</body>
+</html> 

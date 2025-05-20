@@ -17,6 +17,12 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('[DEBUG] submitInviteCodeBtn element:', submitInviteCodeBtn);
     const inviteErrorMessage = document.getElementById('invite-error-message');
 
+    // Referral Card Elements
+    const referHousekeeperCard = document.getElementById('referHousekeeperCard');
+    const friendEmailInput = document.getElementById('friendEmailInput');
+    const sendReferralButton = document.getElementById('sendReferralButton');
+    const referralStatusMessage = document.getElementById('referralStatusMessage');
+
     // --- Global variable for housekeeper timezone ---
     let housekeeperTimezone = 'UTC'; // Default to UTC
     // --- End global --- 
@@ -180,7 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // NEW Function to load data specific to the linked state
     const loadLinkedData = async (userId, housekeeperId, homeownerProfile) => {
         // 1. Populate Housekeeper Info (and get timezone)
-        await populateHousekeeperInfo(housekeeperId); // Make sure this completes
+        const housekeeperProfileData = await populateHousekeeperInfo(housekeeperId); // Make sure this completes and get profile data
         
         // 2. Populate Next Cleaning (now has access to housekeeperTimezone)
         populateNextCleaning(userId, housekeeperId);
@@ -190,8 +196,16 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // 4. Populate Homeowner Address (used in next cleaning card)
         populateHomeownerAddress(homeownerProfile);
+
+        // 5. Setup Referral Feature
+        if (housekeeperProfileData && housekeeperProfileData.inviteCode) {
+            await setupReferralFeature(housekeeperId, housekeeperProfileData.inviteCode);
+        } else {
+            console.warn('Housekeeper profile data or invite code not available for referral feature setup.');
+            if(referHousekeeperCard) referHousekeeperCard.classList.add('hidden'); // Ensure it's hidden
+        }
         
-        // 5. Add Event Listeners for buttons
+        // 6. Add Event Listeners for buttons
         addEventListeners(userId); // Pass userId if needed for unlink
     }
 
@@ -199,7 +213,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const populateHousekeeperInfo = async (housekeeperId) => {
         const nameEl = document.getElementById('housekeeperName');
         const companyEl = document.getElementById('housekeeperCompany');
-        const inviteCodeEl = document.getElementById('housekeeperInviteCode'); // Get reference to the new element
+        const inviteCodeDisplayEl = document.getElementById('housekeeperInviteCodeDisplay');
+
         try {
             // Fetch housekeeper profile by ID
             const housekeeperProfile = await firestoreService.getHousekeeperProfile(housekeeperId);
@@ -215,20 +230,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (companyEl) {
                     companyEl.textContent = housekeeperProfile.companyName || '';
                 }
-                if (inviteCodeEl) { // Display the invite code
-                    inviteCodeEl.textContent = housekeeperProfile.inviteCode ? `(${housekeeperProfile.inviteCode})` : '(No Invite Code)';
+                // Display the invite code if element exists
+                // This is just for display, the actual code for referral will be passed to setupReferralFeature
+                if (inviteCodeDisplayEl && housekeeperProfile.inviteCode) { 
+                    inviteCodeDisplayEl.textContent = `(${housekeeperProfile.inviteCode})`;
+                    // inviteCodeDisplayEl.classList.remove('hidden'); // Decided to keep this hidden as per HTML change
                 }
+                return housekeeperProfile; // Return profile for use in loadLinkedData
             } else {
                  if (nameEl) nameEl.textContent = 'Housekeeper details not found.';
-                 if (inviteCodeEl) inviteCodeEl.textContent = ''; // Clear invite code if profile not found
+                 if (inviteCodeDisplayEl) inviteCodeDisplayEl.textContent = '';
                  if (companyEl) companyEl.textContent = '';
             }
         } catch (error) {
             console.error('Error fetching housekeeper profile:', error);
             if (nameEl) nameEl.textContent = 'Error loading details.';
-            if (inviteCodeEl) inviteCodeEl.textContent = ''; // Clear on error
+            if (inviteCodeDisplayEl) inviteCodeDisplayEl.textContent = ''; 
             if (companyEl) companyEl.textContent = '';
         }
+        return null; // Return null if error or not found
     };
     
     // NEW Function to populate homeowner address in Next Cleaning card
@@ -921,6 +941,57 @@ document.addEventListener('DOMContentLoaded', () => {
                 profileEditStatus.className = 'text-red-500';
             }
             if (saveProfileButton) saveProfileButton.disabled = false; // Re-enable button on error
+        }
+    };
+
+    // NEW Function to setup Referral Feature
+    const setupReferralFeature = async (housekeeperId, housekeeperInviteCode) => {
+        if (!referHousekeeperCard || !friendEmailInput || !sendReferralButton || !referralStatusMessage) {
+            console.error('Referral feature DOM elements not found.');
+            return;
+        }
+
+        try {
+            const housekeeperUserDoc = await firestoreService.getUserProfile(housekeeperId); // Assumes this fetches /users/{id}
+            if (housekeeperUserDoc && housekeeperUserDoc.referralsEnabled) {
+                referHousekeeperCard.classList.remove('hidden');
+
+                sendReferralButton.addEventListener('click', () => {
+                    const friendEmail = friendEmailInput.value.trim();
+                    if (!friendEmail) {
+                        referralStatusMessage.textContent = 'Please enter a friend\'s email address.';
+                        referralStatusMessage.className = 'text-sm mt-3 text-red-600'; // Error styling
+                        return;
+                    }
+
+                    // Basic email validation (very simple)
+                    if (!friendEmail.includes('@') || !friendEmail.includes('.')) {
+                        referralStatusMessage.textContent = 'Please enter a valid email address.';
+                        referralStatusMessage.className = 'text-sm mt-3 text-red-600';
+                        return;
+                    }
+
+                    // Mock send
+                    referralStatusMessage.textContent = `Referral invite for ${friendEmail} has been mocked. Share this code with them: ${housekeeperInviteCode}`;
+                    referralStatusMessage.className = 'text-sm mt-3 text-green-600'; // Success styling
+                    friendEmailInput.value = ''; // Clear input
+
+                    // Optionally, hide message after a few seconds
+                    setTimeout(() => {
+                        referralStatusMessage.textContent = '';
+                        referralStatusMessage.className = 'text-sm mt-3'; // Reset class
+                    }, 7000);
+                });
+
+            } else {
+                referHousekeeperCard.classList.add('hidden');
+                console.log('Referrals are not enabled by this housekeeper.');
+            }
+        } catch (error) {
+            console.error('Error setting up referral feature:', error);
+            referHousekeeperCard.classList.add('hidden');
+            referralStatusMessage.textContent = 'Could not load referral feature status.';
+            referralStatusMessage.className = 'text-sm mt-3 text-red-600';
         }
     };
 

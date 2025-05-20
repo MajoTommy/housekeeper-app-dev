@@ -253,28 +253,53 @@ const firestoreService = {
         batch.update(userRef, userDataToUpdate);
 
         // Data for /housekeeper_profiles/{userId}
-        const profileDocDataToUpdate = {
-            firstName: profileData.firstName,
-            lastName: profileData.lastName,
-            phone: profileData.phone, // Assuming phone is also stored here
-            companyName: profileData.companyName || null,
-            // Add any other fields specific to housekeeper_profiles that might be edited
+        // Make sure profileData from argument only contains fields for housekeeper_profiles
+        // e.g., { bio, serviceZipCodes, etc. }
+        // We will explicitly NOT update firstName, lastName, phone here as they are part of userDataToUpdate
+        const housekeeperProfileDataToUpdate = {
+            ...profileData, // Spread all incoming profile data
             updatedAt: timestamp
         };
-         // Remove undefined fields
-        Object.keys(profileDocDataToUpdate).forEach(key => profileDocDataToUpdate[key] === undefined && delete profileDocDataToUpdate[key]);
-        // Use set with merge:true in case the profile doc doesn't exist yet (robustness)
-        batch.set(profileRef, profileDocDataToUpdate, { merge: true });
+        // Remove fields that are managed in the /users collection to avoid duplication or conflict
+        delete housekeeperProfileDataToUpdate.firstName; 
+        delete housekeeperProfileDataToUpdate.lastName;
+        delete housekeeperProfileDataToUpdate.phone;
+        delete housekeeperProfileDataToUpdate.companyName; // Also managed in /users now
 
+        batch.update(profileRef, housekeeperProfileDataToUpdate);
+        
+        await batch.commit();
+        console.log(`[Firestore] Batch update for housekeeper profile & user doc successful for ID: ${housekeeperId}`);
+        return true;
+    },
+
+    // --- NEW FUNCTION TO UPDATE ARBITRARY FIELDS IN /users/{uid} ---
+    async updateUserDocument(userId, dataToUpdate) {
+        console.log(`[Firestore] Updating user document for ID: ${userId} with data:`, dataToUpdate);
+        if (!userId || !dataToUpdate) {
+            console.error('[Firestore] updateUserDocument requires userId and dataToUpdate.');
+            throw new Error('Invalid input for user document update.');
+        }
         try {
-            await batch.commit();
-            console.log(`[Firestore] Housekeeper profile & user doc updated successfully for ID: ${housekeeperId}`);
-            return true; // Indicate success
+            const userRef = db.collection('users').doc(userId);
+            // Ensure we have an update timestamp
+            const updatePayload = {
+                ...dataToUpdate,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            
+            // Remove undefined fields to prevent Firestore errors
+            Object.keys(updatePayload).forEach(key => updatePayload[key] === undefined && delete updatePayload[key]);
+
+            await userRef.update(updatePayload);
+            console.log(`[Firestore] User document updated successfully for ID: ${userId}`);
+            return true;
         } catch (error) {
-            console.error('[Firestore] Error updating housekeeper profile & user doc:', error);
-            throw error; // Re-throw the error to be caught by the caller
+            console.error('[Firestore] Error updating user document:', error);
+            throw error;
         }
     },
+    // --- END NEW FUNCTION ---
 
     // ---- HOMEOWNER-HOUSEKEEPER LINKING ----
     async linkHomeownerToHousekeeper(homeownerId, inviteCode) {
@@ -1211,7 +1236,31 @@ const firestoreService = {
             console.error(`[Firestore] Error updating booking request ${requestId} status:`, error);
             throw error; // Re-throw to be caught by caller
         }
-    }
+    },
+
+    // NEW: Get a single service document for a housekeeper
+    async getServiceDetails(housekeeperId, serviceId) {
+        console.log(`[Firestore] Getting service details for housekeeper ${housekeeperId}, service ${serviceId}`);
+        if (!housekeeperId || !serviceId) {
+            console.error('[Firestore] getServiceDetails called with invalid IDs');
+            return null;
+        }
+        try {
+            const serviceRef = db.collection('users').doc(housekeeperId).collection('services').doc(serviceId);
+            const doc = await serviceRef.get();
+            if (doc.exists) {
+                const serviceData = { id: doc.id, ...doc.data() };
+                console.log('[Firestore] Service details found:', serviceData);
+                return serviceData;
+            } else {
+                console.warn(`[Firestore] No service document found at users/${housekeeperId}/services/${serviceId}`);
+                return null;
+            }
+        } catch (error) {
+            console.error('[Firestore] Error getting service details:', error);
+            return null;
+        }
+    },
 };
 
 // Ensure firestoreService is available globally if that is the project pattern

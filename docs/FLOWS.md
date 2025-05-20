@@ -109,13 +109,15 @@
     a.  Each request shows homeowner name, formatted date, service summary, total, and status.
 4.  Housekeeper clicks on a request to open the `booking-detail-modal` (repurposed for request review).
     a.  `openRequestReviewModal()` populates the modal with request details.
-    b.  `setupRequestActionButtons()` adds "Approve," "Propose Alternative," "Decline," and "Close" buttons.
+    b.  The modal includes an "AI Pricing & Time Helper" section with a "Get AI Suggestion" button and a "Your Quoted Price for Homeowner" input.
+    c.  Housekeeper can click "Get AI Suggestion". This calls the `getAIPriceAndTimeSuggestion` Cloud Function. The returned suggestion (price, hours, explanation) is displayed, and the "Your Quoted Price for Homeowner" input is pre-filled with the AI's suggested price.
+    d.  `setupRequestActionButtons()` adds "Approve," "Propose Alternative," "Decline," and "Close" buttons.
 5.  **Approve Request:**
-    a.  Housekeeper clicks "Approve".
+    a.  Housekeeper clicks "Approve". The value from the "Your Quoted Price for Homeowner" input is used as the `finalQuotedPrice`.
     b.  `handleApproveRequest()` is called:
         i.  The review modal closes.
         ii. Total `durationMinutes` is calculated from the request's services.
-        iii. `prefillData` is constructed (client info, service details including `durationMinutes`, `originalRequestId`).
+        iii. `prefillData` is constructed (client info, service details including `durationMinutes`, `originalRequestId`, `finalQuotedPrice`).
         iv. `openBookingModal(preferredDateForModal, totalDurationMinutes, prefillData)` is called.
     c.  `openBookingModal()` (modified for approval flow):
         i.  `currentBookingData` is set with prefilled info.
@@ -129,6 +131,7 @@
             -   `durationMinutes` for all services.
             -   `source: 'service_request'`.
             -   `originalRequestId` linking to the request.
+            -   `totalPrice` set to the `finalQuotedPrice` from the approval step.
         ii. `firestoreService.updateBookingRequestStatus()` updates the original request in `/bookingRequests` to `approved_and_scheduled` and adds `scheduledBookingId`.
         iii. Pending request count/list is refreshed.
         iv. View switches back to the main schedule.
@@ -145,7 +148,8 @@
         ii. Housekeeper inputs an alternative date (Flatpickr), time, and notes.
     c.  Housekeeper clicks "Send Proposal".
     d.  `handleSendProposal()` is called:
-        i.  `firestoreService.updateBookingRequestStatus()` updates the original booking request to `housekeeper_proposed_alternative` and stores the proposed details (`proposedDate`, `proposedTime`, `proposalNotes`, `proposalSentAt`).
-        ii. Toast notification is shown.
-        iii. Review modal closes, pending requests list/badge refreshes.
-        iv. The request will now appear in the Homeowner's "My Requests" tab with the new status and details.
+        i.  `proposalDetails` are constructed including `proposedDate`, `proposedTime`, `housekeeperNotes`, `proposedFrequency`, `proposedRecurringEndDate`, and `proposedPrice` (from the "Your Quoted Price for Homeowner" input).
+        ii. `firestoreService.updateBookingRequestStatus()` updates the original booking request to `housekeeper_proposed_alternative` and stores the `proposalDetails`.
+        iii. Toast notification is shown.
+        iv. Review modal closes, pending requests list/badge refreshes.
+        v.  The request will now appear in the Homeowner's "My Requests" tab with the new status and details.

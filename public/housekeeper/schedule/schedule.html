@@ -80,7 +80,7 @@
     <div class="bg-white px-4 py-6 border-b border-gray-200">
         <div class="flex justify-between items-center">
             <div>
-                <h1 class="text-2xl font-bold text-gray-900">Schedule</h1>
+                <h1 id="page-main-title" class="text-2xl font-bold text-gray-900">Schedule</h1>
             </div>
             <div class="flex items-center gap-x-4">
                 <!-- Settings and Logout buttons removed -->
@@ -111,6 +111,22 @@
     
     <!-- Wrapper for Content Padding -->
     <div class="px-4"> 
+
+        <!-- NEW: Incoming Requests Card -->
+        <div id="incomingRequestsCardContainer" class="my-4">
+            <button id="view-incoming-requests-btn" class="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-4 rounded-lg shadow-md transition duration-150 ease-in-out flex items-center justify-center text-base mb-4">
+                <i id="incoming-requests-icon" class="fas fa-bell mr-2"></i> 
+                <span id="incoming-requests-text-label">Incoming Requests</span>
+                <span id="incoming-requests-badge" class="ml-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full hidden">0</span>
+            </button>
+
+            <!-- NEW MANUAL LOAD BUTTON -->
+            <!-- <button id="manualLoadScheduleBtn" class="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md transition duration-150 ease-in-out flex items-center justify-center text-base mb-4">
+                <i class="fas fa-sync-alt mr-2"></i> Manually Load Schedule (Test)
+            </button> -->
+        </div>
+        <!-- END: Incoming Requests Card -->
+
         <!-- Week Navigation Header - Styled like Homeowner -->
         <div class="my-4 p-4 bg-white rounded-lg shadow flex items-center justify-between">
             <!-- Previous Week Button -->
@@ -124,12 +140,6 @@
             <!-- Today Button -->
             <button id="today-btn" class="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 flex items-center mr-2">
                 <i class="fas fa-calendar-day mr-1 text-xs"></i> Today
-            </button>
-
-            <!-- NEW: Incoming Requests Button -->
-            <button id="view-incoming-requests-btn" class="px-3 py-1 bg-yellow-400 text-yellow-900 rounded hover:bg-yellow-500 flex items-center mr-2 relative">
-                <i class="fas fa-inbox mr-1 text-xs"></i> Incoming Requests
-                <span id="incoming-requests-badge" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-4 w-4 flex items-center justify-center hidden">0</span>
             </button>
 
             <!-- Next Week Button -->
@@ -264,64 +274,143 @@
     <!-- Backdrop for Booking Modal -->
     <div id="bookingModalBackdrop" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden transition-opacity duration-300"></div>
 
-    <!-- === NEW: Booking DETAIL Modal === -->
-    <div id="booking-detail-modal" class="fixed inset-x-0 bottom-0 z-50 transform transition-transform duration-300 ease-in-out translate-y-full">
-        <div class="bg-white w-full rounded-t-xl overflow-hidden shadow-xl transform transition-all max-h-[90vh] flex flex-col">
-            <!-- Handle -->
-            <div class="flex justify-center pt-2 pb-1">
-                <div class="w-10 h-1 bg-gray-300 rounded-full"></div>
-            </div>
-            <!-- Header -->
-            <div class="flex justify-between items-center p-4 border-b border-gray-200">
-                <h2 id="booking-detail-title" class="text-xl font-bold text-gray-900">Booking Details</h2>
-                <button id="close-detail-modal-btn-x" class="text-gray-500 hover:text-gray-700 p-1">
-                     <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <!-- Content Area -->
-            <div id="booking-detail-content" class="p-4 overflow-y-auto flex-grow -webkit-overflow-scrolling-touch" style="max-height: 60vh;">
-                <!-- Details will be loaded here by JavaScript -->
-                <p class="text-gray-500 italic">Loading details...</p>
+    <!-- Booking Detail/Request Review Modal -->
+    <div id="booking-detail-modal" class="fixed inset-x-0 bottom-0 z-50 transform transition-transform duration-300 ease-in-out translate-y-full bg-white w-full rounded-t-xl overflow-hidden shadow-xl max-h-[95vh] flex flex-col">
+        <!-- Drag Handle -->
+        <div class="flex justify-center pt-2 pb-1 cursor-grab">
+            <div class="w-10 h-1 bg-gray-300 rounded-full"></div>
+        </div>
+        <!-- Modal Header -->
+        <div class="flex justify-between items-center p-4 border-b border-gray-200">
+            <h2 id="booking-detail-title" class="text-xl font-bold text-gray-900">Review Request</h2>
+            <button id="close-detail-modal-btn-x" class="text-gray-500 hover:text-gray-700">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
 
-                <!-- NEW: Form for Proposing Alternative -->
-                <div id="propose-alternative-form" class="mt-4 pt-4 border-t border-gray-200 hidden">
-                    <h3 class="text-lg font-semibold text-gray-800 mb-3">Propose Alternative Time</h3>
-                    
-                    <div class="space-y-4">
-                        <div>
-                            <label for="alternative-date" class="block text-sm font-medium text-gray-700">Proposed Date</label>
-                            <input type="text" id="alternative-date" name="alternative-date" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm" placeholder="Select a date">
-                        </div>
-                        
-                        <div>
-                            <label for="alternative-time" class="block text-sm font-medium text-gray-700">Proposed Start Time</label>
-                            <input type="time" id="alternative-time" name="alternative-time" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm">
-                        </div>
-                        
-                        <div>
-                            <label for="alternative-notes" class="block text-sm font-medium text-gray-700">Notes for Homeowner (Optional)</label>
-                            <textarea id="alternative-notes" name="alternative-notes" rows="3" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm" placeholder="e.g., This time works better due to my existing schedule."></textarea>
-                        </div>
+        <!-- Modal Content -->
+        <div id="booking-detail-content" class="p-4 overflow-y-auto flex-grow -webkit-overflow-scrolling-touch space-y-5">
+
+            <!-- Section 1: Homeowner's Request Summary -->
+            <div id="homeowner-request-summary-section" class="space-y-3">
+                <h3 class="text-lg font-semibold text-gray-800 border-b pb-2 mb-3 flex items-center">
+                    <i class="fas fa-user-check mr-2 text-gray-500"></i> Homeowner's Request
+                </h3>
+                
+                <!-- Requested Date -->
+                <div id="request-date-display">
+                    <!-- Populated by JS -->
+                </div>
+
+                <!-- Property Overview (Condensed) -->
+                <div id="request-property-overview-display" class="text-sm text-gray-600">
+                    <!-- Populated by JS e.g., <i class="fas fa-home mr-1"></i> Property: House - 3500 sq ft, 5 bed, 4 bath -->
+                </div>
+                
+                <!-- Services Requested -->
+                <div id="request-services-display">
+                    <!-- Populated by JS -->
+                </div>
+                
+                <!-- Homeowner Notes -->
+                <div id="request-notes-display">
+                    <!-- Populated by JS -->
+                </div>
+                
+                <!-- Homeowner's Initial Estimated Price -->
+                <div id="request-initial-price-display" class="mt-2">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- Section 2: Pricing & Time Assessment (Your Decision Hub) -->
+            <div id="pricing-assessment-section" class="space-y-4 pt-4 border-t border-gray-200">
+                 <h3 class="text-lg font-semibold text-gray-800 border-b pb-2 mb-3 flex items-center">
+                    <i class="fas fa-calculator mr-2 text-gray-500"></i> Your Quote & AI Helper
+                </h3>
+
+                <!-- AI Helper Section (Simplified) -->
+                <div id="ai-suggestion-section" data-request-id="" data-homeowner-id="">
+                    <!-- REMOVED: Property Details Summary for AI -->
+                    <!-- <div id="ai-property-details-summary" class="mb-2 text-xs p-2 bg-gray-50 rounded border">
+                        <p class="italic text-gray-500">Property details for AI will appear here.</p>
+                    </div> -->
+
+                    <button id="get-ai-suggestion-btn" class="w-full flex items-center justify-center px-4 py-2.5 border border-blue-500 text-blue-600 rounded-md shadow-sm text-sm font-medium hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-400 disabled:opacity-70">
+                        <i class="fas fa-wand-magic-sparkles mr-2"></i> Get AI Price & Time Recommendation
+                    </button>
+                    <div id="ai-loading-indicator" class="mt-2 text-center hidden">
+                        <i class="fas fa-spinner fa-spin text-primary text-lg"></i> Fetching suggestion...
+                    </div>
+                    <div id="ai-suggestion-error" class="mt-2 text-sm text-red-600 p-2 bg-red-50 rounded hidden"></div>
+                    <div id="ai-suggestion-display" class="mt-2 space-y-1">
+                        <!-- AI suggestion will be populated here -->
                     </div>
                 </div>
-                <!-- END NEW: Form for Proposing Alternative -->
+
+                <!-- Your Quoted Price for Homeowner -->
+                <div class="mt-4">
+                    <label for="housekeeper-quoted-price" class="block text-sm font-medium text-gray-700 mb-1">Your Quoted Price for Homeowner:</label>
+                    <div class="relative rounded-md shadow-sm">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <span class="text-gray-500 sm:text-sm">$</span>
+                        </div>
+                        <input type="number" name="housekeeper-quoted-price" id="housekeeper-quoted-price" class="focus:ring-primary focus:border-primary block w-full pl-7 pr-12 sm:text-lg border-gray-300 rounded-md py-2.5" placeholder="0.00">
+                        <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                            <span class="text-gray-500 sm:text-sm" id="price-currency">USD</span>
+                        </div>
+                    </div>
+                    <p class="mt-1 text-xs text-gray-500">Adjust if needed. This price will be used in your response to the homeowner.</p>
+                </div>
             </div>
-            <!-- Footer / Actions -->
-            <div id="booking-detail-footer" class="px-4 py-4 bg-white border-t border-gray-200">
-                <!-- Action buttons will be loaded here by setupModalButtons() -->
-                <!-- Container for standard request actions -->
-                <div id="standard-request-actions">
-                    <!-- Buttons like Approve, Propose Alt, Decline, Close will go here -->
+
+            <!-- Hidden form for proposal details -->
+            <form id="propose-alternative-form" class="hidden mt-4 space-y-4 p-3 bg-gray-50 rounded-lg border">
+                <h4 class="text-md font-semibold text-gray-700">Propose Alternative Time/Details:</h4>
+                <div>
+                    <label for="alternative-date" class="block text-sm font-medium text-gray-700">Proposed Date:</label>
+                    <input type="text" id="alternative-date" name="alternative-date" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm">
                 </div>
-                <!-- Container for alternative proposal actions (initially hidden) -->
-                <div id="propose-alternative-actions" class="hidden">
-                    <!-- Buttons like Send Proposal, Cancel Proposal will go here -->
+                <div>
+                    <label for="alternative-time" class="block text-sm font-medium text-gray-700">Proposed Time:</label>
+                    <input type="time" id="alternative-time" name="alternative-time" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm">
                 </div>
+                 <!-- Frequency for Proposal -->
+                <div>
+                    <label for="alternative-frequency" class="block text-sm font-medium text-gray-700">Proposed Frequency:</label>
+                    <select id="alternative-frequency" name="alternative-frequency" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md">
+                        <option value="one-time">One-time</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="bi-weekly">Bi-weekly (Every 2 Weeks)</option>
+                        <option value="monthly">Monthly</option>
+                    </select>
+                </div>
+                <div id="alternative-recurring-end-date-wrapper" class="hidden">
+                    <label for="alternative-recurring-end-date" class="block text-sm font-medium text-gray-700">Recurring End Date (Optional):</label>
+                    <input type="text" id="alternative-recurring-end-date" name="alternative-recurring-end-date" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm" placeholder="Optional">
+                </div>
+                <div>
+                    <label for="alternative-notes" class="block text-sm font-medium text-gray-700">Notes for Homeowner (Optional):</label>
+                    <textarea id="alternative-notes" name="alternative-notes" rows="2" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm" placeholder="e.g., This time works better for my schedule."></textarea>
+                </div>
+            </form>
+
+        </div> <!-- End Modal Content -->
+
+        <!-- Modal Footer with Action Buttons -->
+        <div id="booking-detail-footer" class="p-4 border-t border-gray-200 bg-gray-50">
+            <!-- Standard Action Buttons -->
+            <div id="standard-request-actions" class="space-y-2">
+                <!-- Buttons like Approve, Propose, Decline, Close will be populated by JS -->
+                <p class="text-center text-gray-400 text-sm">Loading actions...</p>
+            </div>
+            <!-- Action Buttons for Proposal Mode -->
+            <div id="propose-alternative-actions" class="space-y-2 hidden">
+                <!-- Buttons like Send Proposal, Cancel Proposal Mode will be populated by JS -->
             </div>
         </div>
     </div>
-    <div id="booking-detail-backdrop" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden transition-opacity duration-300"></div>
-    <!-- === END NEW: Booking DETAIL Modal === -->
+    <!-- End Booking Detail Modal -->
 
     <!-- === UPDATED: Cancel Booking Confirmation Drawer === -->
     <div id="cancel-confirm-modal" class="fixed inset-x-0 bottom-0 z-50 transform transition-transform duration-300 ease-in-out translate-y-full">

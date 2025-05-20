@@ -1,0 +1,14 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+    **Always** check for and thoroughly review relevant project documentation *before* starting any task. This includes:
+        *   `/docs/README.md` (Project overview, setup, patterns, technology stack)
+        *   `/docs/Database-Structure.md` (Database)
+        *   `/docs/App-Structure.md` (Files)
+        *   `/docs/UI.md` (Core visual elements)
+        *   `/docs/ (Other planning files)
+
+
+    *   If documentation is missing, unclear, or conflicts with the request, **ask for clarification**.

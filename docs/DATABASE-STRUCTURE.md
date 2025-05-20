@@ -7,7 +7,7 @@ This document outlines the structure of the Firestore database for the Housekeep
 -   `/users`: Stores base user profile information (auth details, role).
 -   `/housekeeper_profiles`: Stores extended profile information specific to housekeepers.
 -   `/homeowner_profiles`: Stores extended profile information specific to homeowners.
--   `/properties`: Stores details about homeowner properties (address, size, etc.).
+-   `/properties`: Stores details about homeowner properties (address, size, etc.). *(Note: Property characteristics like size, bedrooms, bathrooms are being centralized to `/homeowner_profiles/{userId}` for the primary property. This collection can be used for homeowners with multiple distinct properties in future iterations.)*
 -   `/invites`: (Currently unused, potential for future invite system)
 
 ## `/users/{userId}` Document
@@ -25,9 +25,15 @@ Contains basic profile information common to all users, primarily sourced from F
   "createdAt": Timestamp, // Set on creation
   "updatedAt": Timestamp, // Set on updates
   "lastLogin": Timestamp, // (Optional) Set by Auth triggers/functions
-  // --- NEW: Only relevant for role: housekeeper ---
-  "blockedHomeowners": ["homeownerId1", "homeownerId2"] // (Array<String>, Optional) List of homeowner UIDs blocked by this housekeeper
-  // --- END NEW ---
+  // --- Relevant for role: housekeeper ---
+  "blockedHomeowners": ["homeownerId1", "homeownerId2"], // (Array<String>, Optional) List of homeowner UIDs blocked by this housekeeper
+  "referralsEnabled": false, // (Boolean, Optional, default: false) Whether the housekeeper allows their invite code to be shared by homeowners
+  "aiPreferences": { // (Object, Optional, housekeeper only) Preferences for AI-powered suggestions
+    "targetHourlyRate": 50, // (Number) Housekeeper's target hourly wage for AI calculations
+    "baseLocation": { // (Object, Optional) Base location for travel estimates
+      "zipCode": "90210" // (String) Postal/Zip code
+    }
+  }
 }
 ```
 *Note: Fields like `hourly_rate`, `service_area`, `working_hours` are deprecated here; use profile/settings subcollections.* 
@@ -49,12 +55,10 @@ Contains basic profile information common to all users, primarily sourced from F
           "state": "CA",
           "zip": "90210",
           "notes": "Notes specific to the client",
-          // --- NEW/Explicit Fields ---
           "isLinked": true, // (Boolean) Indicates if this client record corresponds to an active homeowner user account
           "linkedHomeownerId": "{homeownerUserId}", // (String) The UID of the linked homeowner (same as doc ID if linked)
           "isActive": true, // (Boolean) Whether the client is considered active by the housekeeper
           "archivedAt": Timestamp, // (Timestamp, Optional) When the client was archived
-          // --- END NEW/Explicit Fields ---
           "createdAt": Timestamp,
           "updatedAt": Timestamp
         }
@@ -66,7 +70,7 @@ Contains basic profile information common to all users, primarily sourced from F
           "housekeeperId": "{userId}", // Housekeeper UID
           "clientId": "clientId | homeownerUserId", // UID of the client (from /clients or /users)
           "clientName": "Client Full Name", // Denormalized
-          "address": "Client Address", // Optional: Denormalized from client/property at booking time - Consider adding?
+          "address": "Client Address", // Optional: Denormalized from client/property at booking time
           
           "startTimestamp": Timestamp, // Primary storage (UTC)
           "endTimestamp": Timestamp, // Primary storage (UTC)
@@ -74,59 +78,84 @@ Contains basic profile information common to all users, primarily sourced from F
           "endTimestampMillis": Number, // UTC milliseconds since epoch
           "durationMinutes": Number, // Duration of booking
           
-          "status": "pending" | "confirmed" | "rejected" | "cancelled_by_homeowner" | "cancelled_by_housekeeper" | "completed",
-          "frequency": "one-time", // Currently only one-time bookings are created via UI
+          "status": "pending_housekeeper_review" | "housekeeper_proposed_alternative" | "confirmed_by_housekeeper" | "homeowner_accepted_proposal" | "declined_by_housekeeper" | "declined_by_homeowner" | "cancelled_by_homeowner" | "cancelled_by_housekeeper" | "completed" | "approved_and_scheduled",
+          "frequency": "one-time" | "weekly" | "bi-weekly" | "monthly", 
+          "recurringEndDate": Timestamp, // (Timestamp, Optional) For recurring bookings
           "notes": "Booking specific notes", // Optional
 
-          // --- NEW: Service Details ---
-          "baseServiceId": "serviceDocId",
-          "baseServiceName": "Standard Cleaning", // Denormalized name at booking time
-          "baseServicePrice": 120.00, // Denormalized price at booking time
-          "addonServices": [
-              { "id": "addonId1", "name": "Inside Oven", "price": 45.00, "durationMinutes": 45 },
-              { "id": "addonId2", "name": "Laundry", "price": 25.00, "durationMinutes": 60 }
-              // ... other selected addons
+          "baseServices": [
+              { "id": "serviceId1", "name": "Standard Cleaning", "price": 120.00, "durationMinutes": 120 }
           ],
-          "totalPrice": 190.00, // Calculated total at booking time
-          // --- END: Service Details ---
-
-          // --- NEW: Service Request Origin ---
-          "originalRequestId": "requestDocId", // (String, Optional) If booking originated from a service request, this is the ID from /users/{housekeeperId}/bookingRequests
-          "source": "service_request" | "manual_booking", // (String, Optional) How the booking was created
-          // --- END: Service Request Origin ---
+          "addonServices": [
+              { "id": "addonId1", "name": "Inside Oven", "price": 45.00, "durationMinutes": 45 }
+          ],
+          "estimatedTotalPrice": 165.00, // Calculated total at request time by homeowner UI (based on min/max ranges and homeowner input)
+          "finalQuotedPrice": 170.00, // (Number, Optional) The final price quoted by the housekeeper and used when approving a request or in a proposal.
+          
+          "originalRequestId": "requestDocId", // (String, Optional) If booking originated from a service request
+          "source": "service_request" | "manual_booking", 
+          "scheduledBookingId": "newBookingIdFromAcceptedProposal", // (String, Optional) If this is a bookingRequest that was converted into a booking
 
           "createdAt": Timestamp,
           "updatedAt": Timestamp,
+          "requestTimestamp": Timestamp, // (Timestamp, for bookingRequests) When the request was made
+          "lastUpdatedTimestamp": Timestamp, // (Timestamp, for bookingRequests) When the request was last updated
+          "proposal": { // (Object, Optional, for bookingRequests with status 'housekeeper_proposed_alternative')
+            "proposedDate": Timestamp | String, // Can be Firestore Timestamp or YYYY-MM-DD string
+            "proposedTime": "HH:mm" | String, // E.g., "10:00" or "Morning"
+            "housekeeperNotes": "This time works better.",
+            "proposedFrequency": "one-time" | "weekly" | "bi-weekly" | "monthly",
+            "proposedRecurringEndDate": Timestamp | String, // (YYYY-MM-DD string, Optional)
+            "proposedPrice": 175.00, // (Number, Optional)
+            "proposedAt": Timestamp
+          },
+          "declineNote": "Reason for declining...", // (String, Optional, for bookingRequests declined by homeowner)
           "confirmedAt": Timestamp, // Optional
           "cancelledAt": Timestamp, // Optional
           "cancelledBy": "homeowner" | "housekeeper", // Optional
-          "cancellationReason": "Reason..." // Optional
+          "cancellationReason": "Reason...", // Optional
 
-          // --- NEW: Stripe Payment Fields (Booking) ---
-          "stripePaymentIntentId": "pi_...", // (String, Optional) The ID of the Stripe PaymentIntent associated with this booking's charge.
-          "paymentStatus": "pending_payment" | "processing" | "succeeded" | "failed" | "requires_action" | "canceled", // (String, Optional) Tracks the booking payment status, aligned with PaymentIntent statuses.
-          // --- END: Stripe Payment Fields ---
+          "stripePaymentIntentId": "pi_...", 
+          "paymentStatus": "pending_payment" | "processing" | "succeeded" | "failed" | "requires_action" | "canceled"
         }
         ```
+-   `/bookingRequests`: (DEPRECATED - this logic is merged into `/bookings` with various statuses)
+
 -   `/settings`: Stores application-specific settings for the housekeeper.
     -   `/settings/app`: (Single document)
         ```json
         {
-          "workingDays": { // Default weekly availability pattern
+          "workingDays": { 
             "monday": {
               "isWorking": true,
-              "startTime": "08:00", // 24-hour format string HH:mm (e.g., "08:00", "14:30")
+              "startTime": "08:00", 
               "jobsPerDay": 2,
-              "jobDurations": [ 210, 210 ], // Durations in minutes
-              "breakDurations": [ 60 ] // Durations in minutes
-            },
-            // ... other days (tuesday to sunday)
+              "jobDurations": [ 210, 210 ], 
+              "breakDurations": [ 60 ] 
+            }
           },
-          "timezone": "America/Los_Angeles", // IANA Timezone string
+          "timezone": "America/Los_Angeles", 
           "autoSendReceipts": false,
-          "workingDaysCompat": { // For legacy schedule.js compatibility
+          "workingDaysCompat": { 
                 "0": false, "1": true, "2": true, "3": true, "4": false, "5": true, "6": false
           },
+          "updatedAt": Timestamp
+        }
+        ```
+-   `/services`: Stores the services offered by the housekeeper.
+    -   `/services/{serviceId}`:
+        ```json
+        {
+          "serviceName": "Standard Cleaning", // (String) Name of the service
+          "description": "Basic cleaning for homes...", // (String, Optional) Detailed description
+          "type": "base" | "addon", // (String) Type of service
+          "basePrice": 120.00, // (Number) The housekeeper's ideal/target price for this service under standard conditions. Used as a basis for AI suggestions.
+          "homeownerVisibleMinPrice": 100.00, // (Number, Optional) The minimum price for this service shown in a range to the homeowner. If not set, basePrice might be used as min or a calculation applied.
+          "homeownerVisibleMaxPrice": 180.00, // (Number, Optional) The maximum price for this service shown in a range to the homeowner. If not set, basePrice might be used as max or a calculation applied.
+          "durationMinutes": 120, // (Number) Estimated duration in minutes for standard conditions
+          "includedTasks": ["dust_surfaces", "vacuum_carpets_rugs"], // (Array<String>, Optional) List of predefined task IDs included in this service
+          "isActive": true, // (Boolean) Whether the service is currently offered
+          "createdAt": Timestamp,
           "updatedAt": Timestamp
         }
         ```
@@ -138,7 +167,6 @@ Contains basic profile information common to all users, primarily sourced from F
           "addedAt": Timestamp 
         }
         ```
-        *Note: This structure is used by the current Time Off calendar UI. Other structures (with auto-IDs) might exist from previous versions or other features but are not used by this specific UI.*
 
 #### If `role` is "homeowner":
 
@@ -146,20 +174,17 @@ Contains basic profile information common to all users, primarily sourced from F
     -   `/settings/app`: (Single document)
         ```json
         {
-          "defaultPropertyId": "propertyId", // Optional: Default property for quick booking
-          "notificationPreferences": { // Optional
+          "defaultPropertyId": "propertyId", 
+          "notificationPreferences": { 
             "bookingConfirmations": true,
             "reminderAlerts": true
           },
-          "paymentSettings": { // Optional, Future
+          "paymentSettings": { 
             "autoCharge": true
           },
           "updatedAt": Timestamp
         }
         ```
-        *Note: `linkedHousekeeperId` is stored in `/homeowner_profiles/{userId}`.*
-
-   `/bookings`: **THIS SUBCOLLECTION IS NOT USED.** Homeowners view their bookings by querying `/users/{linkedHousekeeperId}/bookings` based on matching `clientId` and the `linkedHousekeeperId` field in `/homeowner_profiles/{homeownerId}`.
 
 ## `/housekeeper_profiles/{userId}` Document
 
@@ -167,34 +192,29 @@ Stores extended profile information specific to housekeepers.
 
 ```json
 {
-  "firstName": "Casey", // May duplicate /users/{userId}
-  "lastName": "Keeper", // May duplicate /users/{userId}
-  "phone": "555-333-4444", // May duplicate /users/{userId}
-  "companyName": "Core Cleaning Co.", // May duplicate /users/{userId}
-  "address": "202 Clean St", // Optional
-  "city": "Workville", // Optional
-  "state": "CA", // Optional
-  "zip": "90212", // Optional
-  "serviceZipCodes": ["90210", "90211", "90212"], // Optional
-  "inviteCode": "YGG3GW", // 6-character code for linking homeowners
-  "bio": "Professional cleaning service...", // Optional
-  "profilePictureUrl": "https://...", // Optional
+  "firstName": "Casey", 
+  "lastName": "Keeper", 
+  "phone": "555-333-4444", 
+  "companyName": "Core Cleaning Co.", 
+  "address": "202 Clean St", 
+  "city": "Workville", 
+  "state": "CA", 
+  "zip": "90212", 
+  "serviceZipCodes": ["90210", "90211", "90212"], 
+  "inviteCode": "YGG3GW", 
+  "bio": "Professional cleaning service...", 
+  "profilePictureUrl": "https://...", 
   "createdAt": Timestamp,
-  "updatedAt": Timestamp
-  // Note: workingDays structure is now stored in /users/{userId}/settings/app
+  "updatedAt": Timestamp,
+  
+  "stripeAccountId": "acct_...", 
+  "stripeAccountStatus": "enabled" | "pending" | "restricted", 
 
-  // --- NEW: Stripe Integration Fields (Housekeeper) ---
-  // For receiving payouts via Stripe Connect
-  "stripeAccountId": "acct_...", // (String, Optional) The ID of the housekeeper's connected Stripe account (required for payouts).
-  "stripeAccountStatus": "enabled" | "pending" | "restricted", // (String, Optional) Tracks the onboarding status of their connected account.
-
-  // For paying platform subscription fees via Stripe Billing
-  "stripeCustomerId": "cus_...", // (String, Optional) The ID of the Stripe Customer object associated with this housekeeper on *your platform* account (for billing subscriptions).
-  "stripeSubscriptionId": "sub_...", // (String, Optional) The ID of their active platform subscription.
-  "stripeSubscriptionStatus": "active" | "trialing" | "past_due" | "canceled", // (String, Optional) Status of their platform subscription.
-  "stripePriceId": "price_...", // (String, Optional) The Stripe Price ID they are subscribed to.
-  "stripeCurrentPeriodEnd": Timestamp, // (Timestamp, Optional) When the current subscription period ends.
-  // --- END: Stripe Integration Fields ---
+  "stripeCustomerId": "cus_...", 
+  "stripeSubscriptionId": "sub_...", 
+  "stripeSubscriptionStatus": "active" | "trialing" | "past_due" | "canceled", 
+  "stripePriceId": "price_...", 
+  "stripeCurrentPeriodEnd": Timestamp
 }
 ```
 
@@ -204,47 +224,52 @@ Stores extended profile information specific to homeowners.
 
 ```json
 {
-  "firstName": "Corey", // May duplicate /users/{userId}
-  "lastName": "Homeowner", // May duplicate /users/{userId}
-  "phone": "555-111-2222", // May duplicate /users/{userId}
+  "firstName": "Corey", 
+  "lastName": "Homeowner", 
+  "phone": "555-111-2222", 
   "address": "101 Home Sweet Ln", // Primary address for profile
   "city": "Homestead",
   "state": "CA",
   "zip": "90211",
-  "specialInstructions": "Default instructions for cleaners", // Optional
-  "linkedHousekeeperId": "housekeeperUserId", // UID of the linked housekeeper (if any)
-  "preferredContactMethod": "email", // Optional
+  // --- NEW: Property Characteristics (for the primary/default property) ---
+  "squareFootage": 2200, // (Number, Optional) Approximate square footage
+  "numBedrooms": 3, // (Number, Optional) Number of bedrooms
+  "numBathrooms": 2.5, // (Number, Optional) Number of bathrooms (e.g., 2.5 for 2 full, 1 half)
+  "homeType": "house", // (String, Optional) E.g., 'house', 'apartment', 'townhouse', 'condo', 'other'
+  // --- END: Property Characteristics ---
+  "specialInstructions": "Default instructions for cleaners", 
+  "linkedHousekeeperId": "housekeeperUserId", 
+  "preferredContactMethod": "email", 
   "createdAt": Timestamp,
-  "updatedAt": Timestamp
+  "updatedAt": Timestamp,
 
-  // --- NEW: Stripe Integration Fields (Homeowner) ---
-  // For making payments via Stripe
-  "stripeCustomerId": "cus_...", // (String, Optional) The ID of the Stripe Customer object associated with this homeowner on *your platform* account (for saving payment methods).
-  // --- END: Stripe Integration Fields ---
+  "stripeCustomerId": "cus_..."
 }
 ```
 
 ## `/properties/{propertyId}` Document
 
-Stores details about individual properties owned by homeowners.
+Stores details about individual properties owned by homeowners. *(Note: For the current single-primary-property model, characteristics like size, bedrooms, bathrooms are primarily managed in `/homeowner_profiles/{userId}`. This collection is for future expansion to support multiple properties per homeowner.)*
 
 ```json
 {
-  "ownerId": "homeownerUserId", // UID of the homeowner who owns this property
-  "name": "Main Residence", // Nickname for the property
+  "ownerId": "homeownerUserId", 
+  "name": "Main Residence", 
   "address": {
       "street": "123 Main St",
       "city": "Anytown",
       "state": "CA",
       "zip": "90210"
   },
-  "size": 2200, // Optional: Square footage
-  "bedrooms": 3, // Optional
-  "bathrooms": 2, // Optional
+  // The following fields are PREFERRED on /homeowner_profiles/{userId} for the primary property
+  // "size": 2200, // (Number, Optional) Square footage 
+  // "bedrooms": 3, // (Number, Optional)
+  // "bathrooms": 2, // (Number, Optional)
+  // "homeType": "house", // (String, Optional)
   "specialInstructions": "Property-specific instructions.",
   "accessInformation": "Key under the flowerpot.",
-  "photos": [], // Optional: Array of image URLs
-  "preferredHousekeeperId": null, // Optional: If homeowner has preference different from main link
+  "photos": [], 
+  "preferredHousekeeperId": null, 
   "createdAt": Timestamp,
   "updatedAt": Timestamp
 }
@@ -591,10 +616,15 @@ Stores user profile information. Could potentially be split into `homeowners` an
       "status": "pending_housekeeper_review" | "housekeeper_proposed_alternative" | "homeowner_accepted_proposal" | "approved_and_scheduled" | "declined_by_housekeeper" | "cancelled_by_homeowner" | "completed",
       "requestTimestamp": Timestamp,
       "lastUpdatedAt": Timestamp,
+      "frequency": "one-time" | "weekly" | "bi-weekly" | "monthly",
+      "recurringEndDate": "YYYY-MM-DD",
+      "preferredDayOfWeek": "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday",
       "scheduledBookingId": "bookingDocId",
       "proposedDate": "YYYY-MM-DD",
       "proposedTime": "9am-12pm",
       "proposalNotes": "This time works better for my schedule.",
+      "proposedFrequency": "one-time" | "weekly" | "bi-weekly" | "monthly",
+      "proposedRecurringEndDate": "YYYY-MM-DD",
       "proposalSentAt": Timestamp
     }
     ```

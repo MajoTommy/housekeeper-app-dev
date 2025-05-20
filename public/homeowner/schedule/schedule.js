@@ -1,4 +1,4 @@
-import { formatDateForDisplay, getLocalTimezone } from '../../common/js/date-utils.js';
+import { formatDateForDisplay, getLocalTimezone, formatDate, formatTime } from '../../common/js/date-utils.js';
 
 // DOM Elements
 let currentUser = null;
@@ -6,12 +6,14 @@ let linkedHousekeeperId = null;
 let housekeeperProfile = null;
 let availableServices = []; // To store fetched services { id, name, description, type, basePrice }
 let currentServiceRequest = {
-    baseServices: [], // Array of { id, name, price }
-    addonServices: [], // Array of { id, name, price }
+    baseServices: [], // Array of { id, name, minPrice, maxPrice, basePrice, type }
+    addonServices: [], // Array of { id, name, minPrice, maxPrice, basePrice, type }
     preferredDate: null,
     preferredTime: '',
+    frequency: 'one-time', // Default frequency
+    recurringEndDate: null, // Default
     notes: '',
-    estimatedTotal: 0
+    estimatedTotal: { min: 0, max: 0 }
 };
 
 // DOM Elements - Main Page
@@ -45,6 +47,18 @@ const estimatedTotalAmountDisplay = document.getElementById('estimated-total-amo
 const submitServiceRequestButton = document.getElementById('submit-service-request-btn');
 const submitErrorDisplay = document.getElementById('submit-error-display');
 
+// --- NEW: Property Details Prompt Elements ---
+const propertyDetailsPrompt = document.getElementById('property-details-prompt');
+// const goToPropertySettingsBtn = document.getElementById('go-to-property-settings-btn'); // Link, JS interaction not strictly needed for now
+const submitRequestButtonContainer = document.getElementById('submit-request-button-container');
+
+// --- NEW: Frequency Section Elements ---
+const frequencySection = document.getElementById('frequency-section');
+const requestFrequencySelect = document.getElementById('request-frequency');
+const recurringEndDateWrapper = document.getElementById('recurring-end-date-wrapper');
+const recurringEndDateInput = document.getElementById('recurring-end-date');
+// --- END NEW ---
+
 // Confirmation Modal Elements
 const confirmRequestModal = document.getElementById('confirm-request-modal');
 const confirmRequestDrawer = document.getElementById('confirm-request-drawer');
@@ -64,6 +78,48 @@ const myRequestsLoadingIndicator = document.getElementById('my-requests-loading-
 const myRequestsList = document.getElementById('my-requests-list');
 const noRequestsMessage = document.getElementById('no-requests-message');
 
+// Proposal Response Modal Elements
+const proposalResponseModal = document.getElementById('proposal-response-modal');
+const proposalResponseDrawer = document.getElementById('proposal-response-drawer');
+const closeProposalModalBtn = document.getElementById('close-proposal-modal-btn');
+const proposalDateDisplay = document.getElementById('proposal-date-display');
+const proposalTimeDisplay = document.getElementById('proposal-time-display');
+const proposalNoteDisplay = document.getElementById('proposal-note-display');
+const acceptProposalBtn = document.getElementById('accept-proposal-btn');
+const declineProposalBtn = document.getElementById('decline-proposal-btn');
+const cancelDeclineBtn = document.getElementById('cancel-decline-btn');
+const declineNoteSection = document.getElementById('decline-note-section');
+const declineNoteInput = document.getElementById('decline-note-input');
+const proposalResponseError = document.getElementById('proposal-response-error');
+
+// --- NEW: DOM elements for proposal frequency display ---
+const proposalFrequencyWrapper = document.getElementById('proposal-frequency-wrapper');
+const proposalFrequencyDisplay = document.getElementById('proposal-frequency-display');
+const proposalRecurringEndDateWrapper = document.getElementById('proposal-recurring-end-date-wrapper');
+const proposalRecurringEndDateDisplay = document.getElementById('proposal-recurring-end-date-display');
+// --- END NEW ---
+
+// --- NEW: Generic Request Details Modal Elements ---
+const requestDetailsModal = document.getElementById('request-details-modal');
+const requestDetailsDrawer = document.getElementById('request-details-drawer');
+const closeRequestDetailsModalBtn = document.getElementById('close-request-details-modal-btn');
+const okayRequestDetailsBtn = document.getElementById('okay-request-details-btn');
+const detailsStatusDisplay = document.getElementById('details-status-display');
+const detailsDateDisplay = document.getElementById('details-date-display');
+const detailsTimeDisplay = document.getElementById('details-time-display');
+const detailsFrequencyWrapper = document.getElementById('details-frequency-wrapper');
+const detailsFrequencyDisplay = document.getElementById('details-frequency-display');
+const detailsRecurringEndDateWrapper = document.getElementById('details-recurring-end-date-wrapper');
+const detailsRecurringEndDateDisplay = document.getElementById('details-recurring-end-date-display');
+const detailsServicesList = document.getElementById('details-services-list');
+const detailsNotesWrapper = document.getElementById('details-notes-wrapper');
+const detailsNotesDisplay = document.getElementById('details-notes-display');
+const detailsPriceDisplay = document.getElementById('details-price-display');
+// --- END NEW ---
+
+let currentProposalRequest = null;
+let inDeclineMode = false;
+
 // --- Utility Functions ---
 function showLoading(section) {
     if (section === 'services') servicesLoadingIndicator.classList.remove('hidden');
@@ -72,7 +128,13 @@ function showLoading(section) {
 
 function hideLoading(section) {
     if (section === 'services') servicesLoadingIndicator.classList.add('hidden');
-    if (section === 'my-requests') myRequestsLoadingIndicator.classList.add('hidden');
+    if (section === 'my-requests') {
+        myRequestsLoadingIndicator.classList.add('hidden');
+        // Also hide the overall request new content loading if services are also done or failed
+        if (servicesLoadingIndicator.classList.contains('hidden')) {
+            // This logic might be too simple, consider a more robust state check
+        }
+    }
 }
 
 function showError(section, message) {
@@ -99,17 +161,40 @@ document.addEventListener('DOMContentLoaded', async () => {
         minDate: "today",
     });
 
+    // --- NEW: Initialize Flatpickr for Recurring End Date ---
+    flatpickr(recurringEndDateInput, {
+        altInput: true,
+        altFormat: "F j, Y",
+        dateFormat: "Y-m-d",
+        minDate: "today", // Or perhaps preferredDateInput.value + 1 day
+    });
+    // --- END NEW ---
+
     // Attach tab switching listeners
     tabRequestNew.addEventListener('click', () => showTab('request-new'));
     tabMyRequests.addEventListener('click', () => showTab('my-requests'));
 
     // Attach listeners for service request form
     submitServiceRequestButton.addEventListener('click', handleReviewRequest);
-    // Event listeners for service checkboxes, date/time changes will be added when services are rendered
     preferredDateInput.addEventListener('change', validateFormAndToggleButton);
-    preferredTimeSelect.addEventListener('change', validateFormAndToggleButton); // Although time is optional currently
-    homeownerNotesTextarea.addEventListener('input', () => { /* Could add character counter or live validation if needed */ });
+    preferredTimeSelect.addEventListener('change', validateFormAndToggleButton);
+    homeownerNotesTextarea.addEventListener('input', () => { /* Could add character counter */ });
 
+    // --- NEW: Event listener for frequency select ---
+    if (requestFrequencySelect) {
+        requestFrequencySelect.addEventListener('change', () => {
+            if (requestFrequencySelect.value === 'one-time') {
+                recurringEndDateWrapper.classList.add('hidden');
+                if (recurringEndDateInput._flatpickr) { // Clear date if going back to one-time
+                    recurringEndDateInput._flatpickr.clear();
+                }
+            } else {
+                recurringEndDateWrapper.classList.remove('hidden');
+            }
+            validateFormAndToggleButton(); // Re-validate if frequency changes requirements
+        });
+    }
+    // --- END NEW ---
 
     // Attach listeners for confirmation modal
     closeConfirmModalButton.addEventListener('click', closeConfirmationModal);
@@ -125,25 +210,62 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (user) {
             currentUser = user;
             console.log('Current homeowner:', currentUser.uid);
-            showLoading('services');
+            
+            // Determine which tab is active based on HTML (or a default if JS were to control it initially)
+            // Since HTML now defaults to "My Requests", we'll prioritize loading its data.
+            // We also need to load data for the "Request New Service" tab for when the user switches to it.
+
+            showLoading('services'); // For the "Request New Service" tab parts
+            showLoading('my-requests'); // For the "My Requests" tab
+
             try {
                 const homeownerProfile = await window.firestoreService.getHomeownerProfile(currentUser.uid);
+
+                // Helper function to check for essential property details
+                const arePropertyDetailsComplete = (profile) => {
+                    return profile && 
+                           profile.squareFootage && 
+                           profile.numBedrooms && 
+                           profile.numBathrooms && 
+                           profile.homeType;
+                };
+
                 if (homeownerProfile && homeownerProfile.linkedHousekeeperId) {
                     linkedHousekeeperId = homeownerProfile.linkedHousekeeperId;
                     console.log('Linked housekeeper ID:', linkedHousekeeperId);
-                    await fetchHousekeeperDetailsAndServices();
+
+                    if (arePropertyDetailsComplete(homeownerProfile)) {
+                        propertyDetailsPrompt.classList.add('hidden');
+                        // Proceed to fetch services for the "Request New Service" tab
+                        await fetchHousekeeperDetailsAndServices(); 
+                    } else {
+                        propertyDetailsPrompt.classList.remove('hidden');
+                        console.warn('Homeowner property details are incomplete.');
+                        disableServiceRequestForm('Please complete your property details in Settings to request services and see price estimates.');
+                        hideLoading('services'); // Ensure services loading is hidden
+                    }
+                    // Load "My Requests" tab data regardless of property details completion for the other tab
+                    await loadMyRequests(); 
+
                 } else {
                     console.warn('Homeowner not linked to a housekeeper.');
                     showError('services', 'You are not currently linked with a housekeeper. Please link with a housekeeper from your dashboard to request services.');
-                    hideLoading('services');
-                    // Disable form sections
                     disableServiceRequestForm('You must be linked to a housekeeper to request services.');
+                    // Also update My Requests tab if needed
+                    myRequestsList.innerHTML = '';
+                    noRequestsMessage.textContent = 'Link with a housekeeper to view and make service requests.';
+                    noRequestsMessage.classList.remove('hidden');
+                    hideLoading('services');
+                    hideLoading('my-requests');
                 }
             } catch (error) {
-                console.error('Error fetching homeowner profile or services:', error);
+                console.error('Error fetching homeowner profile or initial data:', error);
                 showError('services', 'Could not load your information or housekeeper details. Please try again.');
+                myRequestsList.innerHTML = '';
+                noRequestsMessage.textContent = 'Error loading your request information. Please try again later.';
+                noRequestsMessage.classList.remove('hidden');
                 hideLoading('services');
-                disableServiceRequestForm('Could not load necessary data.');
+                hideLoading('my-requests');
             }
         } else {
             console.log('User not authenticated. Auth-router should handle redirect.');
@@ -152,61 +274,82 @@ document.addEventListener('DOMContentLoaded', async () => {
             housekeeperInfoBanner.classList.add('hidden');
             baseServicesList.innerHTML = '';
             addonServicesList.innerHTML = '';
+            contentRequestNew.classList.add('hidden'); // Ensure new request form is hidden
+            contentMyRequests.classList.remove('hidden'); // Ensure my requests tab is shown (as it's default)
             myRequestsList.innerHTML = '';
             noRequestsMessage.textContent = 'Please log in to view or make requests.';
             noRequestsMessage.classList.remove('hidden');
+            hideLoading('services');
+            hideLoading('my-requests');
         }
     });
 });
 
 function disableServiceRequestForm(message) {
+    console.log('Disabling service request form:', message);
+    contentRequestNew.classList.remove('hidden'); // Make sure the tab content area is visible to show the message
+    servicesLoadingIndicator.classList.add('hidden');
+    propertyDetailsPrompt.classList.add('hidden'); // Ensure prompt is hidden if we are disabling for other reasons
+    
+    // Hide all form sections that require services or property details
     baseServicesSection.classList.add('hidden');
     addonServicesSection.classList.add('hidden');
     datetimePreferenceSection.classList.add('hidden');
+    frequencySection.classList.add('hidden');
     notesSection.classList.add('hidden');
     estimatedTotalSection.classList.add('hidden');
-    submitServiceRequestButton.disabled = true;
-    if (message && servicesErrorDisplay.classList.contains('hidden')) { // Show message if no specific error is already there
-         showError('services', message);
-    } else if (message && !servicesErrorDisplay.classList.contains('hidden') && servicesErrorMessage.textContent.includes('You must be linked')) {
-        // Don't overwrite the specific "not linked" message with a generic one.
+    if(submitRequestButtonContainer) submitRequestButtonContainer.classList.add('hidden');
+
+    if (message) {
+        showError('services', message); // Use the existing services error display area
+    } else {
+        hideError('services');
     }
+    submitServiceRequestButton.disabled = true;
 }
 
 async function fetchHousekeeperDetailsAndServices() {
-    if (!linkedHousekeeperId) return;
+    if (!linkedHousekeeperId) {
+        showError('services', 'Cannot load services: No linked housekeeper.');
+        hideLoading('services');
+        disableServiceRequestForm('No housekeeper linked.');
+        return;
+    }
+
+    // Ensure prompt is hidden if we reach here (meaning details should be complete)
+    propertyDetailsPrompt.classList.add('hidden'); 
+    showLoading('services');
+    hideError('services');
 
     try {
-        housekeeperProfile = await window.firestoreService.getUserProfile(linkedHousekeeperId); // Assuming getUserProfile works for any user type
+        housekeeperProfile = await window.firestoreService.getHousekeeperProfile(linkedHousekeeperId);
         if (housekeeperProfile) {
-            housekeeperNameDisplay.textContent = housekeeperProfile.name || 'Your Housekeeper';
+            housekeeperNameDisplay.textContent = `${housekeeperProfile.firstName || ''} ${housekeeperProfile.lastName || ''}`.trim() || 'Your Housekeeper';
             housekeeperCompanyDisplay.textContent = housekeeperProfile.companyName || '';
             housekeeperInfoBanner.classList.remove('hidden');
         } else {
             console.warn('Could not fetch housekeeper profile details.');
+            // Do not show banner, but can still attempt to load services if ID is known
         }
 
-        const servicesSnapshot = await firebase.firestore()
-            .collection('users').doc(linkedHousekeeperId)
-            .collection('services').where('isActive', '==', true).get();
+        // Fetch services
+        const servicesPath = `users/${linkedHousekeeperId}/services`;
+        const servicesSnapshot = await firebase.firestore().collection(servicesPath).where('isActive', '==', true).get();
+        availableServices = servicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        console.log('Fetched services:', availableServices);
+        displayServices(); // This will populate baseServicesList and addonServicesList
 
-        if (servicesSnapshot.empty) {
-            console.warn('No active services found for this housekeeper.');
-            showError('services', 'This housekeeper has not set up any services yet.');
-            disableServiceRequestForm('No services available from this housekeeper.');
-        } else {
-            availableServices = servicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            console.log('Available services fetched:', availableServices);
-            displayServices();
-            baseServicesSection.classList.remove('hidden');
-            // addonServicesSection is shown/hidden within displayServices
-            datetimePreferenceSection.classList.remove('hidden');
-            notesSection.classList.remove('hidden');
-            estimatedTotalSection.classList.remove('hidden');
-            // submitServiceRequestButton state is handled by validateFormAndToggleButton
-            hideError('services');
-            validateFormAndToggleButton(); // Initial validation
-        }
+        // NOW show the relevant sections since services are loaded (or attempted)
+        baseServicesSection.classList.remove('hidden');
+        addonServicesSection.classList.remove('hidden');
+        datetimePreferenceSection.classList.remove('hidden');
+        frequencySection.classList.remove('hidden');
+        notesSection.classList.remove('hidden');
+        // estimatedTotalSection will be shown by updateEstimatedTotal when items are selected
+        if(submitRequestButtonContainer) submitRequestButtonContainer.classList.remove('hidden');
+        validateFormAndToggleButton(); // Initial validation for submit button state
+
     } catch (error) {
         console.error('Error fetching housekeeper services:', error);
         showError('services', 'Could not load housekeeper services. Please try refreshing.');
@@ -257,21 +400,22 @@ function displayServices() {
 }
 
 function createServiceElement(service) {
-    const label = document.createElement('label');
-    label.className = 'flex items-start bg-neutral-card p-4 rounded-lg shadow hover:shadow-md transition-shadow cursor-pointer';
-
-    const inputType = 'checkbox'; // Always checkbox for multiple selections
-    const inputName = service.type === 'base' ? 'base_service' : 'addon_service';
+    const serviceElement = document.createElement('label');
+    serviceElement.className = 'flex items-start bg-neutral-card p-4 rounded-lg shadow hover:shadow-md transition-shadow cursor-pointer';
 
     const checkbox = document.createElement('input');
-    checkbox.type = inputType;
-    checkbox.name = inputName;
+    checkbox.type = 'checkbox';
+    checkbox.name = service.type === 'base' ? 'base_service' : 'addon_service';
     checkbox.value = service.id;
-    checkbox.dataset.service = JSON.stringify(service);
-    checkbox.className = 'h-5 w-5 text-primary focus:ring-primary border-gray-300 rounded mt-1 flex-shrink-0';
+    checkbox.dataset.serviceName = service.serviceName;
+    checkbox.dataset.basePrice = service.basePrice; // Keep for reference if needed
+    checkbox.dataset.minPrice = service.homeownerVisibleMinPrice; // NEW
+    checkbox.dataset.maxPrice = service.homeownerVisibleMaxPrice; // NEW
+    checkbox.dataset.serviceType = service.type; // NEW
+    checkbox.className = 'h-5 w-5 text-primary focus:ring-primary border-gray-300 rounded mt-0.5 flex-shrink-0';
 
-    const detailsDiv = document.createElement('div');
-    detailsDiv.className = 'ml-3 flex-grow';
+    const serviceInfoDiv = document.createElement('div');
+    serviceInfoDiv.className = 'ml-3 flex-grow';
 
     const nameSpan = document.createElement('span');
     nameSpan.className = 'text-md font-medium text-neutral-text block';
@@ -281,54 +425,96 @@ function createServiceElement(service) {
     descriptionP.className = 'text-sm text-gray-600 mt-1';
     descriptionP.textContent = service.description || '';
 
-    detailsDiv.appendChild(nameSpan);
-    if (service.description) detailsDiv.appendChild(descriptionP);
+    serviceInfoDiv.appendChild(nameSpan);
+    serviceInfoDiv.appendChild(descriptionP);
 
+    // Price Display Logic
     const priceSpan = document.createElement('span');
-    priceSpan.className = 'text-md font-semibold text-primary ml-3 whitespace-nowrap';
-    priceSpan.textContent = `$${parseFloat(service.basePrice || 0).toFixed(2)}`;
+    priceSpan.className = 'text-md font-semibold text-primary block text-right flex-shrink-0 ml-auto pl-3'; // Added block, text-right, ml-auto, pl-3
 
-    label.appendChild(checkbox);
-    label.appendChild(detailsDiv);
-    label.appendChild(priceSpan);
+    let priceText = "Price Varies";
+    const minPrice = parseFloat(service.homeownerVisibleMinPrice);
+    const maxPrice = parseFloat(service.homeownerVisibleMaxPrice);
+    const basePrice = parseFloat(service.basePrice);
 
-    return label;
+    if (!isNaN(minPrice) && !isNaN(maxPrice) && minPrice !== maxPrice) {
+        priceText = `$${minPrice.toFixed(2)} - $${maxPrice.toFixed(2)}`;
+    } else if (!isNaN(minPrice) && !isNaN(maxPrice) && minPrice === maxPrice) { // If min and max are equal, show single price
+        priceText = `$${minPrice.toFixed(2)}`;
+    } else if (!isNaN(basePrice)) {
+        priceText = `Approx. $${basePrice.toFixed(2)}`;
+    }
+    // If only one of min/max is defined, or neither, it remains "Price Varies"
+    
+    priceSpan.textContent = priceText;
+
+    // Append checkbox, then info, then price for flex layout
+    serviceElement.appendChild(checkbox);
+    serviceElement.appendChild(serviceInfoDiv); // This now contains name and description
+    serviceElement.appendChild(priceSpan); // Price span added here
+
+    return serviceElement;
 }
 
 function handleServiceSelectionChange() {
     currentServiceRequest.baseServices = [];
     currentServiceRequest.addonServices = [];
-    currentServiceRequest.estimatedTotal = 0; // Use this name consistently
 
-    document.querySelectorAll('input[name="base_service"]:checked').forEach(cb => {
-        const service = JSON.parse(cb.dataset.service); // Parse the full service object
-        currentServiceRequest.baseServices.push({ 
-            id: service.id, 
-            name: service.serviceName, 
-            price: parseFloat(service.basePrice), 
-            type: service.type, 
-            durationMinutes: parseInt(service.durationMinutes || 0) // Get duration
-        });
-        currentServiceRequest.estimatedTotal += parseFloat(service.basePrice);
-    });
-    document.querySelectorAll('input[name="addon_service"]:checked').forEach(cb => {
-        const service = JSON.parse(cb.dataset.service); // Parse the full service object
-        currentServiceRequest.addonServices.push({ 
-            id: service.id, 
-            name: service.serviceName, 
-            price: parseFloat(service.basePrice), 
-            type: service.type, 
-            durationMinutes: parseInt(service.durationMinutes || 0) // Get duration
-        });
-        currentServiceRequest.estimatedTotal += parseFloat(service.basePrice);
+    const selectedCheckboxes = document.querySelectorAll('input[name="base_service"]:checked, input[name="addon_service"]:checked');
+    
+    selectedCheckboxes.forEach(checkbox => {
+        const serviceInfo = {
+            id: checkbox.value,
+            name: checkbox.dataset.serviceName,
+            basePrice: parseFloat(checkbox.dataset.basePrice) || 0,
+            minPrice: checkbox.dataset.minPrice ? parseFloat(checkbox.dataset.minPrice) : null,
+            maxPrice: checkbox.dataset.maxPrice ? parseFloat(checkbox.dataset.maxPrice) : null,
+            type: checkbox.dataset.serviceType
+        };
+
+        if (checkbox.name === 'base_service') {
+            currentServiceRequest.baseServices.push(serviceInfo);
+        } else {
+            currentServiceRequest.addonServices.push(serviceInfo);
+        }
     });
 
+    console.log('Current selected base services:', currentServiceRequest.baseServices);
+    console.log('Current selected addon services:', currentServiceRequest.addonServices);
     updateEstimatedTotal();
-    validateFormAndToggleButton();
+    validateFormAndToggleButton(); // Update submit button state based on selections
 }
 
 function updateEstimatedTotal() {
-    estimatedTotalAmountDisplay.textContent = `$${currentServiceRequest.estimatedTotal.toFixed(2)}`;
+    let totalMinPrice = 0;
+    let totalMaxPrice = 0;
+
+    currentServiceRequest.baseServices.forEach(service => {
+        const min = service.minPrice !== null ? service.minPrice : (service.basePrice || 0);
+        const max = service.maxPrice !== null ? service.maxPrice : (service.basePrice || 0);
+        totalMinPrice += min;
+        totalMaxPrice += max;
+    });
+
+    currentServiceRequest.addonServices.forEach(service => {
+        const min = service.minPrice !== null ? service.minPrice : (service.basePrice || 0);
+        const max = service.maxPrice !== null ? service.maxPrice : (service.basePrice || 0);
+        totalMinPrice += min;
+        totalMaxPrice += max;
+    });
+
+    currentServiceRequest.estimatedTotal = { min: totalMinPrice, max: totalMaxPrice }; // Store as object
+
+    if (totalMinPrice === 0 && totalMaxPrice === 0 && currentServiceRequest.baseServices.length === 0 && currentServiceRequest.addonServices.length === 0) {
+        estimatedTotalAmountDisplay.textContent = '$0.00';
+        estimatedTotalSection.classList.add('hidden');
+    } else if (totalMinPrice === totalMaxPrice) {
+        estimatedTotalAmountDisplay.textContent = `$${totalMinPrice.toFixed(2)}`;
+        estimatedTotalSection.classList.remove('hidden');
+    } else {
+        estimatedTotalAmountDisplay.textContent = `$${totalMinPrice.toFixed(2)} - $${totalMaxPrice.toFixed(2)}`;
+        estimatedTotalSection.classList.remove('hidden');
+    }
 }
 
 function validateFormAndToggleButton() {
@@ -364,6 +550,8 @@ function validateFormAndToggleButton() {
 function handleReviewRequest() {
     currentServiceRequest.preferredDate = preferredDateInput.value;
     currentServiceRequest.preferredTime = preferredTimeSelect.value;
+    currentServiceRequest.frequency = requestFrequencySelect.value;
+    currentServiceRequest.recurringEndDate = (requestFrequencySelect.value !== 'one-time' && recurringEndDateInput.value) ? recurringEndDateInput.value : null;
     currentServiceRequest.notes = homeownerNotesTextarea.value.trim();
 
     // Final validation before showing modal - re-run to be sure
@@ -381,7 +569,7 @@ function handleReviewRequest() {
         modalSelectedServicesSummary.appendChild(baseTitle);
         currentServiceRequest.baseServices.forEach(s => {
             const p = document.createElement('p');
-            p.innerHTML = `&bull; ${s.name} <span class="text-gray-600">($${s.price.toFixed(2)})</span>`;
+            p.innerHTML = `&bull; ${s.name} <span class="text-gray-600">($${s.basePrice.toFixed(2)})</span>`;
             modalSelectedServicesSummary.appendChild(p);
         });
     }
@@ -392,7 +580,7 @@ function handleReviewRequest() {
         modalSelectedServicesSummary.appendChild(addonTitle);
         currentServiceRequest.addonServices.forEach(s => {
             const p = document.createElement('p');
-            p.innerHTML = `&bull; ${s.name} <span class="text-gray-600">($${s.price.toFixed(2)})</span>`;
+            p.innerHTML = `&bull; ${s.name} <span class="text-gray-600">($${s.basePrice.toFixed(2)})</span>`;
             modalSelectedServicesSummary.appendChild(p);
         });
     }
@@ -421,8 +609,45 @@ function handleReviewRequest() {
 
     const selectedTimeOption = preferredTimeSelect.options[preferredTimeSelect.selectedIndex];
     modalPreferredTimeSummary.textContent = selectedTimeOption ? selectedTimeOption.text : 'Any time';
+
+    // --- NEW: Display frequency in modal ---
+    const frequencyText = requestFrequencySelect.options[requestFrequencySelect.selectedIndex].text;
+    let frequencySummaryText = `Frequency: ${frequencyText}`;
+    if (currentServiceRequest.frequency !== 'one-time' && currentServiceRequest.recurringEndDate) {
+        const endDateObj = new Date(currentServiceRequest.recurringEndDate); // Assumes YYYY-MM-DD from flatpickr
+        // Use formatDate if available and imported, otherwise simple toLocaleDateString
+        const formattedEndDate = (typeof formatDate === 'function') 
+            ? formatDate(endDateObj, 'short-date') 
+            : endDateObj.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+        frequencySummaryText += ` (Repeats until: ${formattedEndDate})`;
+    }
+    // We need a place in the modal to put this. For now, let's add it after preferred time.
+    // This assumes modalPreferredTimeSummary is a <p> or <span>. We'll insert after it.
+    let freqSummaryElement = document.getElementById('modal-frequency-summary');
+    if (!freqSummaryElement) {
+        freqSummaryElement = document.createElement('p');
+        freqSummaryElement.id = 'modal-frequency-summary';
+        freqSummaryElement.className = 'text-sm';
+        // Insert after modalPreferredTimeSummary, or adjust as needed based on modal structure
+        if(modalPreferredTimeSummary && modalPreferredTimeSummary.parentNode) {
+            modalPreferredTimeSummary.parentNode.insertBefore(freqSummaryElement, modalPreferredTimeSummary.nextSibling);
+        } else { // fallback if structure is unexpected
+            modalNotesSummary.parentNode.insertBefore(freqSummaryElement, modalNotesSummary);
+        }
+    }
+    freqSummaryElement.innerHTML = `<strong class="text-neutral-text">Frequency:</strong> ${frequencyText}`;
+    if (currentServiceRequest.frequency !== 'one-time' && currentServiceRequest.recurringEndDate) {
+        const endDateObj = new Date(currentServiceRequest.recurringEndDate);
+        const formattedEndDate = (typeof formatDate === 'function')
+            ? formatDate(endDateObj, 'short-date')
+            : endDateObj.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }); // Ensure UTC interpretation for YYYY-MM-DD
+        freqSummaryElement.innerHTML += `<br><strong class="text-neutral-text">Repeats Until:</strong> ${formattedEndDate}`;
+    } else if (currentServiceRequest.frequency !== 'one-time') {
+        // Just show frequency if it's recurring but no end date
+    }
+
     modalNotesSummary.textContent = currentServiceRequest.notes || 'No additional notes.';
-    modalEstimatedTotalSummary.textContent = `$${currentServiceRequest.estimatedTotal.toFixed(2)}`;
+    modalEstimatedTotalSummary.textContent = `$${currentServiceRequest.estimatedTotal.min.toFixed(2)} - $${currentServiceRequest.estimatedTotal.max.toFixed(2)}`;
 
     openConfirmationModal();
 }
@@ -462,24 +687,26 @@ async function handleSubmitRequest() {
         homeownerId: currentUser.uid,
         homeownerName: currentUser.displayName || currentUser.email, 
         housekeeperId: linkedHousekeeperId,
-        baseServices: currentServiceRequest.baseServices.map(s => ({ // Ensure all relevant fields are mapped
+        baseServices: currentServiceRequest.baseServices.map(s => ({
             id: s.id,
             name: s.name,
-            price: s.price,
+            price: s.basePrice,
             type: s.type,
-            durationMinutes: s.durationMinutes
+            durationMinutes: 0 // Duration will be calculated based on selected services
         })),
-        addonServices: currentServiceRequest.addonServices.map(s => ({ // Ensure all relevant fields are mapped
+        addonServices: currentServiceRequest.addonServices.map(s => ({
             id: s.id,
             name: s.name,
-            price: s.price,
+            price: s.basePrice,
             type: s.type,
-            durationMinutes: s.durationMinutes
+            durationMinutes: 0 // Duration will be calculated based on selected services
         })),
         preferredDate: currentServiceRequest.preferredDate,
-        preferredTimeWindow: currentServiceRequest.preferredTime, // Should be preferredTimeWindow
+        preferredTimeWindow: currentServiceRequest.preferredTime, // Renamed from preferredTime in some earlier versions
+        frequency: currentServiceRequest.frequency,
+        recurringEndDate: currentServiceRequest.recurringEndDate, // Will be null if not set or one-time
         notes: currentServiceRequest.notes,
-        estimatedTotalPrice: currentServiceRequest.estimatedTotal,
+        estimatedTotalPrice: currentServiceRequest.estimatedTotal.max,
         status: 'pending_housekeeper_review',
         requestTimestamp: firebase.firestore.FieldValue.serverTimestamp(),
         lastUpdatedTimestamp: firebase.firestore.FieldValue.serverTimestamp()
@@ -508,15 +735,19 @@ async function handleSubmitRequest() {
 
 function resetRequestForm() {
     currentServiceRequest = {
-        baseServices: [], addonServices: [], preferredDate: null, preferredTime: '', notes: '', estimatedTotal: 0
+        baseServices: [], addonServices: [], preferredDate: null, preferredTime: '',
+        frequency: 'one-time', recurringEndDate: null, notes: '', estimatedTotal: { min: 0, max: 0 }
     };
     document.querySelectorAll('input[name="base_service"], input[name="addon_service"]').forEach(cb => cb.checked = false);
-    if (preferredDateInput._flatpickr) { // Check if flatpickr instance exists
+    if (preferredDateInput._flatpickr) {
         preferredDateInput._flatpickr.clear();
     } else {
-        preferredDateInput.value = ''; // Fallback if flatpickr not init
+        preferredDateInput.value = '';
     }
     preferredTimeSelect.value = '';
+    if(requestFrequencySelect) requestFrequencySelect.value = 'one-time';
+    if(recurringEndDateInput._flatpickr) recurringEndDateInput._flatpickr.clear();
+    if(recurringEndDateWrapper) recurringEndDateWrapper.classList.add('hidden');
     homeownerNotesTextarea.value = '';
     updateEstimatedTotal();
     validateFormAndToggleButton(); // This will disable button and show errors if needed
@@ -635,6 +866,29 @@ function createRequestItemElement(request) {
         if (timeOption) preferredTimeText = timeOption.textContent;
     }
 
+    // --- NEW: Format Frequency for Display ---
+    let frequencyDisplayHtml = '';
+    if (request.frequency && request.frequency !== 'one-time') {
+        let frequencyText = request.frequency.charAt(0).toUpperCase() + request.frequency.slice(1); // Capitalize, e.g., "Weekly"
+        if (requestFrequencySelect) { // Try to get the display text from the select options for better localization/wording
+            const freqOption = Array.from(requestFrequencySelect.options).find(opt => opt.value === request.frequency);
+            if (freqOption) frequencyText = freqOption.text;
+        }
+
+        let recurringEndDateText = '';
+        if (request.recurringEndDate) {
+            try {
+                const endDateObj = new Date(request.recurringEndDate); // Assumes YYYY-MM-DD
+                const formattedEndDate = (typeof formatDate === 'function')
+                    ? formatDate(endDateObj, 'short-date') 
+                    : endDateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+                recurringEndDateText = ` until ${formattedEndDate}`;
+            } catch (e) { console.warn("Error formatting recurring end date for display:", e); }
+        }
+        frequencyDisplayHtml = `<p class="text-sm text-gray-500">Frequency: ${frequencyText}${recurringEndDateText}</p>`;
+    }
+    // --- END NEW ---
+
 
     let statusColor = 'bg-yellow-100 text-yellow-800';
     let statusText = 'Pending Review';
@@ -663,6 +917,7 @@ function createRequestItemElement(request) {
             <div>
                 <p class="text-md font-semibold text-neutral-text truncate pr-2" title="${servicesSummary}">${servicesSummary}</p>
                 <p class="text-sm text-gray-500">Requested for: ${formattedRequestedDate} (${preferredTimeText})</p>
+                ${frequencyDisplayHtml}
                 ${request.estimatedTotalPrice ? `<p class="text-sm text-gray-500">Est. Price: $${request.estimatedTotalPrice.toFixed(2)}</p>` : ''}
                 ${request.finalPrice ? `<p class="text-sm font-medium text-secondary-dark">Final Price: $${request.finalPrice.toFixed(2)}</p>` : ''}
             </div>
@@ -694,12 +949,148 @@ function createRequestItemElement(request) {
 
 
 // --- Placeholder for viewing request details (modal or new page) ---
-function handleViewRequestDetails(requestId, status) {
-    console.log('View details for request:', requestId, 'with status:', status);
-    // This would typically open a modal or navigate to a detailed view page.
-    // For the demo, we can just log it.
-    // If status is 'housekeeper_proposed_alternative', the modal should show the proposal.
-    showToast(`Viewing details for request ${requestId}. Status: ${status}. (Implementation pending)`, 'info');
+async function handleViewRequestDetails(requestId, status) {
+    showToast('Loading request details...', 'info', 1500); // Give immediate feedback
+    try {
+        const doc = await firebase.firestore()
+            .collection('users').doc(linkedHousekeeperId)
+            .collection('bookingRequests').doc(requestId).get();
+
+        if (!doc.exists) {
+            showToast('Request not found.', 'error');
+            return;
+        }
+        const request = { id: doc.id, ...doc.data() };
+        const freshStatus = request.status; // Use the status from the freshly fetched data
+
+        if (freshStatus === 'housekeeper_proposed_alternative') {
+            currentProposalRequest = request;
+            
+            // --- DEBUGGING: Log the received proposal object ---
+            console.log('[Homeowner View] Received request.proposal:', JSON.parse(JSON.stringify(request.proposal || {}))); // Log entire proposal, or {} if no proposal
+            // --- END DEBUGGING ---
+
+            // Populate modal fields for proposal
+            if (request.proposal && request.proposal.proposedDate) {
+                let dateToFormat = request.proposal.proposedDate;
+                console.log('[Homeowner View] dateToFormat (proposedDate raw):', JSON.parse(JSON.stringify(dateToFormat || null)));
+                if (dateToFormat && typeof dateToFormat.toDate === 'function') {
+                    dateToFormat = dateToFormat.toDate();
+                    console.log('[Homeowner View] dateToFormat (after .toDate()):', dateToFormat);
+                }
+                try {
+                    proposalDateDisplay.textContent = formatDateForDisplay(dateToFormat) || '[Not set]';
+                } catch (e) {
+                    console.warn("Error formatting proposedDate for display (housekeeper_proposed_alternative):", e, request.proposal.proposedDate);
+                    proposalDateDisplay.textContent = request.proposal.proposedDate;
+                }
+            } else {
+                proposalDateDisplay.textContent = '[Not set]';
+            }
+
+            const proposedTimeForLog = request.proposal ? request.proposal.proposedTime : null;
+            console.log('[Homeowner View] proposedTime raw:', JSON.parse(JSON.stringify(proposedTimeForLog)));
+            proposalTimeDisplay.textContent = request.proposal && request.proposal.proposedTime ? formatTime(request.proposal.proposedTime) : '[Not set]';
+            proposalNoteDisplay.textContent = request.proposal && request.proposal.housekeeperNotes ? request.proposal.housekeeperNotes : 'No note provided.';
+            
+            if (request.proposal && request.proposal.proposedFrequency && request.proposal.proposedFrequency !== 'one-time') {
+                let freqText = request.proposal.proposedFrequency.charAt(0).toUpperCase() + request.proposal.proposedFrequency.slice(1);
+                if (freqText === 'Bi-weekly') freqText = 'Every 2 Weeks'; 
+                proposalFrequencyDisplay.textContent = freqText;
+                proposalFrequencyWrapper.classList.remove('hidden');
+
+                if (request.proposal.proposedRecurringEndDate) {
+                    try {
+                        proposalRecurringEndDateDisplay.textContent = formatDateForDisplay(request.proposal.proposedRecurringEndDate) || '[Not set]';
+                    } catch (e) {
+                        console.warn("Error formatting proposedRecurringEndDate for display:", e, request.proposal.proposedRecurringEndDate);
+                        proposalRecurringEndDateDisplay.textContent = request.proposal.proposedRecurringEndDate;
+                    }
+                    proposalRecurringEndDateWrapper.classList.remove('hidden');
+                } else {
+                    proposalRecurringEndDateDisplay.textContent = '[Not set]';
+                    proposalRecurringEndDateWrapper.classList.add('hidden');
+                }
+            } else {
+                proposalFrequencyDisplay.textContent = 'One-time';
+                proposalFrequencyWrapper.classList.remove('hidden');
+                proposalRecurringEndDateWrapper.classList.add('hidden');
+            }
+            openProposalModal();
+        } else {
+            // --- NEW: Handle other statuses by showing the generic details modal ---
+            console.log(`[Homeowner View] Viewing details for request ${requestId} with fresh status: ${freshStatus} - Populating generic details modal.`);
+            
+            // Populate generic details modal
+            detailsStatusDisplay.textContent = freshStatus.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            detailsDateDisplay.textContent = request.preferredDate ? formatDateForDisplay(request.preferredDate) : '[Not set]';
+            
+            let preferredTimeText = '[Any time]';
+            if (request.preferredTimeWindow) {
+                const timeOption = preferredTimeSelect.querySelector(`option[value="${request.preferredTimeWindow}"]`);
+                if (timeOption) preferredTimeText = timeOption.textContent;
+                else preferredTimeText = request.preferredTimeWindow; // Fallback to raw value if not in select
+            }
+            detailsTimeDisplay.textContent = preferredTimeText;
+
+            if (request.frequency && request.frequency !== 'one-time') {
+                let freqText = request.frequency.charAt(0).toUpperCase() + request.frequency.slice(1);
+                const freqOption = requestFrequencySelect ? Array.from(requestFrequencySelect.options).find(opt => opt.value === request.frequency) : null;
+                if (freqOption) freqText = freqOption.text;
+                else if (freqText === 'Bi-weekly') freqText = 'Every 2 Weeks';
+                detailsFrequencyDisplay.textContent = freqText;
+                detailsFrequencyWrapper.classList.remove('hidden');
+
+                if (request.recurringEndDate) {
+                    detailsRecurringEndDateDisplay.textContent = formatDateForDisplay(request.recurringEndDate) || '[Not set]';
+                    detailsRecurringEndDateWrapper.classList.remove('hidden');
+                } else {
+                    detailsRecurringEndDateDisplay.textContent = '[Not set]';
+                    detailsRecurringEndDateWrapper.classList.add('hidden');
+                }
+            } else {
+                detailsFrequencyDisplay.textContent = 'One-time';
+                detailsFrequencyWrapper.classList.remove('hidden');
+                detailsRecurringEndDateWrapper.classList.add('hidden');
+            }
+
+            detailsServicesList.innerHTML = ''; // Clear previous
+            if (request.baseServices && request.baseServices.length > 0) {
+                request.baseServices.forEach(s => {
+                    const li = document.createElement('li');
+                    li.textContent = `${s.name} ($${s.price.toFixed(2)})`;
+                    detailsServicesList.appendChild(li);
+                });
+            }
+            if (request.addonServices && request.addonServices.length > 0) {
+                request.addonServices.forEach(s => {
+                    const li = document.createElement('li');
+                    li.textContent = `${s.name} ($${s.price.toFixed(2)}) (Add-on)`;
+                    detailsServicesList.appendChild(li);
+                });
+            }
+            if (detailsServicesList.innerHTML === '') {
+                detailsServicesList.innerHTML = '<li>No services specified.</li>';
+            }
+
+            if (request.notes) {
+                detailsNotesDisplay.textContent = request.notes;
+                detailsNotesWrapper.classList.remove('hidden');
+            } else {
+                detailsNotesDisplay.textContent = 'No additional notes provided.';
+                // Optionally hide wrapper if no notes, or show 'No notes'
+                // detailsNotesWrapper.classList.add('hidden'); 
+            }
+            
+            detailsPriceDisplay.textContent = request.estimatedTotalPrice ? `$${request.estimatedTotalPrice.toFixed(2)}` : '[N/A]';
+            
+            openRequestDetailsModal();
+            // --- END NEW ---
+        }
+    } catch (error) {
+        console.error('Error fetching or displaying request details:', error);
+        showToast('Could not load request details. Please try again.', 'error');
+    }
 }
 
 // --- Placeholder for homeowner cancelling a request ---
@@ -776,4 +1167,221 @@ function showToast(message, type = 'info', duration = 3000) {
         toast.classList.remove('opacity-100', 'translate-x-0');
         toast.classList.add('opacity-0', 'translate-x-full');
     }, duration + 10); // Add the initial 10ms for show animation
+}
+
+// Modal open/close helpers
+function openProposalModal() {
+    if (!proposalResponseModal || !proposalResponseDrawer) return; // Guard clause
+    proposalResponseError.classList.add('hidden');
+    declineNoteSection.classList.add('hidden');
+    cancelDeclineBtn.classList.add('hidden');
+    declineNoteInput.value = '';
+    inDeclineMode = false;
+    proposalResponseModal.classList.remove('hidden');
+    setTimeout(() => {
+        proposalResponseModal.classList.remove('opacity-0');
+        proposalResponseDrawer.classList.remove('translate-y-full');
+        proposalResponseDrawer.classList.add('sm:scale-100'); // ADDED for sm+ screen animation
+    }, 10);
+}
+function closeProposalModal() {
+    if (!proposalResponseModal || !proposalResponseDrawer) return; // Guard clause
+    proposalResponseModal.classList.add('opacity-0');
+    proposalResponseDrawer.classList.add('translate-y-full');
+    proposalResponseDrawer.classList.remove('sm:scale-100'); // ADDED for sm+ screen animation
+    setTimeout(() => {
+        proposalResponseModal.classList.add('hidden');
+    }, 300);
+    currentProposalRequest = null;
+    inDeclineMode = false;
+}
+if (closeProposalModalBtn) closeProposalModalBtn.addEventListener('click', closeProposalModal);
+if (cancelDeclineBtn) cancelDeclineBtn.addEventListener('click', () => {
+    declineNoteSection.classList.add('hidden');
+    cancelDeclineBtn.classList.add('hidden');
+    inDeclineMode = false;
+});
+
+// Accept/Decline handlers
+if (acceptProposalBtn) acceptProposalBtn.addEventListener('click', async () => {
+    if (!currentProposalRequest) return;
+    acceptProposalBtn.disabled = true;
+    const acceptSpinner = document.getElementById('accept-proposal-spinner');
+    if(acceptSpinner) acceptSpinner.classList.remove('hidden');
+    proposalResponseError.classList.add('hidden');
+    
+    try {
+        // 1. Determine final booking details from the proposal or original request
+        const proposedDateStr = currentProposalRequest.proposal.proposedDate;
+        const proposedTimeStr = currentProposalRequest.proposal.proposedTime; // This is likely a time string like "HH:mm" or a window like "9am-12pm"
+
+        if (!proposedDateStr || !proposedTimeStr) {
+            throw new Error('Proposed date or time is missing in the current proposal.');
+        }
+
+        // Convert proposedDate (YYYY-MM-DD string or Timestamp) and proposedTime (HH:mm string) to a startTimestamp
+        let startDateTime;
+        let tempDate = proposedDateStr;
+        if (tempDate && typeof tempDate.toDate === 'function') { // Firestore Timestamp
+            tempDate = tempDate.toDate();
+        } else if (typeof tempDate === 'string' && tempDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            tempDate = new Date(tempDate + 'T00:00:00'); // Assume start of day in local timezone for date part
+        } else {
+            throw new Error('Invalid proposed date format.');
+        }
+
+        const timeParts = proposedTimeStr.match(/(\d+):(\d+)/); // Extract HH:mm
+        if (timeParts && timeParts.length === 3) {
+            tempDate.setHours(parseInt(timeParts[1], 10));
+            tempDate.setMinutes(parseInt(timeParts[2], 10));
+            tempDate.setSeconds(0);
+            tempDate.setMilliseconds(0);
+            startDateTime = tempDate;
+        } else {
+            // Fallback if proposedTimeStr is not HH:mm (e.g., a window like "9am-12pm")
+            // For simplicity, we'll just use the start of the date and log a warning.
+            // A more robust solution would parse the window or require HH:mm format from housekeeper proposal.
+            console.warn(`Could not parse specific time from proposal: '${proposedTimeStr}'. Using start of proposed date.`);
+            startDateTime = tempDate; // Already set to start of day if time parsing failed
+            startDateTime.setHours(9); // Default to 9 AM if time is a window
+        }
+
+        const startTimestamp = firebase.firestore.Timestamp.fromDate(startDateTime);
+
+        let totalDurationMinutes = 0;
+        currentServiceRequest.baseServices.forEach(s => totalDurationMinutes += (s.durationMinutes || 0));
+        currentServiceRequest.addonServices.forEach(s => totalDurationMinutes += (s.durationMinutes || 0));
+        if (totalDurationMinutes === 0 && (currentServiceRequest.baseServices.length > 0 || currentServiceRequest.addonServices.length > 0)) {
+            totalDurationMinutes = 120; // Default if services exist but durations are zero
+        }
+
+        const endTimestamp = firebase.firestore.Timestamp.fromMillis(startTimestamp.toMillis() + totalDurationMinutes * 60000);
+
+        // Determine frequency and recurring end date
+        const finalFrequency = currentProposalRequest.proposal.proposedFrequency || currentProposalRequest.frequency || 'one-time';
+        const finalRecurringEndDate = finalFrequency !== 'one-time' ? (currentProposalRequest.proposal.proposedRecurringEndDate || currentProposalRequest.recurringEndDate || null) : null;
+        
+        const newBookingData = {
+            housekeeperId: currentProposalRequest.housekeeperId,
+            homeownerId: currentUser.uid, // The current homeowner
+            homeownerName: `${currentUser.firstName || 'Homeowner'} ${currentUser.lastName || 'User'}`.trim(), // Construct name from currentUser if available
+            clientName: `${currentUser.firstName || 'Homeowner'} ${currentUser.lastName || 'User'}`.trim(), // For consistency in booking records
+            address: currentProposalRequest.propertyAddress || 'Not specified', // Assuming propertyAddress was part of original request, or fetch homeowner profile
+            
+            startTimestamp: startTimestamp,
+            endTimestamp: endTimestamp,
+            startTimestampMillis: startTimestamp.toMillis(),
+            endTimestampMillis: endTimestamp.toMillis(),
+            durationMinutes: totalDurationMinutes,
+            
+            baseServices: currentProposalRequest.baseServices.map(s => ({ id: s.id, name: s.name, price: s.price, durationMinutes: s.durationMinutes || 0 })),
+            addonServices: currentProposalRequest.addonServices.map(s => ({ id: s.id, name: s.name, price: s.price, durationMinutes: s.durationMinutes || 0 })),
+            estimatedTotal: currentProposalRequest.estimatedTotal, // Use original estimated total
+            
+            frequency: finalFrequency,
+            recurringEndDate: finalRecurringEndDate,
+            
+            status: 'confirmed', // New bookings from accepted proposals are confirmed
+            notes: currentProposalRequest.notes, // Original homeowner notes
+            proposalNotes: currentProposalRequest.proposal.housekeeperNotes, // Housekeeper's proposal notes
+            source: 'service_request_accepted_proposal',
+            originalRequestId: currentProposalRequest.id,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            confirmedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        };
+
+        // 2. Create new booking document
+        const newBookingRef = await firebase.firestore()
+            .collection('users').doc(currentProposalRequest.housekeeperId)
+            .collection('bookings').add(newBookingData);
+
+        // 3. Update original bookingRequest status
+        await window.firestoreService.updateBookingRequestStatus(
+            currentProposalRequest.housekeeperId,
+            currentProposalRequest.id,
+            'approved_and_scheduled',
+            { scheduledBookingId: newBookingRef.id } // Add link to the new booking
+        );
+
+        showToast('Proposal accepted and booking confirmed!', 'success');
+        closeProposalModal();
+        loadMyRequests(); // Refresh the list
+    } catch (error) {
+        console.error("Error accepting proposal and creating booking:", error);
+        proposalResponseError.textContent = error.message || 'Failed to accept proposal and create booking.';
+        proposalResponseError.classList.remove('hidden');
+    } finally {
+        acceptProposalBtn.disabled = false;
+        if(acceptSpinner) acceptSpinner.classList.add('hidden');
+    }
+});
+if (declineProposalBtn) declineProposalBtn.addEventListener('click', async () => {
+    if (!currentProposalRequest) return;
+    if (!inDeclineMode) {
+        declineNoteSection.classList.remove('hidden');
+        cancelDeclineBtn.classList.remove('hidden');
+        inDeclineMode = true;
+        return;
+    }
+    // Confirm decline
+    declineProposalBtn.disabled = true;
+    proposalResponseError.classList.add('hidden');
+    const declineNote = declineNoteInput.value.trim();
+    try {
+        await window.firestoreService.updateBookingRequestStatus(
+            currentProposalRequest.housekeeperId,
+            currentProposalRequest.id,
+            'declined_by_homeowner',
+            declineNote ? { declineNote } : {}
+        );
+        showToast('Proposal declined. Your housekeeper will be notified.', 'success');
+        closeProposalModal();
+        loadMyRequests();
+    } catch (error) {
+        proposalResponseError.textContent = error.message || 'Failed to decline proposal.';
+        proposalResponseError.classList.remove('hidden');
+    } finally {
+        declineProposalBtn.disabled = false;
+    }
+});
+
+// --- NEW: Modal open/close for Generic Request Details ---
+function openRequestDetailsModal() {
+    if (!requestDetailsModal || !requestDetailsDrawer) return;
+    requestDetailsModal.classList.remove('hidden');
+    setTimeout(() => {
+        requestDetailsModal.classList.remove('opacity-0');
+        requestDetailsDrawer.classList.remove('translate-y-full'); // For small screens, animates from bottom
+        // For sm+ screens, relies on sm:scale-95 base class being overridden by sm:scale-100
+        requestDetailsDrawer.classList.add('sm:scale-100');     
+    }, 10);
+}
+
+function closeRequestDetailsModal() {
+    if (!requestDetailsModal || !requestDetailsDrawer) return;
+    requestDetailsModal.classList.add('opacity-0');
+    requestDetailsDrawer.classList.add('translate-y-full');    // For small screens, animates to bottom
+    // For sm+ screens, removing sm:scale-100 allows the base sm:scale-95 to take effect
+    requestDetailsDrawer.classList.remove('sm:scale-100');  
+    setTimeout(() => {
+        requestDetailsModal.classList.add('hidden');
+    }, 300);
+}
+// --- END NEW ---
+
+// Add event listeners for the new modal's close buttons
+if (closeRequestDetailsModalBtn) {
+    closeRequestDetailsModalBtn.addEventListener('click', closeRequestDetailsModal);
+}
+if (okayRequestDetailsBtn) { // The "Okay" button also closes it
+    okayRequestDetailsBtn.addEventListener('click', closeRequestDetailsModal);
+}
+// Add backdrop click listener for the new modal
+if (requestDetailsModal) {
+    requestDetailsModal.addEventListener('click', (event) => {
+        if (event.target === requestDetailsModal) {
+            closeRequestDetailsModal();
+        }
+    });
 } 

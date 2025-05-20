@@ -33,7 +33,8 @@ const coreHomeownerProfileData = {
 
 const coreHousekeeperBaseData = {
     email: 'tim+keeper@majorinc.ca',
-    role: 'housekeeper'
+    role: 'housekeeper',
+    referralsEnabled: true // ADDED: Enable referrals by default for sample housekeeper
 };
 const coreHousekeeperProfileData = {
     firstName: 'Casey',
@@ -99,7 +100,24 @@ const sampleServicesData = (housekeeperUid) => [
         description: 'Basic cleaning for homes up to 2000 sq ft. Includes dusting, vacuuming, mopping, surface cleaning in kitchen and bathrooms.',
         isActive: true,
         ownerId: housekeeperUid, // Ensure ownerId is set
-        durationMinutes: 120 // Example: 2 hours
+        durationMinutes: 120, // Example: 2 hours
+        includedTasks: [
+            'dust_surfaces', 
+            'vacuum_carpets_rugs', 
+            'sweep_hard_floors', 
+            'mop_hard_floors', 
+            'empty_trash_bins',
+            'clean_kitchen_countertops',
+            'clean_kitchen_sink_faucets',
+            'clean_stovetop',
+            'clean_microwave_interior_exterior',
+            'clean_bathroom_countertops',
+            'clean_bathroom_sink_faucets',
+            'clean_disinfect_toilet',
+            'clean_shower_tub',
+            'make_beds',
+            'tidy_straighten_items'
+        ]
     },
     {
         serviceName: 'Deep Cleaning',
@@ -108,7 +126,39 @@ const sampleServicesData = (housekeeperUid) => [
         description: 'Thorough cleaning including baseboards, inside windows, light fixtures, etc.',
         isActive: true,
         ownerId: housekeeperUid,
-        durationMinutes: 240 // Example: 4 hours
+        durationMinutes: 240, // Example: 4 hours
+        includedTasks: [
+            'dust_surfaces', 
+            'vacuum_carpets_rugs', 
+            'sweep_hard_floors', 
+            'mop_hard_floors', 
+            'empty_trash_bins',
+            'wipe_light_switches_door_knobs',
+            'dust_baseboards',
+            'dust_window_sills_ledges',
+            'remove_cobwebs',
+            'dust_ceiling_fans',
+            'dust_blinds_shutters',
+            'spot_clean_walls_doors',
+            'clean_kitchen_countertops',
+            'clean_kitchen_sink_faucets',
+            'clean_exterior_kitchen_cabinets',
+            'clean_exterior_refrigerator',
+            'clean_exterior_oven',
+            'clean_exterior_dishwasher',
+            'clean_stovetop',
+            'clean_microwave_interior_exterior',
+            'clean_bathroom_countertops',
+            'clean_bathroom_sink_faucets',
+            'clean_disinfect_toilet',
+            'clean_shower_tub',
+            'clean_shower_doors',
+            'clean_bathroom_mirrors',
+            'make_beds',
+            'tidy_bedroom',
+            'wash_baseboards', // from addon_deep_clean
+            'clean_interior_windows_thorough' // from addon_deep_clean
+        ]
     },
     {
         serviceName: 'Move-In/Out Cleaning',
@@ -117,7 +167,40 @@ const sampleServicesData = (housekeeperUid) => [
         description: 'Comprehensive cleaning for empty homes.',
         isActive: false, // Example of an inactive service
         ownerId: housekeeperUid,
-        durationMinutes: 300 // Example: 5 hours
+        durationMinutes: 300, // Example: 5 hours
+        includedTasks: [
+            'dust_surfaces', 
+            'vacuum_carpets_rugs', 
+            'sweep_hard_floors', 
+            'mop_hard_floors', 
+            'empty_trash_bins',
+            'wipe_light_switches_door_knobs',
+            'dust_baseboards',
+            'clean_windows_interior_quick',
+            'dust_window_sills_ledges',
+            'remove_cobwebs',
+            'dust_ceiling_fans',
+            'dust_blinds_shutters',
+            'clean_kitchen_countertops',
+            'clean_kitchen_sink_faucets',
+            'clean_exterior_kitchen_cabinets',
+            'clean_interior_cabinets_drawers', // from addon_deep_clean
+            'clean_exterior_refrigerator',
+            'clean_inside_refrigerator', // from addon_deep_clean
+            'clean_exterior_oven',
+            'clean_inside_oven', // from addon_deep_clean
+            'clean_exterior_dishwasher',
+            'clean_stovetop',
+            'clean_microwave_interior_exterior',
+            'clean_bathroom_countertops',
+            'clean_bathroom_sink_faucets',
+            'clean_disinfect_toilet',
+            'clean_shower_tub',
+            'clean_shower_doors',
+            'clean_bathroom_mirrors',
+            'wash_baseboards', // from addon_deep_clean
+            'clean_interior_windows_thorough' // from addon_deep_clean
+        ]
     },
     {
         serviceName: 'Inside Refrigerator',
@@ -126,7 +209,8 @@ const sampleServicesData = (housekeeperUid) => [
         description: 'Clean and sanitize the interior of the refrigerator.',
         isActive: true,
         ownerId: housekeeperUid,
-        durationMinutes: 30 // Example: 30 minutes
+        durationMinutes: 30, // Example: 30 minutes
+        includedTasks: ['clean_inside_refrigerator'] // <<< NEW
     },
     {
         serviceName: 'Inside Oven',
@@ -135,7 +219,8 @@ const sampleServicesData = (housekeeperUid) => [
         description: 'Clean the interior of the oven.',
         isActive: true,
         ownerId: housekeeperUid,
-        durationMinutes: 45 // Example: 45 minutes
+        durationMinutes: 45, // Example: 45 minutes
+        includedTasks: ['clean_inside_oven'] // <<< NEW
     },
     {
         serviceName: 'Laundry (per load)',
@@ -144,7 +229,8 @@ const sampleServicesData = (housekeeperUid) => [
         description: 'Wash and dry one load of laundry.',
         isActive: true,
         ownerId: housekeeperUid,
-        durationMinutes: 60 // Example: 1 hour (including folding, perhaps)
+        durationMinutes: 60, // Example: 1 hour (including folding, perhaps)
+        includedTasks: ['laundry_wash_dry_fold'] // <<< NEW
     }
 ];
 // --- END: Sample Services Data ---
@@ -295,7 +381,7 @@ async function populateCoreData(homeownerUid, housekeeperUid, options = { stripe
         const servicesColRef = db.collection('users').doc(housekeeperUid).collection('services');
         const clientsColRef = db.collection('users').doc(housekeeperUid).collection('clients');
         const bookingsColRef = db.collection('users').doc(housekeeperUid).collection('bookings');
-        // Add other subcollections here if they are also populated by this script, e.g., bookingRequests, timeOff
+        const bookingRequestsColRef = db.collection('users').doc(housekeeperUid).collection('bookingRequests');
 
         console.log(`[Deletion Phase] Starting deletion for settings of housekeeper: ${housekeeperUid}`);
         await deleteCollection(settingsColRef);
@@ -305,6 +391,8 @@ async function populateCoreData(homeownerUid, housekeeperUid, options = { stripe
         await deleteCollection(clientsColRef);
         console.log(`[Deletion Phase] Starting deletion for bookings of housekeeper: ${housekeeperUid}`);
         await deleteCollection(bookingsColRef);
+        console.log(`[Deletion Phase] Starting deletion for booking requests of housekeeper: ${housekeeperUid}`);
+        await deleteCollection(bookingRequestsColRef);
         
         console.log("--- Finished Clearing Subcollection Data --- ");
     } catch (error) {
@@ -446,9 +534,11 @@ async function populateCoreData(homeownerUid, housekeeperUid, options = { stripe
         const servicesColRef = db.collection('users').doc(housekeeperUid).collection('services');
         const servicesToAdd = sampleServicesData(housekeeperUid); // Generate with correct ownerId
         let servicesAddedCount = 0;
+        let createdSampleServices = []; // <<< NEW: Array to store created services with their IDs
         try {
             for (const serviceData of servicesToAdd) {
-                await servicesColRef.add({...serviceData, createdAt: timestamp, updatedAt: timestamp}); // Use add for auto-ID
+                const docRef = await servicesColRef.add({...serviceData, createdAt: timestamp, updatedAt: timestamp}); // Use add for auto-ID
+                createdSampleServices.push({ id: docRef.id, ...serviceData }); // <<< NEW: Store service with its Firestore ID
                 servicesAddedCount++;
             }
             console.log(`   -> Step 2/4: ${servicesAddedCount}/${servicesToAdd.length} sample services writes attempted.`); // LOG Step
@@ -491,6 +581,104 @@ async function populateCoreData(homeownerUid, housekeeperUid, options = { stripe
              console.log(`   -> Step 4/4: ${bookingsAddedCount}/${bookingsToAdd.length} sample bookings writes attempted.`); // LOG Step
         } catch (e) {
             console.error("      ERROR adding bookings:", e);
+        }
+        
+        // --- NEW: Add Sample Booking Requests ---
+        const bookingRequestsColRef = db.collection('users').doc(housekeeperUid).collection('bookingRequests');
+        let requestsAddedCount = 0;
+
+        // Helper to get a future date string in YYYY-MM-DD format
+        const getFutureDateString = (daysOffset) => {
+            const date = new Date();
+            date.setDate(date.getDate() + daysOffset);
+            return date.toISOString().split('T')[0];
+        };
+
+        // --- Helper to find a sample service by name and get its ID and price ---
+        const findSampleService = (name, type) => {
+            const found = createdSampleServices.find(s => s.serviceName === name && s.type === type);
+            if (found) {
+                return { id: found.id, name: found.serviceName, price: found.basePrice, type: found.type, durationMinutes: found.durationMinutes || 0 };
+            }
+            console.warn(`[Sample Data] Could not find sample service: ${name} (type: ${type})`);
+            return { id: `not_found_${name.replace(/\s+/g, '').toLowerCase()}`, name: name, price: 0, type: type, durationMinutes: 0 }; // Fallback
+        };
+
+        const sampleDeepClean = findSampleService("Deep Cleaning", "base");
+        const sampleOvenClean = findSampleService("Inside Oven", "addon");
+        const sampleStandardClean = findSampleService("Standard Cleaning", "base");
+        const sampleLaundry = findSampleService("Laundry (per load)", "addon");
+
+        const sampleBookingRequests = [
+            // Existing sample request (pending housekeeper review)
+            {
+                homeownerId: homeownerUid,
+                homeownerName: `${coreHomeownerProfileData.firstName} ${coreHomeownerProfileData.lastName}`,
+                housekeeperId: housekeeperUid,
+                baseServices: [ sampleDeepClean ], // <<< MODIFIED
+                addonServices: [ sampleOvenClean ], // <<< MODIFIED
+                preferredDate: getFutureDateString(7), // Original request: 1 week from now
+                preferredTimeWindow: "morning",
+                frequency: "one-time",
+                recurringEndDate: null,
+                notes: "This is the first request - please make it thorough!",
+                estimatedTotalPrice: sampleDeepClean.price + sampleOvenClean.price, // Calculate based on actual prices
+                status: 'pending_housekeeper_review',
+                requestTimestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                lastUpdatedTimestamp: firebase.firestore.FieldValue.serverTimestamp()
+            },
+            // Sample request with a proposed alternative
+            {
+                homeownerId: homeownerUid,
+                homeownerName: `${coreHomeownerProfileData.firstName} ${coreHomeownerProfileData.lastName}`,
+                housekeeperId: housekeeperUid,
+                baseServices: [ sampleStandardClean ], // <<< MODIFIED
+                addonServices: [],
+                preferredDate: getFutureDateString(10),
+                preferredTimeWindow: "afternoon",
+                frequency: "weekly",
+                recurringEndDate: getFutureDateString(60), // e.g., for about 2 months
+                notes: "Need a regular weekly clean.",
+                estimatedTotalPrice: sampleStandardClean.price,
+                status: 'housekeeper_proposed_alternative',
+                requestTimestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                proposal: {
+                    proposedDate: getFutureDateString(11),
+                    proposedTime: "13:00",
+                    housekeeperNotes: "Can do, but the next day at 1 PM works better for me.",
+                    proposedFrequency: "weekly",
+                    proposedRecurringEndDate: getFutureDateString(61), // Housekeeper adjusted end date slightly
+                    proposedPrice: sampleStandardClean.price + 5, // Example: Housekeeper proposed slightly higher price
+                    proposedAt: firebase.firestore.FieldValue.serverTimestamp()
+                }
+            },
+            // Sample request that was approved and scheduled
+            {
+                homeownerId: homeownerUid,
+                homeownerName: `${coreHomeownerProfileData.firstName} ${coreHomeownerProfileData.lastName}`,
+                housekeeperId: housekeeperUid,
+                baseServices: [ findSampleService("Move-In/Out Cleaning", "base") ], // <<< MODIFIED (Note: This service is inactive by default)
+                addonServices: [ sampleLaundry ], // <<< MODIFIED
+                preferredDate: getFutureDateString(3),
+                preferredTimeWindow: "any",
+                frequency: "one-time",
+                notes: "Empty apartment, needs a good clean before I move my stuff.",
+                estimatedTotalPrice: findSampleService("Move-In/Out Cleaning", "base").price + sampleLaundry.price,
+                status: 'approved_and_scheduled',
+                requestTimestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                // In a real scenario, scheduledBookingId would be populated here
+                // scheduledBookingId: "actual_booking_id_from_bookings_collection"
+            }
+        ];
+
+        try {
+            for (const reqData of sampleBookingRequests) {
+                await bookingRequestsColRef.add(reqData);
+                requestsAddedCount++;
+            }
+            console.log(`   -> Step 5/5: ${requestsAddedCount}/${sampleBookingRequests.length} sample booking requests writes attempted.`);
+        } catch (e) {
+            console.error("      ERROR adding booking requests:", e);
         }
         
         // Add Time-Off Data here if needed in the future

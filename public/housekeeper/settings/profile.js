@@ -6,6 +6,7 @@
 // --- State --- (Moved outside, but might need better state management later)
 let currentProfileData = null;
 let currentTimezone = null;
+let currentUserData = null; // <<< NEW: To store the /users/{uid} document data
 
 // --- Core Logic Functions (Exported for testing) ---
 
@@ -43,7 +44,12 @@ export function populateTimezoneOptions(timezoneSelect) {
  * @param {object | null} firestoreService - The Firestore service instance.
  */
 export async function loadProfileData(elements, auth, firestoreService) {
-    const { userInitialsSpan, userDisplayNameH2, userEmailP, inviteCodeDisplaySpan, copyInviteCodeBtn, timezoneSelect } = elements;
+    const { 
+        userInitialsSpan, userDisplayNameH2, userEmailP, 
+        inviteCodeDisplaySpan, copyInviteCodeBtn, timezoneSelect,
+        referralsEnabledToggle, referralStatusMessage,
+        targetHourlyRateInput, baseLocationZipCodeInput // <<< NEW AI Prefs DOM elements
+    } = elements;
     console.log('Loading profile and settings data...');
     const user = auth ? auth.currentUser : null;
     if (!user) {
@@ -51,25 +57,36 @@ export async function loadProfileData(elements, auth, firestoreService) {
         if (userDisplayNameH2) userDisplayNameH2.textContent = 'Error loading profile';
         if (userEmailP) userEmailP.textContent = 'Please log in again.';
         if (inviteCodeDisplaySpan) inviteCodeDisplaySpan.textContent = 'Error';
+        // --- NEW: Handle referral UI on error ---
+        if (referralsEnabledToggle) referralsEnabledToggle.disabled = true;
+        if (referralStatusMessage) referralStatusMessage.textContent = 'Could not load settings.';
+        // --- END NEW ---
         return;
     }
 
-    // Ensure firestoreService is available
     if (!firestoreService) {
          console.error('Firestore service is not available.');
          if (userDisplayNameH2) userDisplayNameH2.textContent = 'Error loading profile (DB)';
+        // --- NEW: Handle referral UI on error ---
+        if (referralsEnabledToggle) referralsEnabledToggle.disabled = true;
+        if (referralStatusMessage) referralStatusMessage.textContent = 'Database service unavailable.';
+        // --- END NEW ---
          return;
     }
 
     try {
-        const [profile, settings] = await Promise.all([
+        // Fetch housekeeper_profile, user_settings, and the main user document
+        const [profile, settings, userDataDoc] = await Promise.all([
             firestoreService.getHousekeeperProfile(user.uid),
-            firestoreService.getUserSettings(user.uid)
+            firestoreService.getUserSettings(user.uid),
+            firestoreService.getUserProfile(user.uid) // <<< FETCH MAIN USER DOC (already gets /users/{uid})
         ]);
         console.log('Profile data fetched (from housekeeper_profiles):', profile);
-        console.log('Settings data fetched:', settings);
+        console.log('Settings data fetched (from /users/uid/settings/app):', settings);
+        console.log('User core data fetched (from /users/uid):', userDataDoc); // <<< LOG USER DATA
 
-        currentProfileData = profile; // Update global state (consider refactoring state management)
+        currentProfileData = profile; 
+        currentUserData = userDataDoc; // <<< STORE USER DATA
 
         // Process Profile Data
         if (profile) {
@@ -144,8 +161,35 @@ export async function loadProfileData(elements, auth, firestoreService) {
              console.warn("loadProfileData: timezoneSelect element not found when trying to apply setting.");
         }
 
+        // --- NEW: Apply Referral Setting ---
+        if (userDataDoc && referralsEnabledToggle && referralStatusMessage) {
+            const referralsEnabled = userDataDoc.referralsEnabled || false; // Default to false if undefined
+            referralsEnabledToggle.checked = referralsEnabled;
+            referralsEnabledToggle.disabled = false;
+            referralStatusMessage.textContent = referralsEnabled ? 'Referrals are currently enabled.' : 'Referrals are currently disabled.';
+        } else {
+            if (referralsEnabledToggle) referralsEnabledToggle.disabled = true;
+            if (referralStatusMessage) referralStatusMessage.textContent = 'Could not load referral setting.';
+        }
+        // --- END NEW ---
+
+        // --- NEW: Apply AI Quoting Preferences ---
+        if (userDataDoc && targetHourlyRateInput && baseLocationZipCodeInput) {
+            targetHourlyRateInput.value = userDataDoc.targetHourlyRate || '';
+            baseLocationZipCodeInput.value = userDataDoc.baseLocation?.zipCode || '';
+            console.log('Applied AI Quoting Preferences from user data:', {
+                targetHourlyRate: userDataDoc.targetHourlyRate,
+                zipCode: userDataDoc.baseLocation?.zipCode
+            });
+        } else {
+            if (targetHourlyRateInput) targetHourlyRateInput.value = '';
+            if (baseLocationZipCodeInput) baseLocationZipCodeInput.value = '';
+            console.warn('Could not load AI Quoting Preferences or elements not found.');
+        }
+        // --- END NEW ---
+
     } catch (error) {
-        console.error('Error loading profile/settings:', error);
+        console.error('Error loading profile/settings/user data:', error);
         currentProfileData = null;
         currentTimezone = null;
         if (userDisplayNameH2) userDisplayNameH2.textContent = 'Error loading profile';
@@ -153,6 +197,14 @@ export async function loadProfileData(elements, auth, firestoreService) {
         if (inviteCodeDisplaySpan) inviteCodeDisplaySpan.textContent = 'Error';
         if (copyInviteCodeBtn) copyInviteCodeBtn.disabled = true;
         if (timezoneSelect) timezoneSelect.value = '';
+        // --- NEW: Handle referral UI on major error ---
+        if (referralsEnabledToggle) referralsEnabledToggle.disabled = true;
+        if (referralStatusMessage) referralStatusMessage.textContent = 'Error loading settings.';
+        // --- END NEW ---
+        // --- NEW: Handle AI Prefs UI on major error ---
+        if (targetHourlyRateInput) targetHourlyRateInput.value = '';
+        if (baseLocationZipCodeInput) baseLocationZipCodeInput.value = '';
+        // --- END NEW ---
     }
 }
 
@@ -363,6 +415,12 @@ function initProfilePage() {
          timezoneSelect: document.getElementById('profile-timezone'),
          saveTimezoneButton: document.getElementById('save-timezone-button'),
          timezoneSavingIndicator: document.getElementById('timezone-saving-indicator'),
+         referralsEnabledToggle: document.getElementById('referrals-enabled-toggle'),
+         referralStatusMessage: document.getElementById('referral-status-message'),
+         targetHourlyRateInput: document.getElementById('profile-targetHourlyRate'),
+         baseLocationZipCodeInput: document.getElementById('profile-baseLocationZipCode'),
+         saveAiPrefsBtn: document.getElementById('save-ai-prefs-button'),
+         aiPrefsSavingIndicator: document.getElementById('ai-prefs-saving-indicator'),
     };
 
     // --- Initial Setup --- 
@@ -429,18 +487,210 @@ function initProfilePage() {
     // Authentication listener
     authInstance.onAuthStateChanged(async (user) => {
         if (user) {
-            console.log('User logged in, loading data...');
-            await loadProfileData(elements, authInstance, firestoreInstance);
+            console.log('User authenticated, initializing profile page features for:', user.uid);
+            // Pass the auth instance and firestoreService to loadProfileData
+            loadProfileData(elements, authInstance, firestoreInstance);
+
+            // Edit Profile Modal listeners (if elements exist)
+            if (elements.editProfileBtn && elements.modal && elements.backdrop && elements.closeModalBtn && elements.cancelModalBtn && elements.profileForm) {
+                elements.editProfileBtn.addEventListener('click', () => openEditProfileModal(elements));
+                elements.closeModalBtn.addEventListener('click', () => closeEditProfileModal(elements));
+                elements.cancelModalBtn.addEventListener('click', () => closeEditProfileModal(elements));
+                elements.profileForm.addEventListener('submit', (event) => handleProfileSave(event, elements, authInstance, firestoreInstance));
+                // Backdrop click to close modal
+                elements.backdrop.addEventListener('click', (event) => {
+                    if (event.target === elements.backdrop) { // Ensure click is on backdrop itself
+                        closeEditProfileModal(elements);
+                    }
+                });
+            } else {
+                console.warn("One or more edit profile modal elements not found. Edit functionality may be affected.");
+            }
+
+            // Copy Invite Code button
+            if (elements.copyInviteCodeBtn) {
+                elements.copyInviteCodeBtn.addEventListener('click', () => {
+                    const code = elements.inviteCodeDisplaySpan ? elements.inviteCodeDisplaySpan.textContent : '';
+                    if (code && code !== 'LOADING...' && code !== 'N/A') {
+                        navigator.clipboard.writeText(code).then(() => {
+                            showToast('Invite code copied!');
+                        }).catch(err => {
+                            console.error('Failed to copy invite code:', err);
+                            showToast('Failed to copy code', 'error');
+                        });
+                    }
+                });
+            }
+
+            // Timezone Save Button
+            if (elements.saveTimezoneButton) {
+                elements.saveTimezoneButton.addEventListener('click', () => {
+                    handleTimezoneSave(elements, authInstance, firestoreInstance);
+                });
+            }
+
+            // Referrals Enabled Toggle
+            if (elements.referralsEnabledToggle) {
+                elements.referralsEnabledToggle.addEventListener('change', (event) => {
+                    handleReferralToggle(event, elements, authInstance, firestoreInstance);
+                });
+            }
+
+            // Logout Button
+            if (elements.logoutButton) {
+                elements.logoutButton.addEventListener('click', () => {
+                    console.log('Logout initiated from profile page.');
+                    if (window.authService && typeof window.authService.logout === 'function') {
+                        window.authService.logout();
+                    } else if (firebase && firebase.auth) { // Fallback for direct SDK usage
+                        firebase.auth().signOut().then(() => {
+                            window.location.href = '/'; // Redirect to root (login)
+                        }).catch(err => console.error('Logout error:', err));
+                    } else {
+                        console.error('Auth service not available for logout.');
+                        alert('Logout function not available.');
+                    }
+                });
+            }
+
+            // --- NEW: Attach listener for Save AI Preferences button ---
+            if (elements.saveAiPrefsBtn) {
+                elements.saveAiPrefsBtn.addEventListener('click', () => {
+                    // Pass the uiElements object directly, handleAiPrefsSave can destructure it
+                    handleAiPrefsSave(elements, authInstance, firestoreInstance); 
+                });
+                console.log("Event listener for 'Save AI Preferences' button attached.");
+            } else {
+                console.warn("'Save AI Preferences' button (save-ai-prefs-button) not found during init.");
+            }
+            // --- END NEW ---
+
+            // Initial data load - MOVED TO BE CALLED EARLIER, right after user check
+            // loadProfileData(elements, authInstance, firestoreInstance);
+
         } else {
-            console.log('User logged out, clearing profile fields.');
-            if (elements.userDisplayNameH2) elements.userDisplayNameH2.textContent = 'Logged Out';
-            if (elements.userEmailP) elements.userEmailP.textContent = '';
-            if (elements.userInitialsSpan) elements.userInitialsSpan.textContent = '--';
-            if (elements.inviteCodeDisplaySpan) elements.inviteCodeDisplaySpan.textContent = 'N/A';
-            // Disable buttons, remove listeners if needed
+            console.log("User not authenticated. Auth Router should handle redirection.");
+            // UI should ideally show a loading state or a message if auth takes time,
+            // or be hidden until auth completes and redirects.
         }
     });
 }
 
 // --- DOMContentLoaded Listener (Minimal) --- 
 document.addEventListener('DOMContentLoaded', initProfilePage); 
+
+function showToast(message, type = 'info', duration = 3000) {
+    // Basic toast implementation (can be improved)
+    const toastContainer = document.body;
+    let toast = document.getElementById('profile-toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'profile-toast';
+        toast.className = 'fixed top-5 right-5 p-3 rounded-md shadow-lg text-white text-sm z-50';
+        toastContainer.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.style.backgroundColor = type === 'success' ? '#4CAF50' : (type === 'error' ? '#F44336' : '#2196F3');
+    toast.style.opacity = 1;
+    toast.style.transform = 'translateX(0)';
+
+    setTimeout(() => {
+        toast.style.opacity = 0;
+        toast.style.transform = 'translateX(100%)';
+    }, duration);
+}
+
+// Minimal toast function (can be replaced with a more robust one if available globally)
+// function showToast(message, type = 'info', duration = 3000) { ... } // Already defined above or use global
+
+// --- DOMContentLoaded Listener ---
+document.addEventListener('DOMContentLoaded', initProfilePage); 
+
+// --- NEW: Handler for saving AI Quoting Preferences ---
+/**
+ * Saves the AI Quoting Preferences (target hourly rate and base location zip code).
+ * @param {object} elements - UI elements including inputs and saving indicator.
+ * @param {object} auth - The Firebase Auth service instance.
+ * @param {object} firestoreService - The Firestore service instance.
+ */
+export async function handleAiPrefsSave(elements, auth, firestoreService) {
+    console.log('Attempting to save AI Quoting Preferences...');
+    const { targetHourlyRateInput, baseLocationZipCodeInput, aiPrefsSavingIndicator, saveAiPrefsBtn } = elements;
+
+    const user = auth ? auth.currentUser : null;
+    if (!user) {
+        console.error('Cannot save AI preferences, no user logged in');
+        showToast('Error: You are not logged in.', 'error');
+        return;
+    }
+
+    if (!firestoreService) {
+        console.error('Firestore service is not available for saving AI preferences.');
+        showToast('Error: Database service unavailable.', 'error');
+        return;
+    }
+
+    if (!targetHourlyRateInput || !baseLocationZipCodeInput || !aiPrefsSavingIndicator || !saveAiPrefsBtn) {
+        console.error('One or more AI preference UI elements are missing.');
+        showToast('Error: UI elements missing, cannot save.', 'error');
+        return;
+    }
+
+    const rateValue = targetHourlyRateInput.value.trim();
+    const zipCodeValue = baseLocationZipCodeInput.value.trim();
+
+    const targetHourlyRate = rateValue ? parseFloat(rateValue) : null;
+    
+    if (rateValue && (isNaN(targetHourlyRate) || targetHourlyRate <= 0)) {
+        showToast('Please enter a valid positive number for target hourly wage.', 'error');
+        targetHourlyRateInput.focus();
+        return;
+    }
+    
+    // Basic zip code validation (e.g., 5 digits or 5+4 for US, or allow alphanumeric for international flexibility)
+    if (zipCodeValue && !/^[a-zA-Z0-9\s-]{3,10}$/.test(zipCodeValue)) {
+        showToast('Please enter a valid Zip/Postal Code.', 'error');
+        baseLocationZipCodeInput.focus();
+        return;
+    }
+
+    aiPrefsSavingIndicator.textContent = 'Saving...';
+    saveAiPrefsBtn.disabled = true;
+
+    try {
+        const dataToUpdate = {
+            // Construct the aiPreferences map directly for clarity and to match DB structure
+            aiPreferences: {
+                targetHourlyRate: targetHourlyRate, // Will be null if empty, or a number
+                baseLocation: {
+                    zipCode: zipCodeValue || null // Store null if empty
+                }
+            }
+            // No need to add updatedAt here, updateUserDocument will do it.
+        };
+
+        // Call the new generic function to update the /users/{uid} document
+        await firestoreService.updateUserDocument(user.uid, dataToUpdate);
+
+        // Update local state if needed (currentUserData directly stores fields from /users/{uid})
+        if (currentUserData) {
+            currentUserData.aiPreferences = dataToUpdate.aiPreferences; // Update the whole map
+        }
+
+        aiPrefsSavingIndicator.textContent = 'Saved!';
+        showToast('AI Quoting Preferences saved successfully!', 'success');
+        console.log('AI Quoting Preferences updated in Firestore.');
+    } catch (error) {
+        console.error('Error saving AI Quoting Preferences:', error);
+        aiPrefsSavingIndicator.textContent = 'Save failed.';
+        showToast(`Error saving preferences: ${error.message}`, 'error');
+    } finally {
+        saveAiPrefsBtn.disabled = false;
+        setTimeout(() => {
+            if (aiPrefsSavingIndicator.textContent === 'Saved!' || aiPrefsSavingIndicator.textContent === 'Save failed.') {
+                 aiPrefsSavingIndicator.textContent = '';
+            }
+        }, 3000);
+    }
+}
+// --- END NEW --- 

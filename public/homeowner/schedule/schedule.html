@@ -69,26 +69,36 @@
         <div class="mb-6">
             <div class="border-b border-gray-200">
                 <nav class="-mb-px flex space-x-8" aria-label="Tabs">
-                    <button id="tab-request-new" class="border-primary text-primary whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm" aria-current="page">
+                    <button id="tab-request-new" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">
                         Request New Service
                     </button>
-                    <button id="tab-my-requests" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">
+                    <button id="tab-my-requests" class="border-primary text-primary whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm" aria-current="page">
                         My Requests
                     </button>
                 </nav>
             </div>
         </div>
 
-        <!-- Request New Service Content (Initially visible) -->
-        <div id="content-request-new" class="space-y-6">
+        <!-- Request New Service Content (Initially hidden by default, JS will show it) -->
+        <div id="content-request-new" class="hidden space-y-6">
             <!-- Housekeeper Info Display (Loaded by JS) -->
             <div id="housekeeper-info-banner" class="bg-primary-light p-4 rounded-lg shadow text-sm text-primary-dark hidden">
                 <p>You are requesting service from: <strong id="housekeeper-name-display">[Housekeeper Name]</strong></p>
                 <p id="housekeeper-company-display" class="text-xs"></p>
             </div>
+
+            <!-- NEW: Property Details Prompt -->
+            <div id="property-details-prompt" class="hidden bg-amber-50 p-4 rounded-lg shadow text-sm text-amber-700">
+                <h3 class="font-semibold mb-2">Please Add Your Property Details</h3>
+                <p class="mb-3">To see service price estimates and request a service, please provide some details about your home. This helps your housekeeper provide an accurate quote.</p>
+                <a href="../settings/settings.html" id="go-to-property-settings-btn" class="inline-block px-4 py-2 bg-primary text-white text-sm font-medium rounded-md hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary">
+                    Add Property Details
+                </a>
+            </div>
+            <!-- END: Property Details Prompt -->
             
             <!-- Loading Indicator for Services -->
-            <div id="services-loading-indicator" class="text-center py-6">
+            <div id="services-loading-indicator" class="text-center py-6 hidden"> <!-- Initially hidden -->
                 <div class="spinner h-8 w-8 border-4 border-gray-200 rounded-full mx-auto"></div>
                 <p class="mt-2 text-sm text-gray-500">Loading available services...</p>
             </div>
@@ -104,16 +114,7 @@
                 <h2 class="text-lg font-semibold text-neutral-text mb-3">Choose Your Base Service(s)</h2>
                 <div id="base-services-list" class="space-y-3">
                     <!-- Base services will be populated by JavaScript -->
-                    <!-- Example of a service item (for structure reference):
-                    <label class="flex items-center bg-neutral-card p-4 rounded-lg shadow hover:shadow-md transition-shadow cursor-pointer">
-                        <input type="checkbox" name="base_service" value="service_id_1" class="h-5 w-5 text-primary focus:ring-primary border-gray-300 rounded">
-                        <div class="ml-3 flex-grow">
-                            <span class="text-md font-medium text-neutral-text">Standard Cleaning</span>
-                            <p class="text-sm text-gray-600">Comprehensive cleaning for your home.</p>
-                        </div>
-                        <span class="text-md font-semibold text-primary">$150</span>
-                    </label>
-                    -->
+                    <!-- Example service item structure will be adapted in JS to show price range -->
                 </div>
             </section>
 
@@ -146,6 +147,26 @@
                 <div id="datetime-error-display" class="text-red-500 text-sm mt-1 hidden"></div>
             </section>
 
+            <!-- Frequency Section -->
+            <section id="frequency-section" class="hidden">
+                <h2 class="text-lg font-semibold text-neutral-text mb-3">Frequency</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="request-frequency" class="block text-sm font-medium text-neutral-text mb-1">How often?</label>
+                        <select id="request-frequency" name="request-frequency" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm bg-neutral-card p-2.5">
+                            <option value="one-time">One-time</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="bi-weekly">Every 2 Weeks</option>
+                            <option value="monthly">Monthly</option>
+                        </select>
+                    </div>
+                    <div id="recurring-end-date-wrapper" class="hidden"> <!-- Initially hidden, shown by JS if recurring -->
+                        <label for="recurring-end-date" class="block text-sm font-medium text-neutral-text mb-1">Repeat Until (Optional)</label>
+                        <input type="text" id="recurring-end-date" name="recurring-end-date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm bg-neutral-card p-2.5" placeholder="Select end date">
+                    </div>
+                </div>
+            </section>
+
             <!-- Notes Section -->
             <section id="notes-section" class="hidden">
                 <h2 class="text-lg font-semibold text-neutral-text mb-3">Additional Notes</h2>
@@ -163,7 +184,7 @@
 
 
             <!-- Submit Request Button -->
-            <div class="pt-6">
+            <div id="submit-request-button-container" class="pt-6 hidden"> <!-- Wrapped button in a div to hide it initially -->
                  <button type="button" id="submit-service-request-btn" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50" disabled>
                     Review and Send Request
                 </button>
@@ -171,8 +192,8 @@
             </div>
         </div>
 
-        <!-- My Requests Content (Initially hidden) -->
-        <div id="content-my-requests" class="hidden space-y-4">
+        <!-- My Requests Content (Initially visible) -->
+        <div id="content-my-requests" class="space-y-4">
             <div id="my-requests-loading-indicator" class="text-center py-6">
                 <div class="spinner h-8 w-8 border-4 border-gray-200 rounded-full mx-auto"></div>
                 <p class="mt-2 text-sm text-gray-500">Loading your requests...</p>
@@ -205,15 +226,18 @@
     <nav class="bg-neutral-card border-t border-gray-200 sticky bottom-0 z-20">
         <div class="mx-auto max-w-md px-4">
             <div class="flex justify-around items-center h-16">
-                <a href="../dashboard/dashboard.html" id="nav-dashboard" class="flex flex-col items-center justify-center text-gray-500 hover:text-primary w-full">
+                <a href="../dashboard/dashboard.html" id="nav-dashboard" class="flex flex-col items-center justify-center text-neutral-muted hover:text-primary w-full">
                     <i class="fas fa-home text-xl"></i>
-                    <span class="text-xs mt-1">Home</span>
+                    <span class="text-xs mt-1 font-medium">Home</span>
                 </a>
                 <a href="#" id="nav-schedule" class="flex flex-col items-center justify-center text-primary w-full"> <!-- Current page, active color -->
                     <i class="fas fa-calendar-alt text-xl"></i>
-                    <span class="text-xs mt-1">Schedule</span>
+                    <span class="text-xs mt-1 font-medium">Service Requests</span>
                 </a>
-                <!-- Add other nav items if any, e.g., Settings -->
+                <a href="../settings/settings.html" id="nav-settings" class="flex flex-col items-center justify-center text-neutral-muted hover:text-primary w-full">
+                    <i class="fas fa-cog text-xl"></i>
+                    <span class="text-xs mt-1 font-medium">Settings</span>
+                </a>
             </div>
         </div>
     </nav>
@@ -257,6 +281,95 @@
         </div>
     </div>
 
+    <!-- Proposal Response Modal (Initially Hidden) -->
+    <div id="proposal-response-modal" class="fixed inset-0 z-50 flex items-end bg-black bg-opacity-50 hidden transition-opacity duration-300 ease-in-out opacity-0 sm:items-center sm:justify-center" aria-labelledby="proposal-modal-title" role="dialog" aria-modal="true">
+        <div id="proposal-response-drawer" class="bg-neutral-card w-full max-w-lg rounded-t-xl shadow-xl max-h-[80vh] flex flex-col transform transition-transform duration-300 ease-in-out translate-y-full sm:rounded-xl sm:translate-y-0 sm:scale-95">
+            <!-- Header -->
+            <div class="flex justify-between items-center p-4 border-b border-gray-200">
+                <h2 id="proposal-modal-title" class="text-lg font-semibold text-neutral-text">Housekeeper Proposal</h2>
+                <button id="close-proposal-modal-btn" type="button" class="text-gray-400 hover:text-gray-600">
+                    <span class="sr-only">Close</span>
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <!-- Content -->
+            <div class="p-4 overflow-y-auto flex-grow space-y-3">
+                <p class="text-sm text-gray-600">Your housekeeper has proposed an alternative time for your service request:</p>
+                <div class="space-y-2">
+                    <p class="text-sm"><strong class="text-neutral-text">Proposed Date:</strong> <span id="proposal-date-display">[Date]</span></p>
+                    <p class="text-sm"><strong class="text-neutral-text">Proposed Start Time:</strong> <span id="proposal-time-display">[Time]</span></p>
+                    <p class="text-sm hidden" id="proposal-frequency-wrapper"><strong class="text-neutral-text">Proposed Frequency:</strong> <span id="proposal-frequency-display">[Frequency]</span></p>
+                    <p class="text-sm hidden" id="proposal-recurring-end-date-wrapper"><strong class="text-neutral-text">Proposed Repeat Until:</strong> <span id="proposal-recurring-end-date-display">[End Date]</span></p>
+                    <div class="text-sm">
+                        <strong class="text-neutral-text">Housekeeper's Note:</strong>
+                        <p id="proposal-note-display" class="mt-1 p-2 bg-gray-50 rounded border border-gray-200 text-gray-700 whitespace-pre-wrap">[Note]</p>
+                    </div>
+                </div>
+                <div id="proposal-response-error" class="text-red-500 text-sm mt-2 hidden"></div>
+                <div id="decline-note-section" class="hidden mt-3">
+                    <label for="decline-note-input" class="block text-sm font-medium text-neutral-text mb-1">Optional: Add a note for your housekeeper</label>
+                    <textarea id="decline-note-input" rows="3" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm bg-neutral-card p-2.5" placeholder="E.g., This time doesn't work for me because..."></textarea>
+                </div>
+            </div>
+            <!-- Footer Actions -->
+            <div class="flex flex-col space-y-2 p-4 border-t border-gray-200 bg-gray-50 rounded-b-xl">
+                <button type="button" id="accept-proposal-btn" class="w-full px-4 py-2.5 bg-secondary text-white rounded-md hover:bg-secondary-dark text-sm font-medium disabled:opacity-50 flex items-center justify-center">
+                    <span id="accept-proposal-spinner" class="spinner h-4 w-4 border-2 border-white rounded-full mr-2 hidden"></span>
+                    Accept Proposal
+                </button>
+                <button type="button" id="decline-proposal-btn" class="w-full px-4 py-2.5 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm font-medium disabled:opacity-50 flex items-center justify-center">
+                    <span id="decline-proposal-spinner" class="spinner h-4 w-4 border-2 border-white rounded-full mr-2 hidden"></span>
+                    Decline Proposal
+                </button>
+                <button type="button" id="cancel-decline-btn" class="w-full px-4 py-2.5 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 text-sm font-medium hidden">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NEW: Homeowner Generic Request Details Modal -->
+    <div id="request-details-modal" class="fixed inset-0 z-50 flex items-end bg-black bg-opacity-50 hidden transition-opacity duration-300 ease-in-out opacity-0 sm:items-center sm:justify-center" aria-labelledby="request-details-modal-title" role="dialog" aria-modal="true">
+        <div id="request-details-drawer" class="bg-neutral-card w-full max-w-lg rounded-t-xl shadow-xl max-h-[80vh] flex flex-col transform transition-transform duration-300 ease-in-out translate-y-full sm:rounded-xl sm:translate-y-0 sm:scale-95">
+            <!-- Header -->
+            <div class="flex justify-between items-center p-4 border-b border-gray-200">
+                <h2 id="request-details-modal-title" class="text-lg font-semibold text-neutral-text">Your Service Request Details</h2>
+                <button id="close-request-details-modal-btn" type="button" class="text-gray-400 hover:text-gray-600">
+                    <span class="sr-only">Close</span>
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <!-- Content (Scrollable) -->
+            <div id="request-details-content-area" class="p-4 overflow-y-auto flex-grow space-y-3 text-sm text-gray-700">
+                <p><strong class="text-neutral-text">Status:</strong> <span id="details-status-display">[Status]</span></p>
+                <p><strong class="text-neutral-text">Requested Date:</strong> <span id="details-date-display">[Date]</span></p>
+                <p><strong class="text-neutral-text">Requested Time:</strong> <span id="details-time-display">[Time]</span></p>
+                <div id="details-frequency-wrapper" class="hidden">
+                    <p><strong class="text-neutral-text">Frequency:</strong> <span id="details-frequency-display">[Frequency]</span></p>
+                    <p id="details-recurring-end-date-wrapper" class="hidden pl-4"><strong class="text-neutral-text text-xs">Repeats Until:</strong> <span id="details-recurring-end-date-display" class="text-xs">[End Date]</span></p>
+                </div>
+                <div>
+                    <strong class="text-neutral-text">Services Requested:</strong>
+                    <ul id="details-services-list" class="list-disc list-inside pl-4 mt-1 space-y-0.5"></ul>
+                </div>
+                <div id="details-notes-wrapper" class="hidden">
+                    <strong class="text-neutral-text">Your Notes:</strong>
+                    <p id="details-notes-display" class="mt-1 p-2 bg-gray-50 rounded border border-gray-200 whitespace-pre-wrap text-xs">[Notes]</p>
+                </div>
+                <p class="pt-2 border-t border-gray-100"><strong class="text-neutral-text">Estimated Price:</strong> <span id="details-price-display" class="font-semibold">[Price]</span></p>
+            </div>
+            <!-- Footer Actions -->
+            <div class="flex justify-end items-center p-4 border-t border-gray-200 bg-gray-50 rounded-b-xl">
+                <button id="okay-request-details-btn" type="button" class="px-6 py-2.5 bg-primary text-white rounded-md hover:bg-primary-dark text-sm font-medium">
+                    Okay
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-notification-request-page" class="fixed top-5 right-5 z-[100] px-4 py-3 rounded-md shadow-lg text-white text-sm font-medium transition-all duration-300 ease-out opacity-0 transform translate-x-full">
+        This is a toast notification.
+    </div>
 
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>

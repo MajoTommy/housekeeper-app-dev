@@ -20,6 +20,8 @@
     <script src="../../common/js/auth.js"></script>
     <!-- Auth Router -->
     <script src="../../common/js/auth-router.js"></script>
+    <!-- Cleaning Tasks Config -->
+    <script src="../../common/js/cleaning-tasks-config.js"></script>
     
     <script>
         tailwind.config = {
@@ -122,9 +124,43 @@
                     </div>
 
                     <div>
-                        <label for="service-price" class="block text-sm font-medium text-gray-700">Flat Rate Price ($)</label>
-                        <input type="number" id="service-price" name="basePrice" step="0.01" min="0" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" required placeholder="e.g., 150.00 or 25.00">
+                        <label for="service-price" class="block text-sm font-medium text-gray-700">Your Target Flat Rate Price ($)</label>
+                        <input type="number" id="service-price" name="basePrice" step="0.01" min="0" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" required placeholder="e.g., 150.00">
+                        <p class="mt-1 text-xs text-gray-500">This is your ideal price for this service under standard conditions. Our AI will use this and home details to help suggest a final price to you.</p>
                     </div>
+
+                    <div>
+                        <label for="service-min-price" class="block text-sm font-medium text-gray-700">Homeowner Visible Minimum Price ($)</label>
+                        <input type="number" id="service-min-price" name="homeownerVisibleMinPrice" step="0.01" min="0" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" placeholder="e.g., 120.00">
+                        <p class="mt-1 text-xs text-gray-500">Part of the price *range* homeowners will see before providing their home details.</p>
+                    </div>
+
+                    <div>
+                        <label for="service-max-price" class="block text-sm font-medium text-gray-700">Homeowner Visible Maximum Price ($)</label>
+                        <input type="number" id="service-max-price" name="homeownerVisibleMaxPrice" step="0.01" min="0" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" placeholder="e.g., 180.00">
+                        <p class="mt-1 text-xs text-gray-500">Part of the price *range* homeowners will see before providing their home details.</p>
+                    </div>
+
+                    <!-- NEW: Included Tasks Section -->
+                    <div class="pt-2">
+                        <h3 class="text-md font-semibold text-gray-800 mb-2">Included Tasks in this Service</h3>
+                        <p class="text-xs text-gray-500 mb-3">Select all tasks that are typically included when you perform this service. This helps the AI provide accurate suggestions and informs homeowners.</p>
+                        
+                        <div id="service-tasks-container" class="space-y-4">
+                            <!-- Task categories and chips will be populated by JavaScript -->
+                            <!-- Example structure for one category (JS will generate this) -->
+                            <!-- 
+                            <div>
+                                <h4 class="text-sm font-medium text-gray-700 mb-1">General</h4>
+                                <div class="flex flex-wrap gap-2">
+                                    <span class="task-chip" data-task-id="dust_surfaces">Dust Surfaces</span>
+                                    <span class="task-chip task-chip-selected" data-task-id="vacuum_carpets_rugs">Vacuum Carpets/Rugs</span>
+                                </div>
+                            </div>
+                            -->
+                        </div>
+                    </div>
+                    <!-- END: Included Tasks Section -->
 
                      <div>
                         <label for="service-description" class="block text-sm font-medium text-gray-700">Description (Optional)</label>

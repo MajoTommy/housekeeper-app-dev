@@ -5,6 +5,7 @@ let currentWeekStart = null; // Will be set after DOMContentLoaded
 let housekeeperTimezone = 'UTC'; // << ADDED: Store timezone globally
 let userProfile = null; // Store user profile globally
 let userSettings = null; // <<< DECLARED GLOBALLY >>>
+let loadingOverlayElement = null; // <<< NEW: Global reference for loading overlay
 
 // Global booking data
 let currentBookingData = {
@@ -15,6 +16,7 @@ let currentBookingData = {
     addonServices: [] // NEW: Store selected add-on services [{id, name, price}]
 };
 let currentProposingRequestData = null; // NEW: For Propose Alternative flow
+let currentOpenRequestDataForAI = null; // <<<< NEW GLOBAL VARIABLE FOR AI SUGGESTIONS
 
 // --- DOM Elements (Add new ones for services) ---
 const baseServiceOptionsContainer = document.getElementById('base-service-options');
@@ -46,6 +48,9 @@ const incomingRequestsBadge = document.getElementById('incoming-requests-badge')
 const incomingRequestsContainer = document.getElementById('incoming-requests-container');
 const incomingRequestsList = document.getElementById('incoming-requests-list');
 const mainScheduleContainer = document.getElementById('schedule-container');
+// NEW: Add references for the button's text and icon elements
+const incomingRequestsTextLabel = document.getElementById('incoming-requests-text-label');
+const incomingRequestsIcon = document.getElementById('incoming-requests-icon');
 
 // --- END DOM Elements ---
 
@@ -73,6 +78,15 @@ const alternativeNotesInput = document.getElementById('alternative-notes');
 const standardRequestActionsContainer = document.getElementById('standard-request-actions');
 const proposeAlternativeActionsContainer = document.getElementById('propose-alternative-actions');
 // --- END Booking Detail Modal Elements ---
+
+// --- NEW: AI Suggestion Section Elements (inside booking-detail-modal) ---
+const aiManualTravelTimeInput = document.getElementById('ai-manual-travel-time');
+const getAiSuggestionBtn = document.getElementById('get-ai-suggestion-btn');
+const aiSuggestionDisplay = document.getElementById('ai-suggestion-display');
+const aiLoadingIndicator = document.getElementById('ai-loading-indicator');
+const aiSuggestionError = document.getElementById('ai-suggestion-error');
+const aiSuggestionSectionGlobalRef = document.getElementById('ai-suggestion-section'); // Used to get dataset
+// --- END AI Suggestion Section Elements ---
 
 // --- NEW: Manual Time Input for Approved Request in Modal ---
 const manualTimeInputContainer = document.getElementById('manualTimeInputContainer');
@@ -166,23 +180,23 @@ function showErrorMessage(message) {
 
 // Global loading indicator functions
 function showLoading(message = 'Loading...') {
-    const loadingOverlay = document.getElementById('loading-overlay'); // Re-query each time
-    if (loadingOverlay) {
+    // const loadingOverlay = document.getElementById('loading-overlay'); // Re-query each time << REMOVED
+    if (loadingOverlayElement) { // <<< CHANGED: Use global reference
         // Optional: Update message if needed, though the current one is just an icon
-        loadingOverlay.classList.remove('hidden');
+        loadingOverlayElement.classList.remove('hidden');
     } else {
         // Reduced severity, as it might be called early
-        console.warn('#loading-overlay element not found, might be called before DOM ready.');
+        console.warn('#loading-overlay element not found or not yet initialized.');
     }
 }
 
 function hideLoading() {
-    const loadingOverlay = document.getElementById('loading-overlay'); // Re-query each time
-    if (loadingOverlay) {
-        loadingOverlay.classList.add('hidden');
+    // const loadingOverlay = document.getElementById('loading-overlay'); // Re-query each time << REMOVED
+    if (loadingOverlayElement) { // <<< CHANGED: Use global reference
+        loadingOverlayElement.classList.add('hidden');
     } else {
         // Reduced severity
-        console.warn('#loading-overlay element not found, might be called before DOM ready.');
+        console.warn('#loading-overlay element not found or not yet initialized.');
     }
 }
 
@@ -389,136 +403,116 @@ async function loadUserSchedule(showLoadingIndicator = true) {
 
 // --- Schedule Generation (Refactored to use Cloud Function Data) ---
 async function fetchAndRenderSchedule(startDate, housekeeperId) {
-    console.log(`[DupeDebug] fetchAndRenderSchedule START for week: ${startDate.toISOString()}`); // ADDED LOG
+    console.log(`[SCHEDULE_DEBUG] fetchAndRenderSchedule START for week: ${startDate?.toISOString()}, housekeeperId: ${housekeeperId}`);
     
     // --- ADDED: Slight delay for showLoading ---
-    setTimeout(() => showLoading(), 0); // Delay slightly to ensure DOM is ready
-    // --- END ADDED ---
+    setTimeout(() => showLoading(), 0); 
     
     const scheduleContainer = document.getElementById('schedule-container');
     if (!scheduleContainer) {
-        console.error("[DupeDebug] Schedule container element not found in fetchAndRenderSchedule!"); // ADDED LOG
-        hideLoading(); // Still try to hide if showLoading failed
+        console.error("[SCHEDULE_DEBUG] Schedule container element not found in fetchAndRenderSchedule!");
+        hideLoading();
         return;
     }
-    console.log("[DupeDebug] fetchAndRenderSchedule: Clearing scheduleContainer.innerHTML"); // ADDED LOG
+    console.log("[SCHEDULE_DEBUG] fetchAndRenderSchedule: Clearing scheduleContainer.innerHTML");
     scheduleContainer.innerHTML = ''; // Clear previous schedule
 
-    const functions = firebase.functions(); // Ensure Functions SDK is initialized
+    const functions = firebase.functions();
     const getAvailableSlots = functions.httpsCallable('getAvailableSlots');
     const endDate = dateUtils.addDays(startDate, 6);
 
     try {
+        console.log(`[SCHEDULE_DEBUG] Calling getAvailableSlots with startDate: ${startDate?.toISOString()}, endDate: ${endDate?.toISOString()}, housekeeperId: ${housekeeperId}`);
         const result = await getAvailableSlots({
             housekeeperId: housekeeperId,
             startDateString: startDate.toISOString(),
             endDateString: endDate.toISOString(),
         });
 
-        console.log('[DupeDebug] Cloud Function schedule RAW result.data:', JSON.parse(JSON.stringify(result.data))); // ADDED DETAILED LOG
-
-        console.log('Cloud Function schedule result:', result.data);
+        console.log('[SCHEDULE_DEBUG] Cloud Function getAvailableSlots RAW result:', JSON.parse(JSON.stringify(result)));
 
         if (result.data && result.data.schedule) {
+            console.log('[SCHEDULE_DEBUG] Schedule data received from function. Calling renderScheduleFromData.');
             renderScheduleFromData(result.data.schedule, startDate);
                     } else {
-            console.error('Invalid schedule data received from function:', result.data);
-            scheduleContainer.innerHTML = '<p class="text-center text-red-500">Error loading schedule data.</p>';
+            console.error('[SCHEDULE_DEBUG] Invalid or missing schedule data received from function:', result.data);
+            scheduleContainer.innerHTML = '<p class="text-center text-red-500">Error loading schedule data (invalid structure).</p>';
         }
+        console.log('[SCHEDULE_DEBUG] fetchAndRenderSchedule FINISHED successfully.');
 
     } catch (error) {
-        console.error('Error calling getAvailableSlots function:', error);
+        console.error('[SCHEDULE_DEBUG] Error calling getAvailableSlots function or in subsequent processing:', error);
         scheduleContainer.innerHTML = `<p class="text-center text-red-500">Error calling schedule service: ${error.message}</p>`;
+        console.log('[SCHEDULE_DEBUG] fetchAndRenderSchedule FINISHED with error.');
     } finally {
         hideLoading();
-        updateWeekDisplay(); // Ensure week display is correct
-        updateNavigationState(); // Update prev/next buttons
+        updateWeekDisplay();
+        updateNavigationState();
     }
 }
 
 // NEW: Renders the schedule grid from the data fetched by the Cloud Function
 function renderScheduleFromData(scheduleData, weekStartDate) {
-    console.log(`[DupeDebug] renderScheduleFromData START for week: ${weekStartDate.toISOString()}`); // ADDED LOG
+    console.log(`[SCHEDULE_DEBUG] renderScheduleFromData START. weekStartDate: ${weekStartDate?.toISOString()}`);
+    console.log('[SCHEDULE_DEBUG] renderScheduleFromData received scheduleData:', JSON.parse(JSON.stringify(scheduleData)));
+
     const scheduleContainer = document.getElementById('schedule-container');
     if (!scheduleContainer) {
-         console.error("[DupeDebug] Schedule container element not found in renderScheduleFromData!"); // ADDED LOG
-        return; // Already checked, but safe
+         console.error("[SCHEDULE_DEBUG] Schedule container element not found in renderScheduleFromData!");
+        return;
     }
 
-    // --- UPDATED: ADD Grid Classes, don't overwrite existing (like p-4) ---
     scheduleContainer.classList.add('grid', 'grid-cols-1', 'md:grid-cols-3', 'lg:grid-cols-7', 'gap-4');
-    // Ensure any previous styles not related to grid/padding are cleared if needed, but preserve p-4 from HTML
-    console.log("[DupeDebug] renderScheduleFromData: Clearing scheduleContainer.innerHTML"); // ADDED LOG
+    console.log("[SCHEDULE_DEBUG] renderScheduleFromData: Clearing scheduleContainer.innerHTML before rendering.");
     scheduleContainer.innerHTML = ''; // Clear previous schedule content
-    // --- END UPDATED ---
 
-    // Get today's date for comparison
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const weekDates = dateUtils.getWeekDates(weekStartDate);
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-    // Create the grid structure - REMOVED grid classes from here
-    // scheduleContainer.className = 'grid grid-cols-1 md:grid-cols-7 gap-4'; 
-    // space-y-4 is now handled in the HTML container
+    console.log(`[SCHEDULE_DEBUG] Processing ${weekDates.length} dates for the week.`);
 
     weekDates.forEach((date, dayIndex) => {
         const dateString = dateUtils.formatDate(date, 'YYYY-MM-DD');
+        // console.log(`[SCHEDULE_DEBUG] Rendering day ${dayIndex}: ${dateString}`); // Optional: too verbose?
         const dayData = scheduleData[dateString];
         const currentDateOnly = new Date(date); 
         currentDateOnly.setHours(0, 0, 0, 0);
         const isPastDay = currentDateOnly.getTime() < today.getTime();
 
-        // Create Day Column Div (now acts as Day Card)
         const dayColumn = document.createElement('div');
-        // Ensure flex column for proper stacking within the card
-        // REVERTED: REMOVE p-4 from individual card, rely on container padding
-        dayColumn.className = 'bg-white rounded-lg shadow flex flex-col min-h-[150px]'; // Base style for card NO PADDING
+        dayColumn.className = 'bg-white rounded-lg shadow flex flex-col min-h-[150px]'; 
 
         if (isPastDay) {
-            // Hide past day columns completely
             dayColumn.classList.add('hidden');
         } else {
-            // Only add padding and content for non-past days
-            // Removed p-4 here, will add to header and slots container
-            // dayColumn.classList.add('p-4');
-            
-            // Add Header
             const dayHeader = document.createElement('h3');
             dayHeader.textContent = `${dayNames[date.getUTCDay()]} ${dateUtils.formatDate(date, 'short-numeric')}`;
-            // Add padding to header, consistent font size
-            // ADDED BACK internal padding for header
-            dayHeader.className = 'text-lg font-semibold mb-4 text-gray-800 flex-shrink-0 px-4 pt-4'; // Added padding back
+            dayHeader.className = 'text-lg font-semibold mb-4 text-gray-800 flex-shrink-0 px-4 pt-4';
             dayColumn.appendChild(dayHeader);
 
-            // Slots Container - Add padding
             const slotsContainer = document.createElement('div');
-            // Use space-y-3 like homeowner?
-            // ADDED BACK internal padding for slots
-            slotsContainer.className = 'flex-grow space-y-3 px-4 pb-4'; // Added padding back
+            slotsContainer.className = 'flex-grow space-y-3 px-4 pb-4';
 
-            // Populate based on status and slots
             if (dayData && dayData.slots && dayData.slots.length > 0) {
+                // console.log(`[SCHEDULE_DEBUG] Day ${dateString} has ${dayData.slots.length} slots.`); // Optional
                 dayData.slots.forEach(slot => {
                     const slotElement = createSlotElement(slot, dateString);
                     slotsContainer.appendChild(slotElement);
         });
     } else {
-                // Display "Not scheduled to work" if no slots and day is active
+                // console.log(`[SCHEDULE_DEBUG] Day ${dateString} has no slots or dayData is missing/empty.`); // Optional
                 const noWorkText = document.createElement('p');
-                noWorkText.textContent = 'Not scheduled to work';
-                // Apply styling similar to homeowner view
-                noWorkText.className = 'text-center text-gray-500 text-sm mt-4'; // Centered, muted, small margin-top
+                noWorkText.textContent = dayData?.message || 'Not scheduled to work'; // Use message from dayData if available
+                noWorkText.className = 'text-center text-gray-500 text-sm mt-4'; 
                 slotsContainer.appendChild(noWorkText);
             }
-
             dayColumn.appendChild(slotsContainer);
         }
-
-        // Always append the column to maintain grid structure
         scheduleContainer.appendChild(dayColumn);
     });
+    console.log('[SCHEDULE_DEBUG] renderScheduleFromData FINISHED processing all dates.');
 }
 
 // NEW: Helper function to create HTML element for a single time slot
@@ -863,7 +857,8 @@ async function openBookingModal(dateTimeString, durationMinutes, prefillData = n
             client: prefillData.client,
             baseService: prefillData.baseService,
             addonServices: prefillData.addonServices || [],
-            originalRequestId: prefillData.originalRequestId // Store the original request ID
+            originalRequestId: prefillData.originalRequestId, // Store the original request ID
+            finalQuotedPrice: prefillData.finalQuotedPrice // <<< ADDED: Store final quoted price
         };
         console.log('[Modal] currentBookingData after prefill:', currentBookingData);
 
@@ -901,7 +896,7 @@ async function openBookingModal(dateTimeString, durationMinutes, prefillData = n
     } else {
         // --- STANDARD MANUAL BOOKING FLOW (from available slot or manual add) ---
         console.log('[Modal] Standard manual booking flow.');
-        currentBookingData = { dateTime: dateTimeString, duration: durationMinutes, client: null, baseService: null, addonServices: [] }; // Reset/set initial data
+        currentBookingData = { dateTime: dateTimeString, duration: durationMinutes, client: null, baseService: null, addonServices: [], finalQuotedPrice: null }; // Reset/set initial data, ensure finalQuotedPrice is null
 
         // Display date/time info
         try {
@@ -966,20 +961,29 @@ function setupBookingModalListeners() {
 
     // --- NEW: Review Booking Button Listener ---
     reviewBookingBtn.addEventListener('click', () => {
-        console.log('[Modal] Review Booking button clicked');
+        console.log('[Modal Review Btn] Review Booking button clicked. currentBookingData:', JSON.parse(JSON.stringify(currentBookingData)));
         
         if (manualTimeInputContainer && !manualTimeInputContainer.classList.contains('hidden')) {
             // Handling approved request: Get manual start time
+            console.log('[Modal Review Btn] Approved request flow detected.');
             const manualTime = manualStartTimeInput.value;
+            console.log('[Modal Review Btn] Manual start time input value:', manualTime);
+
             if (!manualTime) {
                 alert('Please select a start time for the approved request.');
+                console.warn('[Modal Review Btn] Manual start time is missing.');
                 manualStartTimeInput.focus();
                 return;
             }
-            // Combine date from currentBookingData.dateTime (which is an ISO date string) with manualTime
+            console.log('[Modal Review Btn] Manual start time IS PRESENT.');
+
+            try {
             const preferredDatePart = currentBookingData.dateTime.substring(0, 10); // YYYY-MM-DD
-            currentBookingData.dateTime = new Date(`${preferredDatePart}T${manualTime}`).toISOString();
-            console.log('[Modal] Updated dateTime with manual start time:', currentBookingData.dateTime);
+                console.log('[Modal Review Btn] Preferred date part:', preferredDatePart);
+                const newDateTimeString = `${preferredDatePart}T${manualTime}`;
+                console.log('[Modal Review Btn] Constructed new DateTime string for Date object:', newDateTimeString);
+                currentBookingData.dateTime = new Date(newDateTimeString).toISOString();
+                console.log('[Modal Review Btn] Successfully updated currentBookingData.dateTime:', currentBookingData.dateTime);
 
             // Update display with specific time
             const dateObject = new Date(currentBookingData.dateTime);
@@ -987,10 +991,17 @@ function setupBookingModalListeners() {
             const displayTime = dateUtils.formatTime(dateObject, housekeeperTimezone, 'h:mm A');
             const displayDuration = formatDuration(currentBookingData.duration);
             bookingDateTimeElement.innerHTML = `<p class="font-medium">${displayDate} at ${displayTime}</p><p class="text-sm text-gray-600">Duration: ${displayDuration}</p>`;
+                console.log('[Modal Review Btn] BookingDateTimeElement updated.');
 
-            // Client and services are already in currentBookingData from prefill
             if (!currentBookingData.client || !currentBookingData.baseService) {
                 alert('Critical error: Client or base service data missing for approved request. Please close and retry.');
+                    console.error('[Modal Review Btn] Critical: Client or baseService missing in currentBookingData for approved request.');
+                    return;
+                }
+                console.log('[Modal Review Btn] Client and BaseService checks passed.');
+            } catch (error) {
+                console.error('[Modal Review Btn] Error processing manual time or updating UI:', error);
+                alert('An error occurred while processing the time. Please check the console and try again.');
                 return;
             }
 
@@ -1042,10 +1053,14 @@ function setupBookingModalListeners() {
         });
 
         // Populate confirmation details
+        console.log('[Modal Review Btn] Calling populateConfirmationDetails().');
         populateConfirmationDetails();
+        console.log('[Modal Review Btn] populateConfirmationDetails() finished.');
 
         // Move to confirmation step
+        console.log("[Modal Review Btn] Calling showBookingStep('confirmationStep').");
         showBookingStep('confirmationStep');
+        console.log("[Modal Review Btn] showBookingStep('confirmationStep') finished.");
     });
     // --- END Review Booking Button Listener ---
 
@@ -1096,7 +1111,9 @@ function setupBookingModalListeners() {
                     price: s.price,
                     durationMinutes: s.durationMinutes || 0 
                 })),
-                totalPrice: currentBookingData.baseService.price + currentBookingData.addonServices.reduce((sum, addon) => sum + addon.price, 0),
+                totalPrice: (currentBookingData.finalQuotedPrice !== undefined && currentBookingData.finalQuotedPrice !== null) 
+                            ? currentBookingData.finalQuotedPrice 
+                            : (currentBookingData.baseService.price + currentBookingData.addonServices.reduce((sum, addon) => sum + addon.price, 0)),
                 status: 'confirmed', 
                 frequency: 'one-time', 
                 BookingNote: '', 
@@ -1154,6 +1171,7 @@ function setupBookingModalListeners() {
 
 // Function to close the booking modal
 function closeBookingModal() {
+    console.log('[Modal Close] closeBookingModal function called.'); // Added log
     bookingModalBackdrop.classList.add('hidden');
     bookingModal.classList.add('translate-y-full');
     // Reset full state including services
@@ -1200,7 +1218,8 @@ function showBookingStep(stepId) {
 async function loadClientsForSelection() {
     console.log("[Modal] Loading clients...");
     if (!existingClientsContainer || !clientLoadingErrorMsg) {
-        console.error("[Modal] Client container or error message element not found.");
+        // Corrected console.error to match the existing log style
+        console.error("[Modal Load Clients] Client container or error message element not found.");
         return;
     }
 
@@ -1210,7 +1229,8 @@ async function loadClientsForSelection() {
     try {
         const user = firebase.auth().currentUser;
         if (!user) {
-             throw new Error("User not authenticated."); // Throw error to be caught below
+             // Corrected throw new Error to match existing log style for caught errors.
+             throw new Error("[Modal Load Clients] User not authenticated.");
         }
 
         const clientsPath = `users/${user.uid}/clients`;
@@ -1259,7 +1279,7 @@ async function loadClientsForSelection() {
         }
         console.log('[Modal] Clients loaded and displayed.');
     } catch (error) {
-        console.error("Error loading clients:", error);
+        console.error("[Modal Load Clients] Error loading clients:", error); // Standardized error log
         existingClientsContainer.innerHTML = ''; // Clear loading message on error
         clientLoadingErrorMsg.textContent = `Failed to load clients: ${error.message || 'Please try again.'}`;
         clientLoadingErrorMsg.classList.remove('hidden');
@@ -1319,9 +1339,9 @@ function populateConfirmationDetails() {
 
 // --- NEW: Cancel Confirmation Modal Management ---
 function openCancelConfirmModal(bookingId, clientName = 'this client') { // Accept optional client name for message
-    console.log('[Modal Debug] Entering openCancelConfirmModal'); // Log entry
+    console.log('[Modal Debug] Entering openCancelConfirmModal for bookingId:', bookingId); // Log entry with bookingId
     if (!bookingId) {
-        console.error("Cannot open cancel confirmation: Booking ID is missing.");
+        console.error("[Modal Cancel Confirm] Cannot open cancel confirmation: Booking ID is missing."); // Standardized error log
         return;
     }
     
@@ -1332,7 +1352,7 @@ function openCancelConfirmModal(bookingId, clientName = 'this client') { // Acce
 
     if (!cancelConfirmModal || !cancelConfirmBackdrop) {
         console.error('[Modal Debug] Cannot open cancel modal - element reference is null!');
-        alert('Error: Cannot display cancellation confirmation.');
+        alert('Error: Cannot display cancellation confirmation.'); // Keep alert for user feedback
         return;
     }
 
@@ -1357,12 +1377,12 @@ function openCancelConfirmModal(bookingId, clientName = 'this client') { // Acce
 function closeCancelConfirmModal() {
     console.log('[Modal Debug] Entering closeCancelConfirmModal'); // Log entry
     // --- Debug: Log Element References ---
-    console.log('[Modal Debug] cancelConfirmModal reference:', cancelConfirmModal);
-    console.log('[Modal Debug] cancelConfirmBackdrop reference:', cancelConfirmBackdrop);
+    console.log('[Modal Debug] cancelConfirmModal reference:', cancelConfirmModal); // Kept for specific debugging
+    console.log('[Modal Debug] cancelConfirmBackdrop reference:', cancelConfirmBackdrop); // Kept for specific debugging
     // --- End Debug ---
     
     if (!cancelConfirmModal || !cancelConfirmBackdrop) {
-         console.error('[Modal Debug] Cannot close cancel modal - element reference is null!');
+         console.error('[Modal Cancel Confirm] Cannot close cancel modal - element reference is null!'); // Standardized error log
          return; // Prevent errors if elements aren't found
     }
     
@@ -1390,12 +1410,13 @@ function closeCancelConfirmModal() {
 async function openBookingDetailModal(bookingId) {
     console.log('[Detail Modal] Opening for bookingId:', bookingId);
     const modal = document.getElementById('booking-detail-modal');
+    // Ensure content and modalTitle are consistently referred or checked
     const content = document.getElementById('booking-detail-content');
-    const modalTitle = document.getElementById('booking-detail-title'); // Assume title element exists
+    const modalTitle = document.getElementById('booking-detail-title');
     const user = firebase.auth().currentUser;
 
-    if (!modal || !content || !modalTitle || !user) {
-        console.error('Modal elements or user not found for booking detail');
+    if (!modal || !content || !modalTitle || !user) { // Added content and modalTitle check here for robustness
+        console.error('[Detail Modal] Modal elements (modal, content, title) or user not found for booking detail');
         return;
     }
 
@@ -1407,12 +1428,12 @@ async function openBookingDetailModal(bookingId) {
         const bookingData = await firestoreService.getBookingDetails(user.uid, bookingId);
         console.log("[Detail Modal] Booking data fetched:", bookingData);
         if (!bookingData) {
-            throw new Error('Booking data not found.');
+            throw new Error('Booking data not found.'); // This will be caught by the catch block
         }
 
         // 2. Fetch Homeowner Profile OR Client Details (for instructions/notes)
-        let homeownerProfile = null;
-        let clientDetailsFromList = null; 
+        let homeownerProfile = null; // Initialize as null
+        let clientDetailsFromList = null; // Initialize as null
         if (bookingData.clientId) { 
             try {
                 homeownerProfile = await firestoreService.getHomeownerProfile(bookingData.clientId);
@@ -1505,12 +1526,12 @@ async function openBookingDetailModal(bookingId) {
         hideLoading();
 
         // --- Add More Logging and Ensure Visibility Logic --- 
-        console.log('[Detail Modal] About to remove hidden class from modal:', modal);
-        console.log('[Detail Modal] Modal classes BEFORE remove:', modal.className);
+        console.log('[Detail Modal] About to remove hidden class from modal:', modal.id); // Use modal.id for clarity
+        console.log('[Detail Modal] Modal classes BEFORE remove hidden:', modal.className); // Use 'hidden' in log
         modal.classList.remove('hidden');
-        console.log('[Detail Modal] Modal classes AFTER remove:', modal.className);
+        console.log('[Detail Modal] Modal classes AFTER remove hidden:', modal.className); // Use 'hidden' in log
 
-        const backdrop = document.getElementById('booking-detail-backdrop');
+        const backdrop = document.getElementById('booking-detail-backdrop'); // ensure backdrop ID is correct
         if (backdrop) {
             console.log('[Detail Modal] Showing backdrop');
             backdrop.classList.remove('hidden');
@@ -1532,10 +1553,15 @@ async function openBookingDetailModal(bookingId) {
     } catch (error) {
         hideLoading();
         console.error('[Detail Modal] Error loading booking details:', error);
+        if (content) { // Check if content exists before modifying
         content.innerHTML = `<p class="text-red-500 p-4">Error loading details: ${error.message}</p>`;
-        // Optionally set a default title or hide it
+        }
+        if (modalTitle) { // Check if modalTitle exists
         modalTitle.textContent = 'Error'; 
+        }
+        if (modal) { // Check if modal exists
         modal.classList.remove('hidden'); // Show modal even on error to display message
+        }
     }
 }
 
@@ -1591,7 +1617,7 @@ function setupModalButtons(modalElement, bookingData) {
 async function handleSaveDetailsClick() {
     const modal = document.getElementById('booking-detail-modal');
     if (!modal) {
-        console.error('[Save Details] Modal element not found!');
+        console.error('[Save Details] Modal element (booking-detail-modal) not found!'); // Clarified modal ID
         return;
     }
 
@@ -1605,6 +1631,8 @@ async function handleSaveDetailsClick() {
     // const currentHousekeeperNote = document.getElementById('detail-modal-housekeeper-note').value.trim(); // REMOVED - Textarea no longer exists
 
     if (!bookingId || !housekeeperId) {
+        // Using showErrorMessage for user feedback, and console.error for dev logs
+        console.error('[Save Details] Could not save notes: Missing bookingId or housekeeperId.');
         showErrorMessage('Could not save notes: Missing necessary booking or user information.');
         return;
     }
@@ -1689,176 +1717,62 @@ function closeBookingDetailModal() {
 }
 // --- END NEW ---
 
-// <<< RESTORED DOMContentLoaded Listener and its contents >>>
-// --- Initialization and Event Listeners ---
-document.addEventListener('DOMContentLoaded', () => {
-    currentWeekStart = dateUtils.getStartOfWeek(new Date()); // Initialize to current week's Monday
-
-    // Initial load & Auth Listener
-    firebase.auth().onAuthStateChanged(user => {
-        if (user) {
-            console.log('Auth state changed, user logged in. Loading schedule...');
-            loadUserSchedule(); 
-    if (!bookingHandlersInitialized) {
-                 setupBookingModalListeners(); 
-        bookingHandlersInitialized = true;
-    }
-        } else {
-            console.log('No user logged in, redirecting...');
-            // Assuming auth-router handles redirection, or uncomment below if needed
-            // window.location.href = '/'; 
-        }
-    });
-
-    // Navigation Listeners
-    document.getElementById('prev-week')?.addEventListener('click', () => {
-        if(firebase.auth().currentUser) {
-             currentWeekStart = dateUtils.addDays(currentWeekStart, -7);
-             fetchAndRenderSchedule(currentWeekStart, firebase.auth().currentUser.uid);
-        }
-    });
-    document.getElementById('next-week')?.addEventListener('click', () => {
-        if(firebase.auth().currentUser) {
-             currentWeekStart = dateUtils.addDays(currentWeekStart, 7);
-             fetchAndRenderSchedule(currentWeekStart, firebase.auth().currentUser.uid);
-        }
-    });
-    document.getElementById('today-btn')?.addEventListener('click', () => {
-        if(firebase.auth().currentUser) {
-             currentWeekStart = dateUtils.getStartOfWeek(new Date());
-             fetchAndRenderSchedule(currentWeekStart, firebase.auth().currentUser.uid);
-        }
-    });
-
-    // --- ADD: Event Listeners for Cancel Confirmation Modal ---
-    confirmCancelBookingBtn?.addEventListener('click', executeBookingCancellation); // Added safe navigation
-    keepBookingBtn?.addEventListener('click', closeCancelConfirmModal); // Added safe navigation
-    closeCancelModalBtnX?.addEventListener('click', closeCancelConfirmModal); // Added safe navigation
-    cancelConfirmBackdrop?.addEventListener('click', closeCancelConfirmModal); // Added safe navigation
-    // --- END ADD ---
-
-    // --- ADD: Event Listeners for Booking Detail Modal (Backdrop and NEW Header Close) ---
-    document.getElementById('close-detail-modal-btn-x')?.addEventListener('click', closeBookingDetailModal);
-    bookingDetailBackdrop?.addEventListener('click', closeBookingDetailModal); // Existing backdrop listener
-    // --- END ADD ---
-
-    // Event Delegation for Schedule Actions (including cancel AND view details)
-    const scheduleContainer = document.getElementById('schedule-container');
-    if (scheduleContainer) {
-        scheduleContainer.addEventListener('click', (event) => {
-            // --- Debug: Log the clicked element ---
-            console.log('[Schedule Click Listener] Clicked element:', event.target);
-            // --- End Debug ---
-            
-            const targetElement = event.target;
-            
-            // Check for View Details click (on the slot div itself)
-            const detailSlot = targetElement.closest('[data-action="view_details"]');
-            if (detailSlot) {
-                 const bookingId = detailSlot.dataset.bookingId;
-                 console.log(`[Schedule Click Listener] View details clicked for booking: ${bookingId}`);
-                 if (bookingId) {
-                     openBookingDetailModal(bookingId);
-                 }
-                 return; // Prevent further checks if detail view was triggered
-            }
-
-            // Check for BOOK button click on AVAILABLE slot
-            const bookButton = targetElement.closest('button[data-action="book_slot"]');
-            if (bookButton) {
-                const slotDataStr = bookButton.dataset.slotData;
-                if (slotDataStr) {
-                    try {
-                        const slotData = JSON.parse(slotDataStr);
-                        console.log('Available slot BOOK button clicked:', slotData.start, slotData);
-                        openBookingModal(slotData); // Open the NEW booking modal
-                    } catch (e) {
-                        console.error("Error parsing slot data for booking:", e);
-                    }
-                } else {
-                    console.error('Missing slot data on book button');
-                }
-                 return;
-            }
-
-            // Check for clicks on the AVAILABLE slot AREA (not the button) -> Also open booking modal
-            const availableSlotArea = targetElement.closest('.bg-blue-100[data-slot-data]'); // Target the blue background div with data
-             if (availableSlotArea && !bookButton) { // Ensure it wasn't the button itself
-                 const slotDataStr = availableSlotArea.dataset.slotData;
-                 if (slotDataStr) {
-                     try {
-                         const slotData = JSON.parse(slotDataStr);
-                         console.log('Available slot area clicked (not button):', slotData.start, slotData);
-                         openBookingModal(slotData); // Open the NEW booking modal
-                     } catch (e) {
-                         console.error("Error parsing slot data for booking from area click:", e);
-                     }
-                 } else {
-                     console.error('Missing slot data on available slot area');
-                 }
-                 return;
-             }
-
-            // Check for Pending Action click (existing logic)
-            const pendingButton = targetElement.closest('button[data-action="confirm"], button[data-action="reject"]');
-            if (pendingButton) {
-                 console.log('[Schedule Click Listener] Pending action button clicked'); // Debug log
-                handlePendingAction(event); 
-                 return;
-            }
-            
-            // --- Debug: Log if no specific action was detected ---
-            console.log('[Schedule Click Listener] Click detected, but no specific action target found (view details, cancel, pending, book).');
-            // --- End Debug ---
-        });
-    } else {
-        console.error('Schedule container not found for action delegation.');
-    }
-
-    // Handle logout if a logout button exists on this page
-    // Ensure the button has id="logout-button"
-    const logoutButton = document.getElementById('logout-button');
-    logoutButton?.addEventListener('click', () => {
-        firebase.auth().signOut()
-            .then(() => {
-                console.log('User signed out successfully');
-                // Auth router should handle redirect automatically
-                // window.location.href = '/'; 
-            })
-            .catch((error) => {
-                console.error('Sign out error:', error);
-                alert('Error signing out.');
-            });
-    });
-}); // <<< RESTORED Closing brace and parenthesis for DOMContentLoaded listener
-
 // --- NEW: Incoming Service Requests Logic ---
 
 // Helper function to ensure userProfile is available
 async function ensureUserProfile() {
     if (userProfile && userProfile.uid) return userProfile;
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => { // Added reject for robustness
+        const timeoutDuration = 10000; // 10 seconds timeout
+        let listenerTriggered = false;
+
         const unsubscribe = firebase.auth().onAuthStateChanged(user => {
+            listenerTriggered = true;
             if (user) {
-                userProfile = user; // Also set the global userProfile here
+                userProfile = user; 
+                console.log('[Auth Ensure] User resolved via onAuthStateChanged:', user.uid);
                 resolve(user);
-                unsubscribe(); // Clean up listener
+                unsubscribe(); 
             } else if (firebase.auth().currentUser) {
-                // Sometimes currentUser is available synchronously after a reload
                 userProfile = firebase.auth().currentUser;
+                console.log('[Auth Ensure] User resolved via currentUser sync:', userProfile.uid);
                 resolve(userProfile);
                 unsubscribe();
             } else {
-                // If still no user, this will hang until auth state changes or times out elsewhere.
-                // Consider adding a timeout or rejection if auth never resolves.
-                console.warn('[Auth Ensure] Waiting for user authentication...');
+                // This path means onAuthStateChanged fired with no user, and currentUser is also null.
+                // This is a valid state if user is logged out.
+                console.warn('[Auth Ensure] onAuthStateChanged fired with no user, and currentUser is null. Waiting for login or timeout.');
+                // Don't reject here yet, wait for timeout or subsequent login.
             }
         });
+
+        // Fallback / Timeout
+        setTimeout(() => {
+            if (!listenerTriggered && !userProfile) { // If listener never fired AND userProfile still null
+                const syncUser = firebase.auth().currentUser;
+                if (syncUser) {
+                    userProfile = syncUser;
+                    console.log('[Auth Ensure] User resolved via timeout fallback (currentUser sync):', userProfile.uid);
+                    resolve(userProfile);
+                } else {
+                    console.error('[Auth Ensure] Timeout: User authentication could not be resolved.');
+                    reject(new Error('User authentication timeout.'));
+                }
+                unsubscribe(); // Clean up listener in case of timeout resolution
+            } else if (!userProfile && listenerTriggered) {
+                 // Listener fired but resolved to no user (logged out state), and no userProfile yet.
+                 console.warn('[Auth Ensure] Timeout after onAuthStateChanged (no user). Assuming logged out.');
+                 reject(new Error('User is logged out.')); // Consider this a "resolved" logged-out state.
+                 unsubscribe();
+            }
+            // If userProfile is already set by the listener, the promise is already resolved, do nothing here.
+        }, timeoutDuration);
     });
 }
 
 async function fetchPendingRequests() {
-    await ensureUserProfile(); // Wait for userProfile to be set
+    try { // Added try-catch around ensureUserProfile
+        await ensureUserProfile(); 
     if (!userProfile || !userProfile.uid) {
         console.error('[Pending Requests] User not logged in or UID missing after ensure.');
         return [];
@@ -1880,6 +1794,11 @@ async function fetchPendingRequests() {
         const requests = requestsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         console.log('[Pending Requests] Fetched:', requests);
         return requests;
+        } catch (error) {
+            console.error('[Pending Requests] Error fetching pending requests:', error);
+            showErrorMessage('Could not load incoming requests. Check console.');
+            return [];
+        }
     } catch (error) {
         console.error('[Pending Requests] Error fetching pending requests:', error);
         showErrorMessage('Could not load incoming requests. Check console.');
@@ -1929,12 +1848,42 @@ function displayPendingRequests(requests) {
                 }
             }
 
+            // --- NEW: Format Frequency for Display in List Item ---
+            let frequencyDisplayHtml = '';
+            if (request.frequency && request.frequency !== 'one-time') {
+                // Attempt to get display text from homeowner's requestFrequencySelect if it were available here
+                // For now, just capitalize the value from DB
+                let frequencyText = request.frequency.charAt(0).toUpperCase() + request.frequency.slice(1);
+                
+                // We don't have direct access to the homeowner's <select> options here.
+                // A more robust solution might involve storing display names or a mapping if complex.
+                // For now, this simple capitalization will work for "weekly", "monthly", "bi-weekly".
+
+                let recurringEndDateText = '';
+                if (request.recurringEndDate) {
+                    try {
+                        // Use imported dateUtils for formatting if available, otherwise basic toLocaleDateString
+                        const endDateObj = new Date(request.recurringEndDate); // Assumes YYYY-MM-DD
+                        const formattedEndDate = (typeof dateUtils !== 'undefined' && dateUtils.formatDate)
+                            ? dateUtils.formatDate(endDateObj, 'short-date') 
+                            : endDateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+                        recurringEndDateText = ` until ${formattedEndDate}`;
+                    } catch (e) { 
+                        console.warn("[Pending Requests] Error formatting recurring end date for display:", e); 
+                        recurringEndDateText = request.recurringEndDate ? ` until ${request.recurringEndDate}` : ''; // Fallback
+                    }
+                }
+                frequencyDisplayHtml = `<p class="text-xs text-gray-500 mt-1">Frequency: ${escapeHtml(frequencyText)}${escapeHtml(recurringEndDateText)}</p>`;
+            }
+            // --- END NEW ---
+
             requestEl.innerHTML = `
                 <div class="flex justify-between items-center">
                     <h4 class="font-semibold text-md">${escapeHtml(request.homeownerName || 'Unknown Homeowner')}</h4>
                     <span class="text-sm text-yellow-600">Pending Review</span>
                 </div>
                 <p class="text-sm text-gray-600">Date: ${escapeHtml(formattedReqListDate)} (${escapeHtml(timeWindow)})</p>
+                ${frequencyDisplayHtml} <!-- NEW: Insert frequency display here -->
                 <p class="text-sm text-gray-600">Services: ${escapeHtml(serviceSummary)}</p>
                 <p class="text-sm text-gray-600">Est. Total: $${request.estimatedTotalPrice ? request.estimatedTotalPrice.toFixed(2) : 'N/A'}</p>
             `;
@@ -1942,15 +1891,16 @@ function displayPendingRequests(requests) {
             incomingRequestsList.appendChild(requestEl);
         });
     }
-    // Toggle visibility
-    mainScheduleContainer.classList.add('hidden');
-    incomingRequestsContainer.classList.remove('hidden');
+    // // Toggle visibility -- Ensure these lines are commented out or removed
+    // mainScheduleContainer.classList.add('hidden');
+    // incomingRequestsContainer.classList.remove('hidden');
 }
 
 async function updatePendingRequestCountBadge() {
     if (!incomingRequestsBadge) return;
     try {
-        await ensureUserProfile(); // Wait for userProfile
+        await ensureUserProfile(); 
+        // Removed the explicit check for userProfile here, as ensureUserProfile should handle it or throw
         const pendingRequests = await fetchPendingRequests(); 
         const count = pendingRequests.length;
         incomingRequestsBadge.textContent = count;
@@ -1968,6 +1918,7 @@ async function updatePendingRequestCountBadge() {
 // STUBS for modal functions
 function openRequestReviewModal(requestData) {
     console.log('[Request Review Modal] Opening for request:', requestData);
+    currentOpenRequestDataForAI = requestData; // <<<< ASSIGN CURRENT REQUEST DATA
 
     const modalElement = document.getElementById('booking-detail-modal');
     if (!modalElement) {
@@ -1976,38 +1927,32 @@ function openRequestReviewModal(requestData) {
     }
 
     const modalTitle = document.getElementById('booking-detail-title');
-    const modalContent = document.getElementById('booking-detail-content');
+    // NEW DOM element references for the redesigned modal
+    const requestDateDisplay = document.getElementById('request-date-display');
+    const requestPropertyOverviewDisplay = document.getElementById('request-property-overview-display');
+    const requestServicesDisplay = document.getElementById('request-services-display');
+    const requestNotesDisplay = document.getElementById('request-notes-display');
+    const requestInitialPriceDisplay = document.getElementById('request-initial-price-display');
+    const housekeeperQuotedPriceInput = document.getElementById('housekeeper-quoted-price');
 
     if (modalTitle) modalTitle.textContent = `Review Request: ${escapeHtml(requestData.homeownerName || 'Unknown')}`;
     
-    if (modalContent) {
-        // Remove initial "Loading details..." placeholder paragraph if it exists directly in modalContent
-        const placeholderP = modalContent.querySelector('p.text-gray-500.italic');
-        if (placeholderP && placeholderP.textContent.includes('Loading details...') && placeholderP.parentElement === modalContent) {
-            placeholderP.remove();
-        }
+    // Clear previous dynamic content
+    if (requestDateDisplay) requestDateDisplay.innerHTML = '';
+    if (requestPropertyOverviewDisplay) requestPropertyOverviewDisplay.innerHTML = '<p class="italic text-gray-500">Loading property info...</p>';
+    if (requestServicesDisplay) requestServicesDisplay.innerHTML = '';
+    if (requestNotesDisplay) requestNotesDisplay.innerHTML = '';
+    if (requestInitialPriceDisplay) requestInitialPriceDisplay.innerHTML = '';
+    if (housekeeperQuotedPriceInput) housekeeperQuotedPriceInput.value = '';
 
-        // Ensure propose-alternative-form is initially hidden when details are reloaded
-        const proposalForm = modalContent.querySelector('#propose-alternative-form');
+
+    // Ensure propose-alternative-form is initially hidden
+    const proposalForm = document.getElementById('propose-alternative-form');
         if (proposalForm) proposalForm.classList.add('hidden');
 
-        // Create a wrapper for the request details to easily show/hide them
-        let requestDetailsDisplay = modalContent.querySelector('#request-details-display');
-        if (!requestDetailsDisplay) {
-            requestDetailsDisplay = document.createElement('div');
-            requestDetailsDisplay.id = 'request-details-display';
-            // Prepend it so proposal form (if already in HTML) comes after
-            modalContent.insertBefore(requestDetailsDisplay, modalContent.firstChild);
-        } else {
-            requestDetailsDisplay.classList.remove('hidden'); // Ensure it's visible
-        }
+    // --- Populate Homeowner's Request Summary ---
 
-        let contentHtml = '<div class="space-y-3">'; // This will go INSIDE request-details-display
-
-        // Homeowner Name (already in title, but can repeat if desired or add other homeowner info)
-        // contentHtml += `<div><p class="text-sm font-medium text-gray-600">Homeowner:</p><p>${escapeHtml(requestData.homeownerName || 'N/A')}</p></div>`;
-
-        // Requested Date & Time - using UTC interpretation for display to match YYYY-MM-DD input
+    // Requested Date & Time
         let formattedReqDate = 'N/A';
         if (requestData.preferredDate && typeof requestData.preferredDate === 'string') {
             const parts = requestData.preferredDate.split('-');
@@ -2024,44 +1969,150 @@ function openRequestReviewModal(requestData) {
             }
         }
         const timeWindow = requestData.preferredTimeWindow || 'Any time';
-        contentHtml += `<div><p class="text-sm font-medium text-gray-600">Requested Date:</p><p>${escapeHtml(formattedReqDate)} (${escapeHtml(timeWindow)})</p></div>`;
+    if (requestDateDisplay) {
+        requestDateDisplay.innerHTML = `<p><span class=\"font-medium text-gray-700\">Requested Date:</span> ${escapeHtml(formattedReqDate)} (${escapeHtml(timeWindow)})</p>`;
+    }
 
-        // Base Services
-        if (requestData.baseServices && requestData.baseServices.length > 0) {
-            contentHtml += '<div><p class="text-sm font-medium text-gray-600">Base Service(s):</p><ul class="list-disc list-inside pl-4 text-sm">';
-            requestData.baseServices.forEach(service => {
-                contentHtml += `<li>${escapeHtml(service.name)} ($${service.price.toFixed(2)})</li>`;
-            });
-            contentHtml += '</ul></div>';
+    // Frequency
+    if (requestData.frequency && requestData.frequency !== 'one-time') {
+        let frequencyText = requestData.frequency.charAt(0).toUpperCase() + requestData.frequency.slice(1);
+        let recurringEndDateText = '';
+        if (requestData.recurringEndDate) {
+            try {
+                const endDateObj = new Date(requestData.recurringEndDate);
+                const formattedEndDate = (typeof dateUtils !== 'undefined' && dateUtils.formatDate)
+                    ? dateUtils.formatDate(endDateObj, 'medium-date')
+                    : endDateObj.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+                recurringEndDateText = ` until ${formattedEndDate}`;
+            } catch (e) {
+                recurringEndDateText = requestData.recurringEndDate ? ` until ${requestData.recurringEndDate}` : '';
+            }
+        }
+        if (requestDateDisplay) { // Append to date display
+            requestDateDisplay.innerHTML += `<br><p><span class=\"font-medium text-gray-700\">Frequency:</span> ${escapeHtml(frequencyText)}${escapeHtml(recurringEndDateText)}</p>`;
+        }
+    }
+    
+    // Property Overview (fetch homeowner profile for this)
+    if (requestData.homeownerId && requestData.homeownerId !== 'manual_booking_client') {
+        firestoreService.getHomeownerProfile(requestData.homeownerId).then(profile => {
+            if (profile && requestPropertyOverviewDisplay) {
+                let overview = '<i class="fas fa-home mr-1.5 text-gray-500"></i> Property: ';
+                overview += `${escapeHtml(profile.homeType || 'N/A')}`;
+                if (profile.squareFootage) overview += ` - ${escapeHtml(profile.squareFootage)} sq ft`;
+                if (profile.numBedrooms) overview += `, ${escapeHtml(profile.numBedrooms)} bed(s)`;
+                if (profile.numBathrooms) overview += `, ${escapeHtml(profile.numBathrooms)} bath(s)`;
+                requestPropertyOverviewDisplay.innerHTML = `<p>${overview}</p>`;
+            } else if (requestPropertyOverviewDisplay) {
+                requestPropertyOverviewDisplay.innerHTML = '<p class="italic text-gray-500"><i class="fas fa-home mr-1.5 text-gray-500"></i> Property details not found.</p>';
+            }
+        }).catch(err => {
+            console.error("Error fetching homeowner profile for overview:", err);
+            if (requestPropertyOverviewDisplay) requestPropertyOverviewDisplay.innerHTML = '<p class="italic text-red-500"><i class="fas fa-exclamation-circle mr-1.5"></i> Error loading property info.</p>';
+        });
+    } else if (requestPropertyOverviewDisplay) {
+         requestPropertyOverviewDisplay.innerHTML = '<p class="italic text-gray-500"><i class="fas fa-home mr-1.5 text-gray-500"></i> Property details not applicable (manual/no profile).</p>';
+    }
+
+
+    // Services - This part needs to become asynchronous due to fetching service details
+    // Clear it first
+    if (requestServicesDisplay) requestServicesDisplay.innerHTML = '<p class="italic text-gray-500">Loading service details...</p>';
+
+    async function populateServicesWithRanges() {
+        let servicesHtml = '';
+        const housekeeperId = firebase.auth().currentUser ? firebase.auth().currentUser.uid : null;
+
+        if (!housekeeperId) {
+            if (requestServicesDisplay) requestServicesDisplay.innerHTML = '<p class="italic text-red-500">Error: Could not identify housekeeper to load service ranges.</p>';
+            return;
         }
 
-        // Add-on Services
-        if (requestData.addonServices && requestData.addonServices.length > 0) {
-            contentHtml += '<div><p class="text-sm font-medium text-gray-600">Add-on Service(s):</p><ul class="list-disc list-inside pl-4 text-sm">';
-            requestData.addonServices.forEach(service => {
-                contentHtml += `<li>${escapeHtml(service.name)} ($${service.price.toFixed(2)})</li>`;
-            });
-            contentHtml += '</ul></div>';
+        const processServiceList = async (serviceList, listTitle) => {
+            if (serviceList && serviceList.length > 0) {
+                servicesHtml += `<p class="font-medium text-gray-700">${listTitle}:</p><ul class="list-disc list-inside pl-4 text-sm">`;
+                for (const service of serviceList) {
+                    let rangeText = '';
+                    try {
+                        const fullServiceDetails = await firestoreService.getServiceDetails(housekeeperId, service.id);
+                        if (fullServiceDetails && fullServiceDetails.homeownerVisibleMinPrice > 0 && fullServiceDetails.homeownerVisibleMaxPrice > 0) {
+                            rangeText = ` (Your Range: $${fullServiceDetails.homeownerVisibleMinPrice.toFixed(2)} - $${fullServiceDetails.homeownerVisibleMaxPrice.toFixed(2)})`;
+                        } else if (fullServiceDetails && (fullServiceDetails.homeownerVisibleMinPrice > 0 || fullServiceDetails.homeownerVisibleMaxPrice > 0)) {
+                            // Handle if only one is set, though UI should enforce both or neither for range
+                            rangeText = ` (Your Set Price: $${(fullServiceDetails.homeownerVisibleMinPrice || fullServiceDetails.homeownerVisibleMaxPrice).toFixed(2)})`;
+                        } else if (fullServiceDetails && fullServiceDetails.basePrice > 0 && !(fullServiceDetails.homeownerVisibleMinPrice > 0)) {
+                            // If it's a flat rate service (basePrice set, but no min/max range was set by housekeeper for display)
+                             rangeText = ` (Your Set Flat Rate: $${fullServiceDetails.basePrice.toFixed(2)})`;
+                        }
+                    } catch (err) {
+                        console.warn(`Error fetching details for service ${service.id}:`, err);
+                        rangeText = ' (Range not available)';
+                    }
+                    servicesHtml += `<li>${escapeHtml(service.name)} ($${service.price.toFixed(2)})${rangeText}</li>`;
+                }
+                servicesHtml += '</ul>';
+            }
+        };
+
+        await processServiceList(requestData.baseServices, 'Base Service(s)');
+        await processServiceList(requestData.addonServices, 'Add-on Service(s)');
+
+        if (requestServicesDisplay) {
+            requestServicesDisplay.innerHTML = servicesHtml || '<p class="italic text-gray-500">No specific services listed or ranges unavailable.</p>';
         }
+    }
+
+    populateServicesWithRanges(); // Call the async function to populate services
 
         // Homeowner Notes
+    if (requestNotesDisplay) {
         if (requestData.notes) {
-            contentHtml += `<div><p class="text-sm font-medium text-gray-600">Homeowner Notes:</p><p class="text-sm p-2 bg-gray-50 rounded whitespace-pre-wrap">${escapeHtml(requestData.notes)}</p></div>`;
+            requestNotesDisplay.innerHTML = `<p class="font-medium text-gray-700">Homeowner Notes:</p><p class="text-sm p-2 bg-gray-50 rounded whitespace-pre-wrap border">${escapeHtml(requestData.notes)}</p>`;
         } else {
-            contentHtml += `<div><p class="text-sm font-medium text-gray-600">Homeowner Notes:</p><p class="text-sm italic">No notes provided.</p></div>`;
+            requestNotesDisplay.innerHTML = `<p class="font-medium text-gray-700">Homeowner Notes:</p><p class="text-sm italic">No notes provided.</p>`; // Standardized "No notes"
         }
+    }
 
-        // Estimated Total Price
-        contentHtml += `<div class="mt-4 pt-3 border-t"><p class="text-sm font-medium text-gray-600">Estimated Total:</p><p class="text-lg font-semibold">$${requestData.estimatedTotalPrice ? requestData.estimatedTotalPrice.toFixed(2) : 'N/A'}</p></div>`;
+    // Homeowner's Initial Estimated Price
+    if (requestInitialPriceDisplay) {
+        requestInitialPriceDisplay.innerHTML = `<p class="font-medium text-gray-700">Homeowner's Initial Estimated Price:</p><p class="text-lg font-semibold text-gray-800">$${requestData.estimatedTotalPrice ? requestData.estimatedTotalPrice.toFixed(2) : 'N/A'}</p>`;
+    }
+    
+    // Pre-fill "Your Quoted Price" input
+    if (housekeeperQuotedPriceInput) {
+        housekeeperQuotedPriceInput.value = requestData.estimatedTotalPrice ? requestData.estimatedTotalPrice.toFixed(2) : '';
+    }
 
-        contentHtml += '</div>'; // Close space-y-3
-        // modalContent.innerHTML = contentHtml; // OLD WAY
-        requestDetailsDisplay.innerHTML = contentHtml; // NEW: Populate the dedicated div
+    // --- AI Suggestion Section Handling ---
+    const aiSuggestionSection = document.getElementById('ai-suggestion-section');
+    if (aiSuggestionSection) {
+        aiSuggestionSection.dataset.requestId = requestData.id;
+        aiSuggestionSection.dataset.homeownerId = requestData.homeownerId; 
+        
+        const currentAiSuggestionDisplay = aiSuggestionSection.querySelector('#ai-suggestion-display');
+        const currentAiSuggestionError = aiSuggestionSection.querySelector('#ai-suggestion-error');
+        const currentAiLoadingIndicator = aiSuggestionSection.querySelector('#ai-loading-indicator');
+        const getSuggestionButtonInModal = aiSuggestionSection.querySelector('#get-ai-suggestion-btn');
+
+        if (currentAiSuggestionDisplay) currentAiSuggestionDisplay.innerHTML = ''; // Clear previous AI suggestion
+        if (currentAiSuggestionError) {
+            currentAiSuggestionError.textContent = '';
+            currentAiSuggestionError.classList.add('hidden');
+        }
+        if (currentAiLoadingIndicator) currentAiLoadingIndicator.classList.add('hidden');
+        if (getSuggestionButtonInModal) getSuggestionButtonInModal.disabled = false;
+        
+        // REMOVED: Call to displayPropertyDetailsInModal as it populated the now-removed div
+        // if (requestData.homeownerId) {
+        //     displayPropertyDetailsInModal(requestData.homeownerId);
+        // } else {
+        //     const aiPropertyDetailsSummary = document.getElementById(\'ai-property-details-summary\'); // This element is now removed
+        //     if (aiPropertyDetailsSummary) aiPropertyDetailsSummary.innerHTML = \'<p class="italic text-gray-500">Property details not available for AI (manual/no profile).</p>\';
+        // }
     }
     
     setupRequestActionButtons(modalElement, requestData);
 
-    // Show modal 
     modalElement.classList.remove('hidden');
     modalElement.style.transform = 'translateY(0)';
     const backdrop = document.getElementById('booking-detail-backdrop');
@@ -2117,13 +2168,20 @@ function setupRequestActionButtons(modalElement, requestData) {
 async function handleApproveRequest(requestId, requestData) {
     console.log(`[Request Action] Approve clicked for request ID: ${requestId}`, requestData);
     
-    closeBookingDetailModal(); // Close the review modal first
+    const housekeeperQuotedPriceInput = document.getElementById('housekeeper-quoted-price');
+    const finalQuotedPrice = housekeeperQuotedPriceInput ? parseFloat(housekeeperQuotedPriceInput.value) : null;
 
-    // Calculate total duration from services in requestData
+    if (finalQuotedPrice === null || isNaN(finalQuotedPrice) || finalQuotedPrice <= 0) {
+        showErrorMessage('Please enter a valid quoted price before approving.');
+        if (housekeeperQuotedPriceInput) housekeeperQuotedPriceInput.focus();
+        return;
+    }
+
+    closeBookingDetailModal(); 
+
     let totalDurationMinutes = 0;
     if (requestData.baseServices && requestData.baseServices.length > 0) {
         requestData.baseServices.forEach(s => { 
-            // Ensure durationMinutes is a number, default to 0 if undefined/null/NaN
             const duration = Number(s.durationMinutes);
             totalDurationMinutes += (isNaN(duration) ? 0 : duration); 
         });
@@ -2136,21 +2194,22 @@ async function handleApproveRequest(requestId, requestData) {
     }
 
     if (totalDurationMinutes === 0 && (requestData.baseServices?.length > 0 || requestData.addonServices?.length > 0)) {
-        console.warn("Service durations were missing or zero for all selected services. Defaulting to 120 minutes for scheduling modal.");
+        console.warn("Service durations were missing or zero. Defaulting to 120 min for scheduling.");
         totalDurationMinutes = 120; 
     } else if (totalDurationMinutes === 0) {
-        console.warn("No services found in request or all services had zero/missing duration. Defaulting to 60 minutes for scheduling modal as a fallback.");
-        totalDurationMinutes = 60; // A shorter fallback if no services were in request but flow proceeded.
+        console.warn("No services found or all durations zero. Defaulting to 60 min.");
+        totalDurationMinutes = 60;
     }
     
     const prefillForScheduling = {
         client: { id: requestData.homeownerId, name: requestData.homeownerName },
-        // Make sure to pass all necessary fields for baseService and addonServices including durationMinutes
         baseService: requestData.baseServices && requestData.baseServices.length > 0 
             ? { 
                 id: requestData.baseServices[0].id, 
                 name: requestData.baseServices[0].name, 
-                price: requestData.baseServices[0].price, // Assuming 'price' is the correct field from requestData
+                // Price here is tricky if housekeeper changed total. For now, keep original service price.
+                // The *actual* booking total will be the housekeeperQuotedPrice.
+                price: requestData.baseServices[0].price, 
                 durationMinutes: Number(requestData.baseServices[0].durationMinutes) || 0
               }
             : null,
@@ -2158,25 +2217,25 @@ async function handleApproveRequest(requestId, requestData) {
             ? requestData.addonServices.map(s => ({ 
                 id: s.id, 
                 name: s.name, 
-                price: s.price, // Assuming 'price' is correct
+                price: s.price,
                 durationMinutes: Number(s.durationMinutes) || 0
             })) 
             : [],
-        originalRequestId: requestId // Pass the original request ID
+        originalRequestId: requestId,
+        finalQuotedPrice: finalQuotedPrice // Pass the housekeeper's final price
     };
 
-    // Convert YYYY-MM-DD from requestData.preferredDate to an ISO string for new Date()
-    // Adding T00:00:00 ensures it's parsed as local start of day, then toISOString converts to UTC.
-    // openBookingModal should handle this ISO string.
     let preferredDateForModal;
     if (requestData.preferredDate && requestData.preferredDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
         preferredDateForModal = new Date(requestData.preferredDate + "T00:00:00").toISOString();
     } else {
-        console.warn("Preferred date from request is missing or invalid, defaulting to today for modal.");
-        preferredDateForModal = new Date().toISOString(); // Default to today if not present
+        console.warn("Preferred date missing/invalid, defaulting to today for modal.");
+        preferredDateForModal = new Date().toISOString(); 
     }
 
     console.log(`[Request Action] Opening scheduling modal with prefill:`, prefillForScheduling, `Date: ${preferredDateForModal}, Duration: ${totalDurationMinutes}`);
+    // The openBookingModal will need to be aware of `finalQuotedPrice`
+    // and the confirmBookingBtn listener will use it for the `totalPrice` in bookingData.
     openBookingModal(preferredDateForModal, totalDurationMinutes, prefillForScheduling);
 }
 
@@ -2187,9 +2246,23 @@ async function handleProposeAlternative(requestData) {
     const detailContent = document.getElementById('booking-detail-content');
     const requestDetailsDisplay = detailContent ? detailContent.querySelector('#request-details-display') : null;
 
-    if (!proposeAlternativeForm || !standardRequestActionsContainer || !proposeAlternativeActionsContainer || !alternativeDateInput || !alternativeTimeInput || !alternativeNotesInput || !requestDetailsDisplay) {
+    // Existing proposal form elements
+    const altDateInput = document.getElementById('alternative-date'); // Renamed for clarity
+    const altTimeInput = document.getElementById('alternative-time'); // Renamed for clarity
+    const altNotesInput = document.getElementById('alternative-notes'); // Renamed for clarity
+
+    // --- NEW: Get DOM elements for proposed frequency ---
+    const altFrequencySelect = document.getElementById('alternative-frequency');
+    const altRecurringEndDateWrapper = document.getElementById('alternative-recurring-end-date-wrapper');
+    const altRecurringEndDateInput = document.getElementById('alternative-recurring-end-date');
+    // --- END NEW ---
+
+    if (!proposeAlternativeForm || !standardRequestActionsContainer || !proposeAlternativeActionsContainer || 
+        !altDateInput || !altTimeInput || !altNotesInput || 
+        !altFrequencySelect || !altRecurringEndDateWrapper || !altRecurringEndDateInput || // Check new elements
+        !requestDetailsDisplay) {
         console.error('One or more elements for "Propose Alternative" form or request display are missing.');
-        showErrorMessage('UI error: Cannot open proposal form.');
+        showErrorMessage('UI error: Cannot open proposal form. Essential elements missing.');
         return;
     }
 
@@ -2197,23 +2270,87 @@ async function handleProposeAlternative(requestData) {
     requestDetailsDisplay.classList.add('hidden');
     proposeAlternativeForm.classList.remove('hidden');
 
-    // Clear and initialize the form
-    alternativeDateInput.value = '';
-    alternativeTimeInput.value = '';
-    alternativeNotesInput.value = '';
-    if (window.flatpickr && alternativeDateInput._flatpickr) {
-        alternativeDateInput._flatpickr.clear();
-         // Set a default date to today or requestData.preferredDate if valid
+    // Clear and initialize the date/time/notes form fields
+    altDateInput.value = '';
+    altTimeInput.value = '';
+    altNotesInput.value = '';
+    if (window.flatpickr && altDateInput._flatpickr) {
+        altDateInput._flatpickr.clear();
         const initialDate = requestData.preferredDate && requestData.preferredDate.match(/^\d{4}-\d{2}-\d{2}$/) 
                             ? requestData.preferredDate 
                             : new Date();
-        alternativeDateInput._flatpickr.setDate(initialDate, false);
+        altDateInput._flatpickr.setDate(initialDate, false);
+    } else {
+        // Fallback if flatpickr not init on this element for some reason
+        altDateInput.value = requestData.preferredDate || dateUtils.formatDate(new Date(), 'YYYY-MM-DD');
+    }
+    altTimeInput.value = requestData.preferredTimeWindow && requestData.preferredTimeWindow.includes(':') ? requestData.preferredTimeWindow : '09:00'; // Default if not specific time
+
+    // --- NEW: Initialize proposed frequency fields ---
+    altFrequencySelect.value = requestData.frequency || 'one-time'; // Default to homeowner's request or 'one-time'
+    
+    if (altFrequencySelect.value === 'one-time') {
+        altRecurringEndDateWrapper.classList.add('hidden');
+    } else {
+        altRecurringEndDateWrapper.classList.remove('hidden');
     }
 
+    if (window.flatpickr && altRecurringEndDateInput) {
+        if (!altRecurringEndDateInput._flatpickr) { // Initialize if not already
+            flatpickr(altRecurringEndDateInput, {
+                altInput: true,
+                altFormat: "F j, Y",
+                dateFormat: "Y-m-d",
+                minDate: "today"
+            });
+        }
+        // Set date if available from original request, otherwise clear
+        if (requestData.recurringEndDate && altFrequencySelect.value !== 'one-time') {
+            altRecurringEndDateInput._flatpickr.setDate(requestData.recurringEndDate, false);
+        } else {
+            altRecurringEndDateInput._flatpickr.clear();
+        }
+    } else if (altRecurringEndDateInput) {
+         // Fallback if flatpickr not available on this specific input
+        altRecurringEndDateInput.value = (requestData.recurringEndDate && altFrequencySelect.value !== 'one-time') ? requestData.recurringEndDate : '';
+    }
+
+    // Event listener for frequency select to show/hide end date picker
+    // Remove previous listener if any to prevent multiple attachments
+    const newAltFrequencySelect = altFrequencySelect.cloneNode(true);
+    altFrequencySelect.parentNode.replaceChild(newAltFrequencySelect, altFrequencySelect);
+    // Re-assign the variable to the new cloned element so the rest of the code uses it.
+    // This is a common way to ensure old listeners are detached before adding new ones.
+    const currentAltFrequencySelect = document.getElementById('alternative-frequency'); // Re-fetch the new element by ID
+
+    if (currentAltFrequencySelect && altRecurringEndDateWrapper && altRecurringEndDateInput) {
+        currentAltFrequencySelect.addEventListener('change', () => {
+            if (currentAltFrequencySelect.value === 'one-time') {
+                altRecurringEndDateWrapper.classList.add('hidden');
+                if (altRecurringEndDateInput._flatpickr) {
+                    altRecurringEndDateInput._flatpickr.clear();
+                }
+            } else {
+                altRecurringEndDateWrapper.classList.remove('hidden');
+                // Optionally, set a minDate for recurringEndDateInput based on alternativeDateInput
+                if (altDateInput._flatpickr && altRecurringEndDateInput._flatpickr) {
+                    const selectedProposeDate = altDateInput._flatpickr.selectedDates[0];
+                    if (selectedProposeDate) {
+                        const nextDay = new Date(selectedProposeDate);
+                        nextDay.setDate(nextDay.getDate() + 1);
+                        altRecurringEndDateInput._flatpickr.set('minDate', nextDay);
+                    }
+                }
+            }
+        });
+        // Trigger change once to set initial state correctly based on pre-filled value
+        currentAltFrequencySelect.dispatchEvent(new Event('change'));
+    }
+    // --- END NEW ---
+
     // Scroll the form into view if it's inside a scrollable container
-    // Ensure the content area is scrollable to see the form if it's long
-    if (bookingDetailContent) bookingDetailContent.scrollTop = bookingDetailContent.scrollHeight;
-    proposeAlternativeForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (bookingDetailContent) bookingDetailContent.scrollTop = 0; // Scroll to top first
+    proposeAlternativeForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
     // Switch action buttons
     standardRequestActionsContainer.classList.add('hidden');
@@ -2238,38 +2375,54 @@ async function handleSendProposal() {
         showErrorMessage('Error: No request data for proposal.');
         return;
     }
-    if (!alternativeDateInput || !alternativeTimeInput) {
-        showErrorMessage('Error: Date or time input fields are missing.');
+    const altDateInput = document.getElementById('alternative-date');
+    const altTimeInput = document.getElementById('alternative-time');
+    const altNotesInput = document.getElementById('alternative-notes');
+    const altFrequencySelect = document.getElementById('alternative-frequency');
+    const altRecurringEndDateInput = document.getElementById('alternative-recurring-end-date');
+    const housekeeperQuotedPriceInput = document.getElementById('housekeeper-quoted-price'); // Get the quoted price input
+
+    if (!altDateInput || !altTimeInput || !altFrequencySelect || !altRecurringEndDateInput || !housekeeperQuotedPriceInput) {
+        showErrorMessage('Error: Essential form fields are missing for the proposal.');
         return;
     }
 
-    const proposedDate = alternativeDateInput.value; // This will be YYYY-MM-DD from Flatpickr
-    const proposedTime = alternativeTimeInput.value; // HH:MM
-    const proposedNotes = alternativeNotesInput ? alternativeNotesInput.value.trim() : '';
+    const proposedDate = altDateInput.value;
+    const proposedTime = altTimeInput.value;
+    const proposedNotes = altNotesInput ? altNotesInput.value.trim() : '';
+    const proposedFrequency = altFrequencySelect.value;
+    const proposedRecurringEndDate = (proposedFrequency !== 'one-time' && altRecurringEndDateInput.value) 
+                                      ? altRecurringEndDateInput.value 
+                                      : null;
+    const finalQuotedPrice = parseFloat(housekeeperQuotedPriceInput.value); // Get the price
 
     if (!proposedDate) {
         showErrorMessage('Please select a proposed date.');
-        alternativeDateInput.focus();
+        altDateInput.focus();
         return;
     }
     if (!proposedTime) {
         showErrorMessage('Please select a proposed time.');
-        alternativeTimeInput.focus();
+        altTimeInput.focus();
         return;
     }
-
-    // Combine date and time, then convert to ISO string for storage, respecting housekeeper's timezone potentially
-    // For simplicity, we'll store as YYYY-MM-DD and HH:MM and notes.
-    // The homeowner side will need to interpret this.
+    if (isNaN(finalQuotedPrice) || finalQuotedPrice <= 0) {
+        showErrorMessage('Please enter a valid quoted price for the proposal.');
+        housekeeperQuotedPriceInput.focus();
+        return;
+    }
     
     const proposalDetails = {
-        proposedDate: proposedDate, // YYYY-MM-DD
-        proposedTime: proposedTime, // HH:MM
+        proposedDate: proposedDate,
+        proposedTime: proposedTime,
         housekeeperNotes: proposedNotes,
+        proposedFrequency: proposedFrequency,
+        proposedRecurringEndDate: proposedRecurringEndDate,
+        proposedPrice: finalQuotedPrice, // Add the quoted price to the proposal
         proposedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
 
-    console.log(`[Request Action] Sending proposal for request ID: ${currentProposingRequestData.id}`, proposalDetails);
+    console.log(`[Housekeeper Send Proposal] Request ID: ${currentProposingRequestData.id}, Sending proposal:`, JSON.parse(JSON.stringify(proposalDetails)));
     showLoading('Sending proposal...');
 
     try {
@@ -2287,10 +2440,9 @@ async function handleSendProposal() {
 
         showSuccessMessage('Alternative proposal sent to homeowner.');
         
-        handleCancelProposalMode(); // Reset UI
-        closeBookingDetailModal();   // Close the main review modal
+        handleCancelProposalMode(); 
+        closeBookingDetailModal();   
 
-        // Refresh pending requests list and badge
         await updatePendingRequestCountBadge();
         const updatedRequests = await fetchPendingRequests();
         displayPendingRequests(updatedRequests);
@@ -2361,23 +2513,71 @@ window.handleDeclineRequest = handleDeclineRequest; // EXPLICITLY ASSIGN TO WIND
 document.addEventListener('DOMContentLoaded', async () => {
     // ... (other existing DOMContentLoaded logic) ...
 
-    if (viewIncomingRequestsBtn) {
+    if (viewIncomingRequestsBtn && !viewIncomingRequestsBtn.hasAttribute('data-listener-set')) { // <<< ADDED GUARD
         viewIncomingRequestsBtn.addEventListener('click', async () => {
-            console.log('[Pending Requests] View Incoming Requests button clicked.');
+            console.log('[View Incoming Requests Button - Guarded First Listener] Clicked. Toggling visibility.');
+
+            const isRequestsContainerCurrentlyVisible = !incomingRequestsContainer.classList.contains('hidden');
+
+            if (isRequestsContainerCurrentlyVisible) {
+                // Action: Switch from Incoming Requests to Schedule View
+                console.log('[View Incoming Requests Button - Guarded First Listener] Switching from Incoming Requests to Schedule View.');
+                incomingRequestsContainer.classList.add('hidden');
+                mainScheduleContainer.classList.remove('hidden');
+
+                // Update button to "Incoming Requests" state
+                if (incomingRequestsTextLabel) incomingRequestsTextLabel.textContent = 'Incoming Requests';
+                if (incomingRequestsIcon) incomingRequestsIcon.className = 'fas fa-bell mr-2';
+                
+                const pageTitleElement = document.getElementById('page-main-title');
+                if (pageTitleElement) pageTitleElement.textContent = 'Schedule'; // Set title to Schedule
+
+                await ensureUserProfile(); 
+                await updatePendingRequestCountBadge();
+                
+                if (mainScheduleContainer.innerHTML.includes("Loading schedule...") || mainScheduleContainer.innerHTML === '') {
+                    console.log('[View Incoming Requests Button - Guarded First Listener] Schedule container was empty or loading; re-triggering loadUserSchedule.');
+                    await loadUserSchedule(true);
+                }
+
+            } else {
+                // Action: Switch from Schedule View to Incoming Requests
+                console.log('[View Incoming Requests Button - Guarded First Listener] Switching from Schedule View to Incoming Requests.');
+                mainScheduleContainer.classList.add('hidden'); 
+                incomingRequestsContainer.classList.remove('hidden'); 
+                
+                if (incomingRequestsTextLabel) incomingRequestsTextLabel.textContent = 'View Schedule';
+                if (incomingRequestsIcon) incomingRequestsIcon.className = 'fas fa-calendar-alt mr-2';
+
+                const pageTitleElement = document.getElementById('page-main-title');
+                if (pageTitleElement) pageTitleElement.textContent = 'Incoming Service Requests'; // Set title to Incoming Requests
+                
             showLoading('Loading requests...');
-            await ensureUserProfile(); // Wait for userProfile
+                try {
+                    await ensureUserProfile(); 
             const requests = await fetchPendingRequests();
             displayPendingRequests(requests);
+                } catch (error) {
+                    console.error('[View Incoming Requests Button - Guarded First Listener] Error fetching or displaying pending requests:', error);
+                    showErrorMessage('Could not load pending requests.');
+                    if(incomingRequestsList) incomingRequestsList.innerHTML = '<p class="text-red-500">Error loading requests.</p>';
+                } finally {
             hideLoading();
+                }
+            }
         });
+        viewIncomingRequestsBtn.setAttribute('data-listener-set', 'true'); // <<< SET ATTRIBUTE
+        console.log('[View Incoming Requests Button - Guarded First Listener] Listener attached.');
+    } else if (viewIncomingRequestsBtn && viewIncomingRequestsBtn.hasAttribute('data-listener-set')) {
+        console.log('[View Incoming Requests Button - Guarded First Listener] Listener ALREADY SET, skipping attachment.');
+    } else if (!viewIncomingRequestsBtn) {
+        console.error('[View Incoming Requests Button - Guarded First Listener] Button not found.');
     }
 
     // Initial update of the badge count
-    // No longer need separate if/else for firebase.auth().currentUser vs onAuthStateChanged
-    // as ensureUserProfile will handle it.
     try {
-        await ensureUserProfile(); // Ensure user profile is loaded
-        if (userProfile) { // Check if userProfile was successfully obtained
+        await ensureUserProfile(); 
+        if (userProfile) {
              housekeeperTimezone = userProfile?.timezone || userSettings?.timezone || dateUtils.getLocalTimezone();
              await updatePendingRequestCountBadge();
         } else {
@@ -2387,15 +2587,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error('[DOMContentLoaded] Error during initial setup for pending requests badge:', error);
     }
 
-    // Ensure close button for booking detail modal is wired up if not already
     const closeDetailX = document.getElementById('close-detail-modal-btn-x');
     if (closeDetailX && typeof closeBookingDetailModal === 'function') {
         closeDetailX.addEventListener('click', closeBookingDetailModal);
     }
 
     currentWeekStart = dateUtils.getStartOfWeek(new Date());
-// ... existing code ...
-
+    // ... (rest of DOMContentLoaded, including Flatpickr initialization etc.)
     // Initialize Flatpickr for the alternative date input
     if (document.getElementById('alternative-date')) {
         flatpickr(document.getElementById('alternative-date'), {
@@ -2408,6 +2606,388 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else {
         console.warn('[Flatpickr] #alternative-date input not found on DOMContentLoaded.');
     }
+    // ... existing code that was previously removed by mistake ...
 
-    // ... existing code ...
+    // --- NEW: Add event listener for AI Suggestion Button ---
+    if (getAiSuggestionBtn) {
+        getAiSuggestionBtn.addEventListener('click', handleGetAiSuggestionClick);
+        console.log('[DOMContentLoaded] Event listener added for getAiSuggestionBtn.');
+    } else {
+        console.warn('[DOMContentLoaded] getAiSuggestionBtn not found. AI features in modal may not work.');
+    }
+    // --- END NEW ---
 });
+
+// --- NEW: AI Suggestion Click Handler ---
+async function handleGetAiSuggestionClick() {
+    console.log('[AI Suggestion] "Get AI Suggestion" button clicked.');
+
+    const currentAiSuggestionSection = document.getElementById('ai-suggestion-section');
+    let currentAiSuggestionDisplay, currentAiLoadingIndicator, currentAiSuggestionError;
+    const housekeeperQuotedPriceInput = document.getElementById('housekeeper-quoted-price'); // Get ref to price input
+
+
+    if (currentAiSuggestionSection) {
+        currentAiSuggestionDisplay = currentAiSuggestionSection.querySelector('#ai-suggestion-display');
+        currentAiLoadingIndicator = currentAiSuggestionSection.querySelector('#ai-loading-indicator');
+        currentAiSuggestionError = currentAiSuggestionSection.querySelector('#ai-suggestion-error');
+    }
+
+
+    if (!currentAiSuggestionSection || !currentAiSuggestionDisplay || !currentAiLoadingIndicator || !currentAiSuggestionError || !housekeeperQuotedPriceInput) {
+        console.error('[AI Suggestion] Required AI DOM elements or quoted price input are not available.');
+        if (currentAiSuggestionError) { 
+            currentAiSuggestionError.textContent = 'Error: UI components for AI helper are missing or not ready.';
+            currentAiSuggestionError.classList.remove('hidden');
+        } else {
+            showErrorMessage('Critical Error: AI Helper UI components are missing.');
+        }
+        return;
+    }
+
+    currentAiSuggestionDisplay.innerHTML = '';
+    currentAiSuggestionError.textContent = '';
+    currentAiSuggestionError.classList.add('hidden');
+    currentAiLoadingIndicator.classList.remove('hidden');
+    if (getAiSuggestionBtn) getAiSuggestionBtn.disabled = true; 
+
+    const user = firebase.auth().currentUser;
+    if (!user) {
+        // Using showErrorMessage and console.error for different audiences
+        console.error('[AI Suggestion] User not authenticated.');
+        showErrorMessage('You must be logged in to get AI suggestions.');
+        currentAiLoadingIndicator.classList.add('hidden'); 
+        if (getAiSuggestionBtn) getAiSuggestionBtn.disabled = false; 
+        return;
+    }
+    const housekeeperId = user.uid;
+
+    const requestId = currentAiSuggestionSection.dataset.requestId;
+    const homeownerId = currentAiSuggestionSection.dataset.homeownerId;
+    
+    if (!currentOpenRequestDataForAI || currentOpenRequestDataForAI.id !== requestId) {
+        console.error('[AI Suggestion] Critical: Could not find matching request data for the AI modal. RequestID from dataset:', requestId, 'currentOpenRequestDataForAI ID:', currentOpenRequestDataForAI ? currentOpenRequestDataForAI.id : 'undefined');
+        currentAiSuggestionError.textContent = 'Error: Could not retrieve full request details for AI suggestion.';
+        currentAiSuggestionError.classList.remove('hidden');
+        if (currentAiLoadingIndicator) currentAiLoadingIndicator.classList.add('hidden');
+        if (getAiSuggestionBtn) getAiSuggestionBtn.disabled = false;
+        return;
+    }
+
+    const originalRequestServices = currentOpenRequestDataForAI.services || { baseServices: currentOpenRequestDataForAI.baseServices || [], addonServices: currentOpenRequestDataForAI.addonServices || [] };
+
+    if (!requestId || !homeownerId) {
+        currentAiSuggestionError.textContent = 'Error: Missing request ID or homeowner ID for AI suggestion.';
+        currentAiSuggestionError.classList.remove('hidden');
+        console.error('[AI Suggestion] Missing requestId or homeownerId from dataset. RequestID:', requestId, "HomeownerID:", homeownerId); // Log actual values
+        if (currentAiLoadingIndicator) currentAiLoadingIndicator.classList.add('hidden');
+        if (getAiSuggestionBtn) getAiSuggestionBtn.disabled = false;
+        return;
+    }
+
+    try {
+        const housekeeperUserProfile = await firestoreService.getUserProfile(housekeeperId);
+        const targetHourlyRate = housekeeperUserProfile?.aiPreferences?.targetHourlyRate;
+
+        if (typeof targetHourlyRate !== 'number') {
+            throw new Error("Target hourly rate is not set or invalid. Please set it in your profile settings."); // More specific error
+        }
+
+        let homeownerProfileDetails = null;
+        if (homeownerId !== 'manual_booking_client') {
+             homeownerProfileDetails = await firestoreService.getHomeownerProfile(homeownerId);
+        } else {
+            console.warn("[AI Suggestion] Cannot fetch homeowner property details for a manually booked client without a profile (homeownerId was 'manual_booking_client').");
+        }
+
+        let servicesForAIPayload = {
+            baseServices: [],
+            addonServices: []
+        };
+
+        const processServices = async (serviceList, serviceType) => {
+            if (!serviceList || !Array.isArray(serviceList)) return [];
+            
+            const processedServices = [];
+            for (const service of serviceList) {
+                if (!service.id) {
+                    console.warn(`[AI Suggestion] Service missing ID, cannot fetch details:`, service);
+                    processedServices.push(service); 
+                    continue;
+                }
+                try {
+                    const serviceDetails = await firestoreService.getServiceDetails(housekeeperId, service.id);
+                    processedServices.push({
+                        ...service, 
+                        includedTasks: serviceDetails ? serviceDetails.includedTasks || [] : [] 
+                    });
+                } catch (err) {
+                    console.error(`[AI Suggestion] Error fetching details for ${serviceType} service ${service.id}:`, err);
+                    processedServices.push(service); 
+                }
+            }
+            return processedServices;
+        };
+
+        servicesForAIPayload.baseServices = await processServices(originalRequestServices.baseServices, 'base');
+        servicesForAIPayload.addonServices = await processServices(originalRequestServices.addonServices, 'addon');
+
+        const functionPayload = {
+            housekeeperId: housekeeperId,
+            homeownerId: homeownerId,
+            requestId: requestId,
+            services: servicesForAIPayload, 
+            propertyDetails: homeownerProfileDetails ? { 
+                squareFootage: homeownerProfileDetails.squareFootage,
+                numBedrooms: homeownerProfileDetails.numBedrooms,
+                numBathrooms: homeownerProfileDetails.numBathrooms,
+                homeType: homeownerProfileDetails.homeType,
+                zipCode: homeownerProfileDetails.zipCode 
+            } : null,
+            housekeeperPreferences: {
+                targetHourlyRate: targetHourlyRate
+            }
+        };
+
+        console.log("[AI Suggestion] Calling Cloud Function 'getAIPriceAndTimeSuggestion' with payload:", functionPayload);
+
+        const getAIPriceAndTimeSuggestion = firebase.functions().httpsCallable('getAIPriceAndTimeSuggestion');
+        const result = await getAIPriceAndTimeSuggestion(functionPayload);
+
+        console.log("[AI Suggestion] Cloud Function result:", result);
+
+        if (result.data && result.data.success) {
+            const { estimatedWorkHours, suggestedPrice, explanation } = result.data.suggestion;
+            let suggestionHtml = `<p class="text-sm text-gray-700"><strong>Suggested Price:</strong> <span class="text-lg font-semibold text-primary">$${suggestedPrice.toFixed(2)}</span></p>`;
+            suggestionHtml += `<p class="text-sm text-gray-700 mt-1"><strong>Estimated Work Hours:</strong> ${estimatedWorkHours.toFixed(1)} hours</p>`;
+            if (explanation) {
+                suggestionHtml += `<div class="mt-2 p-2 bg-indigo-50 border border-indigo-200 rounded-md text-xs text-indigo-700"><p class="font-semibold mb-1">Rationale:</p><p>${explanation.replace(/\n/g, '<br>')}</p></div>`;
+            }
+            currentAiSuggestionDisplay.innerHTML = suggestionHtml;
+            // Update the housekeeper's quoted price input
+            if (housekeeperQuotedPriceInput) {
+                housekeeperQuotedPriceInput.value = suggestedPrice.toFixed(2);
+            }
+
+        } else {
+            const errorMessage = result.data && result.data.error ? result.data.error : 'Unknown error from AI suggestion service.';
+            throw new Error(errorMessage); // Throw the specific error message
+        }
+
+    } catch (error) {
+        console.error('[AI Suggestion] Error:', error);
+        // Display a more user-friendly message, error.message might be too technical or generic
+        const displayError = error.message.includes("Target hourly rate") ? error.message : 'Failed to get AI suggestion. Please try again or check settings.';
+        currentAiSuggestionError.textContent = `Error: ${displayError}`;
+        currentAiSuggestionError.classList.remove('hidden');
+        currentAiSuggestionDisplay.innerHTML = ''; // Clear any partial display
+    } finally {
+        if (currentAiLoadingIndicator) currentAiLoadingIndicator.classList.add('hidden');
+        if (getAiSuggestionBtn) getAiSuggestionBtn.disabled = false;
+    }
+}
+    // ... existing code ...
+
+// --- NEW: Helper function to display property details in the AI section of the modal ---
+async function displayPropertyDetailsInModal(homeownerId) {
+    // This function's target element ('ai-property-details-summary') was removed from HTML.
+    // The function is still called from openRequestReviewModal if homeownerId exists.
+    // To prevent errors and confusion, we can comment out its body or make it a no-op.
+    // For now, let's log that it's called and that its target is missing if that's the case.
+
+    const detailsSummaryElement = document.getElementById('ai-property-details-summary'); 
+    if (!detailsSummaryElement) {
+        console.warn('[Display Property Details In Modal] Called, but target element #ai-property-details-summary is no longer in the HTML. This function will do nothing.');
+        return;
+    }
+    
+    // Original logic below, which would now operate on a non-existent element:
+    // if (!homeownerId || homeownerId === 'manual_booking_client') {
+    //     detailsSummaryElement.innerHTML = '<p class="italic text-gray-500">Property details not available (manual booking or no profile).</p>';
+    //     return;
+    // }
+    // detailsSummaryElement.innerHTML = '<p class="italic">Loading property details...</p>';
+    // try {
+    //     const profile = await firestoreService.getHomeownerProfile(homeownerId);
+    //     if (profile) {
+    //         let detailsHtml = '<ul class="list-disc list-inside">';
+    //         detailsHtml += `<li><strong>Type:</strong> ${escapeHtml(profile.homeType || 'N/A')}</li>`;
+    //         detailsHtml += `<li><strong>Sq Ft:</strong> ${escapeHtml(profile.squareFootage || 'N/A')}</li>`;
+    //         detailsHtml += `<li><strong>Beds:</strong> ${escapeHtml(profile.numBedrooms || 'N/A')}</li>`;
+    //         detailsHtml += `<li><strong>Baths:</strong> ${escapeHtml(profile.numBathrooms || 'N/A')}</li>`;
+    //         detailsHtml += '</ul>';
+    //         detailsSummaryElement.innerHTML = detailsHtml;
+    //     } else {
+    //         detailsSummaryElement.innerHTML = '<p class="italic text-gray-500">Homeowner property details not found.</p>';
+    //     }
+    // } catch (error) {
+    //     console.error('[Property Details Modal] Error fetching homeowner profile for modal display:', error);
+    //     detailsSummaryElement.innerHTML = '<p class="italic text-red-500">Error loading property details.</p>';
+    // }
+}
+// --- END NEW Helper function ---
+
+// [Existing code at the end of the file, possibly including a DOMContentLoaded or onAuthStateChanged]
+// If a DOMContentLoaded listener already exists, the following should be integrated.
+// If not, this will establish it.
+
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('[Schedule Page] DOMContentLoaded event fired.');
+
+    loadingOverlayElement = document.getElementById('loading-overlay'); // <<< NEW: Assign global reference
+    if (!loadingOverlayElement) {
+        console.error('[Schedule Page] CRITICAL: #loading-overlay element not found on DOMContentLoaded!');
+    }
+
+    // Initialize currentWeekStart (if not already done elsewhere in an existing listener)
+    if (typeof currentWeekStart === 'undefined' || currentWeekStart === null) {
+        currentWeekStart = dateUtils.getStartOfWeek(new Date());
+        console.log('[Schedule Page] Initial currentWeekStart set by new/merged listener:', currentWeekStart);
+    }
+
+    // Initialize Flatpickr (if not already done)
+    if (typeof flatpickr !== 'undefined' && alternativeDateInput && !alternativeDateInput.classList.contains('flatpickr-input')) {
+        flatpickr(alternativeDateInput, {
+            altInput: true,
+            altFormat: "F j, Y",
+            dateFormat: "Y-m-d",
+            minDate: "today"
+        });
+        console.log('[Flatpickr] Initialized for #alternative-date by new/merged listener.');
+    }
+
+    // AI Suggestion Button Listener (if not already done)
+    if (getAiSuggestionBtn && !getAiSuggestionBtn.hasAttribute('data-listener-set')) {
+        getAiSuggestionBtn.addEventListener('click', handleGetAiSuggestionClick);
+        getAiSuggestionBtn.setAttribute('data-listener-set', 'true'); // Mark as set
+        console.log('[DOMContentLoaded] Event listener added for getAiSuggestionBtn by new/merged listener.');
+    }
+
+    // --- Event listener for the manual load schedule button --- (REMOVING THIS BLOCK)
+    // const manualLoadBtn = document.getElementById('manualLoadScheduleBtn');
+    // if (manualLoadBtn) {
+    //     manualLoadBtn.addEventListener('click', () => {
+    //         console.log('[Manual Load Button] Clicked. Calling loadUserSchedule(true).');
+    //         if (typeof loadUserSchedule === 'function') {
+    //             loadUserSchedule(true);
+    //         } else {
+    //             console.error('[Manual Load Button] loadUserSchedule function is not defined!');
+    //             alert('Error: loadUserSchedule function not found.');
+    //         }
+    //     });
+    //     console.log('[DOMContentLoaded] Event listener added for manualLoadScheduleBtn.');
+    // } else {
+    //     console.warn('[DOMContentLoaded] manualLoadScheduleBtn not found.');
+    // }
+    // --- END Manual Load Button Listener ---
+
+    // Main auth state listener
+    // Ensure this doesn't duplicate an existing one, or that they are merged carefully.
+    // For safety, this is a common pattern.
+    if (!window.authStateListenerSet) { // Prevent multiple main auth listeners
+        firebase.auth().onAuthStateChanged(async (user) => {
+            if (user) {
+                console.log('[Auth State Change] User is signed in:', user.uid);
+                userProfile = user; 
+                
+                if (window.location.pathname.includes('/housekeeper/schedule')) {
+                    console.log('[Auth State Change] On housekeeper schedule page. Attempting to load schedule.');
+                    showLoading('Initializing schedule...');
+                    if (typeof loadUserSchedule === 'function') {
+                        await loadUserSchedule(false); 
+                    } else {
+                        console.error('[Auth State Change] loadUserSchedule function is not defined!');
+                        alert('Error: loadUserSchedule function not found during auth change.');
+                    }
+                    // Fetch pending requests (this seems to work, keep it)
+                    if (typeof fetchPendingRequests === 'function' && typeof displayPendingRequests === 'function' && typeof updatePendingRequestCountBadge === 'function') {
+                        await fetchPendingRequests().then(requests => {
+                            displayPendingRequests(requests);
+                            updatePendingRequestCountBadge();
+                        });
+                    }
+                    hideLoading();
+                    console.log('[Auth State Change] Initial data load sequence potentially completed.');
+                } else {
+                    console.log('[Auth State Change] User signed in, but not on housekeeper schedule page. Path:', window.location.pathname);
+                }
+            } else {
+                console.log('[Auth State Change] User is signed out.');
+                userProfile = null;
+                // Auth-router.js should handle redirects.
+            }
+        });
+        window.authStateListenerSet = true;
+        console.log('[Auth State Change] Main listener has been set up.');
+    }
+
+
+    // Navigation and other listeners (ensure not duplicated if merging with existing DOMContentLoaded)
+    const prevWeekBtn = document.getElementById('prev-week');
+    const nextWeekBtn = document.getElementById('next-week');
+    const todayBtn = document.getElementById('today-btn');
+
+    if (prevWeekBtn && !prevWeekBtn.hasAttribute('data-listener-set')) {
+        prevWeekBtn.addEventListener('click', () => {
+            currentWeekStart = dateUtils.subtractDays(currentWeekStart, 7);
+            if(typeof updateWeekDisplay === 'function') updateWeekDisplay();
+            if(typeof loadUserSchedule === 'function') loadUserSchedule();
+        });
+        prevWeekBtn.setAttribute('data-listener-set', 'true');
+    }
+    // ... (Repeat for nextWeekBtn and todayBtn if they might also be duplicated) ...
+
+    if (nextWeekBtn && !nextWeekBtn.hasAttribute('data-listener-set')) {
+        nextWeekBtn.addEventListener('click', () => {
+            currentWeekStart = dateUtils.addDays(currentWeekStart, 7);
+            if(typeof updateWeekDisplay === 'function') updateWeekDisplay();
+            if(typeof loadUserSchedule === 'function') loadUserSchedule();
+        });
+        nextWeekBtn.setAttribute('data-listener-set', 'true');
+    }
+
+    if (todayBtn && !todayBtn.hasAttribute('data-listener-set')) {
+        todayBtn.addEventListener('click', () => {
+            currentWeekStart = dateUtils.getStartOfWeek(new Date());
+            if(typeof updateWeekDisplay === 'function') updateWeekDisplay();
+            if(typeof loadUserSchedule === 'function') loadUserSchedule();
+        });
+        todayBtn.setAttribute('data-listener-set', 'true');
+    }
+
+
+    if (viewIncomingRequestsBtn && !viewIncomingRequestsBtn.hasAttribute('data-listener-set')) {
+        viewIncomingRequestsBtn.addEventListener('click', () => {
+            // Existing toggle logic ...
+            console.log('View Incoming Requests button clicked (merged listener). Toggling visibility.');
+            if (incomingRequestsContainer && mainScheduleContainer) {
+                const isHidden = incomingRequestsContainer.classList.contains('hidden');
+                if (isHidden) {
+                    mainScheduleContainer.classList.add('hidden');
+                    incomingRequestsContainer.classList.remove('hidden');
+                    if (incomingRequestsTextLabel) incomingRequestsTextLabel.textContent = 'View Schedule';
+                    if (incomingRequestsIcon) incomingRequestsIcon.className = 'fas fa-calendar-alt mr-2';
+                    fetchPendingRequests().then(requests => {
+                        displayPendingRequests(requests);
+                        updatePendingRequestCountBadge();
+                    });
+                } else {
+                    incomingRequestsContainer.classList.add('hidden');
+                    mainScheduleContainer.classList.remove('hidden');
+                    if (incomingRequestsTextLabel) incomingRequestsTextLabel.textContent = 'Incoming Requests';
+                    if (incomingRequestsIcon) incomingRequestsIcon.className = 'fas fa-bell mr-2';
+                }
+            }
+        });
+        viewIncomingRequestsBtn.setAttribute('data-listener-set', 'true');
+    }
+
+    if(typeof updateWeekDisplay === 'function') updateWeekDisplay();
+    if(typeof updateNavigationState === 'function') updateNavigationState();
+    if(typeof updatePendingRequestCountBadge === 'function') updatePendingRequestCountBadge();
+    
+    console.log('[Schedule Page] DOMContentLoaded - All initial setup by new/merged listener potentially completed.');
+});
+
+// This console log helps confirm the script itself is parsed.
+console.log("Housekeeper schedule script loaded (final log).");
